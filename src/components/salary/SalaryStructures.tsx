@@ -57,8 +57,15 @@ import { Employee } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 import * as XLSX from "xlsx";
 import TemplateSalaryView from "@/components/salary/TemplateSalaryView";
-import { salaryTemplateService, evaluateTemplateFormula } from "@/lib/salaryTemplateService";
-import type { SalaryTemplate, TemplateSection, TemplateColumn } from "@/lib/salaryTemplateService";
+import {
+  salaryTemplateService,
+  evaluateTemplateFormula,
+} from "@/lib/salaryTemplateService";
+import type {
+  SalaryTemplate,
+  TemplateSection,
+  TemplateColumn,
+} from "@/lib/salaryTemplateService";
 
 interface SalaryCalculationData {
   // Employee Information
@@ -374,7 +381,9 @@ export default function SalaryStructures() {
   // ── Template-driven export helpers ──────────────────────────────────────────
 
   /** Get the template for a given manager (manager-specific first, then global) */
-  const getTemplateForManagerId = (managerId: string): SalaryTemplate | null => {
+  const getTemplateForManagerId = (
+    managerId: string,
+  ): SalaryTemplate | null => {
     const mgr = managers.find((m) => m.id === managerId);
     if (mgr?.salaryTemplateId) {
       const t = allTemplates.find((t) => t.id === mgr.salaryTemplateId);
@@ -405,8 +414,14 @@ export default function SalaryStructures() {
   };
 
   /** Evaluate all columns for an employee using their assigned template */
-  const buildEmployeeExportRow = (emp: Employee, sections: TemplateSection[]): Record<string, string | number> => {
-    const managerId = (Array.isArray(emp.assignedManagers) ? emp.assignedManagers[0] : emp.assignedManager) ?? "";
+  const buildEmployeeExportRow = (
+    emp: Employee,
+    sections: TemplateSection[],
+  ): Record<string, string | number> => {
+    const managerId =
+      (Array.isArray(emp.assignedManagers)
+        ? emp.assignedManagers[0]
+        : emp.assignedManager) ?? "";
     const tmpl = getTemplateForManagerId(managerId);
 
     // Build context progressively
@@ -414,7 +429,9 @@ export default function SalaryStructures() {
     const totalDaysVal = Number((s as any).totalDays ?? 30);
     const paidDaysVal = Number((s as any).paidDays ?? totalDaysVal);
     const presentDays = Number((s as any).presentDays ?? paidDaysVal);
-    const absentDays = Number((s as any).absentDays ?? Math.max(0, totalDaysVal - paidDaysVal));
+    const absentDays = Number(
+      (s as any).absentDays ?? Math.max(0, totalDaysVal - paidDaysVal),
+    );
     const ctx: Record<string, unknown> = {
       name: emp.fullName ?? "",
       employee_id: emp.employeeId ?? "",
@@ -463,16 +480,39 @@ export default function SalaryStructures() {
     for (const sec of evalSections) {
       for (const col of sec.columns) {
         let val: string | number = "-";
-        const directKeys = ["name", "employee_id", "esic_no", "uan", "basic", "da", "total_days", "paid_days"];
+        const directKeys = [
+          "name",
+          "employee_id",
+          "esic_no",
+          "uan",
+          "basic",
+          "da",
+          "total_days",
+          "paid_days",
+        ];
         if (directKeys.includes(col.key)) {
-          val = ctx[col.key] as string | number ?? "-";
+          val = (ctx[col.key] as string | number) ?? "-";
         } else if (col.formula?.expression) {
           const result = evaluateTemplateFormula(col.formula.expression, ctx);
-          val = typeof result === "number" ? Math.round(result * 100) / 100 : (result as string) || "-";
+          val =
+            typeof result === "number"
+              ? Math.round(result * 100) / 100
+              : (result as string) || "-";
           if (typeof result === "number") ctx[col.key] = result;
+        } else {
+          const storedValue =
+            (s as Record<string, unknown>)[col.key] ??
+            (emp as any).salaryOverrides?.[col.key];
+          if (!isBlankCell(storedValue) && storedValue !== "-") {
+            val = storedValue as string | number;
+          } else {
+            val = ""; // empty string so Excel shows blank, not "-"
+          }
         }
         // Only include columns that exist in the union sections (for "all managers" view)
-        const inUnion = sections.some((s) => s.columns.some((c) => c.key === col.key));
+        const inUnion = sections.some((s) =>
+          s.columns.some((c) => c.key === col.key),
+        );
         if (inUnion || tmpl) {
           row[col.label] = val;
         }
@@ -490,12 +530,7 @@ export default function SalaryStructures() {
   };
 
   const getExportData = () => {
-    const sections = selectedManagerId === "all"
-      ? getUnionSections()
-      : (() => {
-          const tmpl = getTemplateForManagerId(selectedManagerId);
-          return tmpl ? [...tmpl.sections].sort((a, b) => a.order - b.order) : getUnionSections();
-        })();
+    const sections = getActiveExportSections();
 
     if (sections.length === 0) {
       // Fallback to old format if no templates
@@ -522,7 +557,14 @@ export default function SalaryStructures() {
 
   // Export to XLSX
   const handleExportXLSX = () => {
-    const data = getExportData();
+    const data = getExportData().map((row) => {
+      const sanitized: Record<string, string | number> = {};
+      Object.entries(row).forEach(([key, value]) => {
+        sanitized[key] =
+          String(value) === "-" ? "" : (value as string | number);
+      });
+      return sanitized;
+    });
     if (!data || data.length === 0) {
       setAlert({ type: "error", message: "No data to export" });
       return;
@@ -553,27 +595,48 @@ export default function SalaryStructures() {
     a.download = `${getExportFilename()}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
-    setAlert({ type: "success", message: `CSV downloaded: ${getExportFilename()}.csv` });
+    setAlert({
+      type: "success",
+      message: `CSV downloaded: ${getExportFilename()}.csv`,
+    });
   };
 
   // Download sample file — columns match the active template
   const downloadSampleFile = () => {
-    const sections = selectedManagerId === "all"
-      ? getUnionSections()
-      : (() => {
-          const tmpl = getTemplateForManagerId(selectedManagerId);
-          return tmpl ? [...tmpl.sections].sort((a, b) => a.order - b.order) : getUnionSections();
-        })();
+    const sections =
+      selectedManagerId === "all"
+        ? getUnionSections()
+        : (() => {
+            const tmpl = getTemplateForManagerId(selectedManagerId);
+            return tmpl
+              ? [...tmpl.sections].sort((a, b) => a.order - b.order)
+              : getUnionSections();
+          })();
 
     // Build one sample row with all column labels
     const sampleRow: Record<string, string | number> = {};
     for (const sec of sections) {
       for (const col of sec.columns) {
-        const directKeys = ["name", "employee_id", "esic_no", "uan", "basic", "da", "total_days", "paid_days"];
+        const directKeys = [
+          "name",
+          "employee_id",
+          "esic_no",
+          "uan",
+          "basic",
+          "da",
+          "total_days",
+          "paid_days",
+        ];
         if (directKeys.includes(col.key)) {
           const defaults: Record<string, string | number> = {
-            name: "John Doe", employee_id: "EMP001", esic_no: "1234567890",
-            uan: "123456789012", basic: 15000, da: 775, total_days: 30, paid_days: 30,
+            name: "John Doe",
+            employee_id: "EMP001",
+            esic_no: "1234567890",
+            uan: "123456789012",
+            basic: 15000,
+            da: 775,
+            total_days: 30,
+            paid_days: 30,
           };
           sampleRow[col.label] = defaults[col.key] ?? "";
         } else {
@@ -597,7 +660,9 @@ export default function SalaryStructures() {
   const [managers, setManagers] = useState<ManagerOption[]>([]);
   const [loading, setLoading] = useState(true);
   // Active templates for export (all templates for the company)
-  const [allTemplates, setAllTemplates] = useState<import("@/lib/salaryTemplateService").SalaryTemplate[]>([]);
+  const [allTemplates, setAllTemplates] = useState<
+    import("@/lib/salaryTemplateService").SalaryTemplate[]
+  >([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedManagerId, setSelectedManagerId] = useState("all");
   const [page, setPage] = useState(0);
@@ -910,7 +975,9 @@ export default function SalaryStructures() {
     const totalDaysVal = Number((base as any).totalDays || 30);
     const paidDaysVal = Number((base as any).paidDays || totalDaysVal);
     const presentDays = Number((base as any).presentDays ?? paidDaysVal);
-    const absentDays = Number((base as any).absentDays ?? Math.max(0, totalDaysVal - paidDaysVal));
+    const absentDays = Number(
+      (base as any).absentDays ?? Math.max(0, totalDaysVal - paidDaysVal),
+    );
     const halfDayDays = Number((base as any).halfDayDays || 0);
     const leaveDays = Number((base as any).leaveDays || 0);
     const unmarkedDays = Number((base as any).unmarkedDays || 0);
@@ -1073,7 +1140,10 @@ export default function SalaryStructures() {
     loadSalaryStructureConfig();
     // Load all templates for export use
     if (currentUser?.uid) {
-      salaryTemplateService.getAll(currentUser.uid).then(setAllTemplates).catch(console.error);
+      salaryTemplateService
+        .getAll(currentUser.uid)
+        .then(setAllTemplates)
+        .catch(console.error);
     }
   }, [currentUser]);
 
@@ -1092,18 +1162,7 @@ export default function SalaryStructures() {
         setConfigLoading(true);
         if (!enableAdvancedCalculations) {
           // Overwrite the salaryStructure doc so only formulaDrafts and customColumns remain (everything else removed)
-          await setDoc(
-            doc(db, "salaryStructure", companyId),
-            {
-              companyId,
-              formulaDrafts: formulaDrafts || [],
-              customColumns: customColumns || [],
-              enableAdvancedCalculations: false,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            },
-            { merge: false },
-          );
+          await setDoc(doc(db, "salaryStructure", companyId), { merge: false });
           // Reload config to reflect the minimal state locally
           await loadSalaryStructureConfig();
           setAlert({
@@ -1860,6 +1919,106 @@ export default function SalaryStructures() {
     return matchesSearch && matchesManager;
   });
 
+  const isBlankCell = (value: unknown) =>
+    value === undefined ||
+    value === null ||
+    (typeof value === "string" && value.trim() === "");
+
+  const getRowValue = (row: Record<string, any>, keys: string[]) => {
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(row, key)) {
+        return row[key];
+      }
+    }
+    return undefined;
+  };
+
+  const resolveStringValue = (
+    rowValue: unknown,
+    existingValue: unknown,
+    defaultValue: string,
+  ) => {
+    if (!isBlankCell(rowValue)) return String(rowValue).trim();
+    if (!isBlankCell(existingValue)) return String(existingValue).trim();
+    return defaultValue;
+  };
+
+  const resolveNumberValue = (
+    rowValue: unknown,
+    existingValue: unknown,
+    defaultValue: number,
+  ) => {
+    const source = !isBlankCell(rowValue)
+      ? rowValue
+      : !isBlankCell(existingValue)
+        ? existingValue
+        : defaultValue;
+    const parsed = Number(source);
+    return Number.isFinite(parsed) ? parsed : defaultValue;
+  };
+
+  const resolveBooleanValue = (
+    rowValue: unknown,
+    existingValue: unknown,
+    defaultValue: boolean,
+  ) => {
+    if (!isBlankCell(rowValue)) {
+      if (typeof rowValue === "boolean") return rowValue;
+      const normalized = String(rowValue).trim().toLowerCase();
+      return (
+        normalized === "yes" || normalized === "true" || normalized === "1"
+      );
+    }
+    if (!isBlankCell(existingValue)) return Boolean(existingValue);
+    return defaultValue;
+  };
+
+  const normalizeUploadedCustomValue = (value: unknown) => {
+    if (isBlankCell(value)) return undefined;
+    if (typeof value === "number") return value;
+
+    const text = String(value).trim();
+    const numericValue = Number(text);
+    if (
+      text !== "" &&
+      Number.isFinite(numericValue) &&
+      String(numericValue) === text
+    ) {
+      return numericValue;
+    }
+
+    return text;
+  };
+
+  const getActiveExportSections = (): TemplateSection[] => {
+    if (selectedManagerId === "all") {
+      return getUnionSections();
+    }
+
+    const tmpl = getTemplateForManagerId(selectedManagerId);
+    return tmpl
+      ? [...tmpl.sections].sort((a, b) => a.order - b.order)
+      : getUnionSections();
+  };
+
+  const getAutoCalculatedLabels = () => {
+    // Only include columns that actually have a formula expression in the active template.
+    // Do NOT use a hardcoded list — columns like "Prof. Tax" and "MLWF" may be no-formula
+    // in some templates, and adding them here would incorrectly suppress upload warnings
+    // for those columns (Requirement 4.1, 4.2).
+    const labels = new Set<string>();
+
+    for (const section of getActiveExportSections()) {
+      for (const column of section.columns) {
+        if (column.formula?.expression) {
+          labels.add(column.label);
+        }
+      }
+    }
+
+    return labels;
+  };
+
   // File upload handler
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -1873,6 +2032,19 @@ export default function SalaryStructures() {
       const workbook = XLSX.read(data);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+      const autoCalculatedLabels = getAutoCalculatedLabels();
+      const warningFields = new Set<string>();
+      const activeSections = getActiveExportSections();
+      const directFieldKeys = new Set([
+        "name",
+        "employee_id",
+        "esic_no",
+        "uan",
+        "basic",
+        "da",
+        "total_days",
+        "paid_days",
+      ]);
 
       const updates = jsonData.map(async (row) => {
         const employee = employees.find(
@@ -1882,6 +2054,12 @@ export default function SalaryStructures() {
         );
 
         if (!employee) return null;
+
+        const existingSalary = (employee.salary ?? {}) as Record<string, any>;
+        const currentExportRow = buildEmployeeExportRow(
+          employee,
+          getActiveExportSections(),
+        );
 
         // Parse custom allowances, bonuses, and deductions
         const parseCustomItems = (str: string) => {
@@ -1898,42 +2076,180 @@ export default function SalaryStructures() {
             .filter((item) => item.label && item.amount > 0);
         };
 
+        for (const label of autoCalculatedLabels) {
+          const incomingValue = row[label];
+          if (isBlankCell(incomingValue)) continue;
+
+          const currentValue = currentExportRow[label];
+          const incomingText = String(incomingValue).trim();
+          const currentText = isBlankCell(currentValue)
+            ? ""
+            : String(currentValue).trim();
+          const numericIncoming = Number(incomingText);
+          const numericCurrent = Number(currentText);
+          const sameValue =
+            Number.isFinite(numericIncoming) && Number.isFinite(numericCurrent)
+              ? numericIncoming === numericCurrent
+              : incomingText === currentText;
+
+          if (!sameValue) {
+            warningFields.add(label);
+          }
+        }
+
         const salaryData: SalaryCalculationData = {
-          esicNo: row["ESIC No"] || "",
-          uan: row["UAN"] || "",
-          basic: parseFloat(row["Basic Salary"]) || 0,
-          da: parseFloat(row["DA"]) || 0,
-          totalDays: parseFloat(row["Total Days"]) || 30,
-          paidDays: parseFloat(row["Paid Days"]) || 30,
-          singleOTHours: parseFloat(row["Single OT Hours"]) || 0,
-          doubleOTHours: parseFloat(row["Double OT Hours"]) || 0,
-          difference: parseFloat(row["Difference"]) || 0,
-          advance: parseFloat(row["Advance"]) || 0,
-          isSkillBased: (row["Skill Based"] || "").toLowerCase() === "yes",
-          skillCategory: row["Skill Category"] || "",
-          skillAmount: parseFloat(row["Skill Amount"]) || 0,
-          customAllowances: parseCustomItems(row["Custom Allowances"] || ""),
-          customBonuses: parseCustomItems(row["Custom Bonuses"] || ""),
-          customDeductions: parseCustomItems(row["Custom Deductions"] || ""),
-          hraPercentage: 5,
-          esicEmployeePercentage: 0.75,
-          esicEmployerPercentage: 3.25,
-          pfEmployeePercentage: 12,
-          pfEmployerPercentage: 13,
-          mlwfEmployerAmount: 1,
+          esicNo: resolveStringValue(row["ESIC No"], employee.esicNo, ""),
+          uan: resolveStringValue(row["UAN"], employee.uan, ""),
+          basic: resolveNumberValue(
+            row["Basic Salary"],
+            existingSalary.basic ?? existingSalary.base,
+            0,
+          ),
+          da: resolveNumberValue(row["DA"], existingSalary.da, 0),
+          totalDays: resolveNumberValue(
+            row["Total Days"],
+            existingSalary.totalDays,
+            30,
+          ),
+          paidDays: resolveNumberValue(
+            row["Paid Days"],
+            existingSalary.paidDays ?? existingSalary.totalDays,
+            30,
+          ),
+          singleOTHours: resolveNumberValue(
+            row["Single OT Hours"],
+            existingSalary.singleOTHours,
+            0,
+          ),
+          doubleOTHours: resolveNumberValue(
+            row["Double OT Hours"],
+            existingSalary.doubleOTHours,
+            0,
+          ),
+          difference: resolveNumberValue(
+            row["Difference"],
+            existingSalary.difference,
+            0,
+          ),
+          advance: resolveNumberValue(
+            row["Advance"],
+            existingSalary.advance,
+            0,
+          ),
+          isSkillBased: resolveBooleanValue(
+            row["Skill Based"],
+            existingSalary.isSkillBased,
+            false,
+          ),
+          skillCategory: resolveStringValue(
+            row["Skill Category"],
+            existingSalary.skillCategory,
+            "",
+          ),
+          skillAmount: resolveNumberValue(
+            row["Skill Amount"],
+            existingSalary.skillAmount,
+            0,
+          ),
+          customAllowances: !isBlankCell(row["Custom Allowances"])
+            ? parseCustomItems(String(row["Custom Allowances"]))
+            : Array.isArray(existingSalary.customAllowances)
+              ? existingSalary.customAllowances
+              : [],
+          customBonuses: !isBlankCell(row["Custom Bonuses"])
+            ? parseCustomItems(String(row["Custom Bonuses"]))
+            : Array.isArray(existingSalary.customBonuses)
+              ? existingSalary.customBonuses
+              : [],
+          customDeductions: !isBlankCell(row["Custom Deductions"])
+            ? parseCustomItems(String(row["Custom Deductions"]))
+            : Array.isArray(existingSalary.customDeductions)
+              ? existingSalary.customDeductions
+              : [],
+          hraPercentage: resolveNumberValue(
+            row["HRA Percentage"],
+            existingSalary.hraPercentage ?? editData.hraPercentage,
+            editData.hraPercentage,
+          ),
+          esicEmployeePercentage: resolveNumberValue(
+            row["ESIC Employee Percentage"],
+            existingSalary.esicEmployeePercentage ??
+              editData.esicEmployeePercentage,
+            editData.esicEmployeePercentage,
+          ),
+          esicEmployerPercentage: resolveNumberValue(
+            row["ESIC Employer Percentage"],
+            existingSalary.esicEmployerPercentage ??
+              editData.esicEmployerPercentage,
+            editData.esicEmployerPercentage,
+          ),
+          pfEmployeePercentage: resolveNumberValue(
+            row["PF Employee Percentage"],
+            existingSalary.pfEmployeePercentage ??
+              editData.pfEmployeePercentage,
+            editData.pfEmployeePercentage,
+          ),
+          pfEmployerPercentage: resolveNumberValue(
+            row["PF Employer Percentage"],
+            existingSalary.pfEmployerPercentage ??
+              editData.pfEmployerPercentage,
+            editData.pfEmployerPercentage,
+          ),
+          mlwfEmployerAmount: resolveNumberValue(
+            row["MLWF Employer Amount"],
+            existingSalary.mlwfEmployerAmount ?? editData.mlwfEmployerAmount,
+            editData.mlwfEmployerAmount,
+          ),
         };
 
         const calculatedSalary = calculateFullSalary(salaryData);
+        const mergedSalary: Record<string, any> = {
+          ...calculatedSalary,
+        };
+
+        customColumns.forEach((column) => {
+          const key = normalizeColumnKey(column.name);
+          const rowValue = getRowValue(row, [column.name, key]);
+          const existingValue = existingSalary[key];
+          if (!isBlankCell(rowValue)) {
+            mergedSalary[key] = normalizeUploadedCustomValue(rowValue);
+          } else if (!isBlankCell(existingValue) && existingValue !== "-") {
+            mergedSalary[key] = existingValue;
+          }
+          // If both blank, don't set the key — avoids writing "-" to Firebase
+        });
+
+        activeSections.forEach((section) => {
+          section.columns.forEach((column) => {
+            if (column.formula?.expression || directFieldKeys.has(column.key)) {
+              return;
+            }
+
+            const rowValue = getRowValue(row, [column.label, column.key]);
+            const existingValue = existingSalary[column.key];
+            if (!isBlankCell(rowValue)) {
+              mergedSalary[column.key] = normalizeUploadedCustomValue(rowValue);
+            } else if (!isBlankCell(existingValue) && existingValue !== "-") {
+              mergedSalary[column.key] = existingValue;
+            }
+            // If both blank, don't set the key — avoids writing "-" to Firebase
+          });
+        });
 
         return updateDoc(doc(db, "employees", employee.id), {
           esicNo: salaryData.esicNo,
           uan: salaryData.uan,
-          salary: calculatedSalary,
+          salary: mergedSalary,
           updatedAt: new Date(),
         });
       });
 
       await Promise.all(updates.filter(Boolean));
+      if (warningFields.size > 0) {
+        window.alert(
+          `You are trying to update is auto-calculated from calculations, so data from following field are remain unchanged:\n${Array.from(warningFields).join(", ")}`,
+        );
+      }
       setAlert({
         type: "success",
         message: "Salary data uploaded successfully!",
@@ -2248,7 +2564,9 @@ export default function SalaryStructures() {
 
         <Button
           variant="contained"
-          startIcon={uploadLoading ? <CircularProgress size={20} /> : <Upload />}
+          startIcon={
+            uploadLoading ? <CircularProgress size={20} /> : <Upload />
+          }
           onClick={() => fileInputRef.current?.click()}
           disabled={uploadLoading}
           sx={{
@@ -2290,7 +2608,10 @@ export default function SalaryStructures() {
           page={page}
           rowsPerPage={rowsPerPage}
           onPageChange={(p) => setPage(p)}
-          onRowsPerPageChange={(r) => { setRowsPerPage(r); setPage(0); }}
+          onRowsPerPageChange={(r) => {
+            setRowsPerPage(r);
+            setPage(0);
+          }}
           onEditEmployee={(emp) => handleIndividualEdit(emp)}
         />
       </Paper>

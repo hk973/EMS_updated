@@ -133,13 +133,19 @@ function evalCol(col: TemplateColumn, ctx: Record<string, unknown>): string {
     return String(v);
   }
 
-  if (!col.formula?.expression) return "-";
+  if (col.formula?.expression) {
+    const result = evaluateTemplateFormula(col.formula.expression, ctx);
+    if (result === 0 || result === "0") return "₹0";
+    if (typeof result === "number") return `₹${formatNum(result)}`;
+    if (result === null || result === undefined || result === "") return "-";
+    return String(result);
+  }
 
-  const result = evaluateTemplateFormula(col.formula.expression, ctx);
-  if (result === 0 || result === "0") return "₹0";
-  if (typeof result === "number") return `₹${formatNum(result)}`;
-  if (result === null || result === undefined || result === "") return "-";
-  return String(result);
+  // No formula — read the pre-populated stored value from ctx
+  const v = ctx[col.key];
+  if (v === null || v === undefined || v === "" || v === "-") return "-";
+  if (typeof v === "number") return v === 0 ? "₹0" : `₹${formatNum(v)}`;
+  return String(v);
 }
 
 function formatNum(n: number): string {
@@ -343,8 +349,25 @@ export default function TemplateSalaryView({
         }
       }
 
-      // Evaluate all columns in order so formulas can reference prior results
+      // Pre-populate no-formula column values from stored salary data so:
+      // 1. evalCol can read them from ctx, and
+      // 2. formula columns that reference a no-formula column get the correct value
+      const directKeys = ["name", "employee_id", "esic_no", "uan", "basic", "da", "total_days", "paid_days"];
       const allSections = [...tmpl.sections].sort((a, b) => a.order - b.order);
+      for (const sec of allSections) {
+        for (const c of sec.columns) {
+          if (!c.formula?.expression && !directKeys.includes(c.key)) {
+            const stored =
+              (emp.salary as any)?.[c.key] ??
+              (emp as any).salaryOverrides?.[c.key];
+            if (stored !== undefined && stored !== null && stored !== "" && stored !== "-") {
+              ctx[c.key] = stored;
+            }
+          }
+        }
+      }
+
+      // Evaluate all columns in order so formulas can reference prior results
       for (const sec of allSections) {
         for (const c of sec.columns) {
           if (c.formula?.expression) {
