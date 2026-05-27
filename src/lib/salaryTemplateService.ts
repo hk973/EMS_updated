@@ -266,13 +266,34 @@ export function evaluateTemplateFormula(
       }
     );
     const keys = Object.keys(ctx);
-    const vals = keys.map((k) => ctx[k]);
+
+    // First pass: use original values (strings stay strings for if() comparisons)
+    const valsOriginal = keys.map((k) => ctx[k]);
     // eslint-disable-next-line no-new-func
     const fn = new Function(...keys, `"use strict"; return (${transformed});`);
-    const result = fn(...vals);
+    const result = fn(...valsOriginal);
+
     if (result === null || result === undefined) return 0;
-    if (typeof result === "number") return isFinite(result) ? Math.round(result * 100) / 100 : 0;
-    return result;
+    if (typeof result === "string") return result;
+    if (typeof result === "number" && isFinite(result)) {
+      return Math.round(result * 100) / 100;
+    }
+
+    // Result is NaN or Infinity — likely caused by a string variable used in arithmetic
+    // (e.g. employee_type="labor" in "basic + hra + employee_type").
+    // Retry with non-numeric strings coerced to 0.
+    const valsNumeric = keys.map((k) => {
+      const v = ctx[k];
+      if (typeof v === "string") {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : 0;
+      }
+      return v;
+    });
+    const result2 = fn(...valsNumeric);
+    if (result2 === null || result2 === undefined) return 0;
+    if (typeof result2 === "number") return isFinite(result2) ? Math.round(result2 * 100) / 100 : 0;
+    return result2;
   } catch {
     return 0;
   }

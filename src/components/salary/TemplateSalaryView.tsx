@@ -74,13 +74,26 @@ interface Props {
   onPageChange: (p: number) => void;
   onRowsPerPageChange: (r: number) => void;
   onEditEmployee: (emp: Employee) => void;
+  refreshKey?: number;
 }
 
 // ─── Formula evaluator ────────────────────────────────────────────────────────
 
 function buildEmployeeCtx(emp: Employee): Record<string, unknown> {
   const s = emp.salary ?? {};
+  // Spread ALL salary keys first so any custom column values (e.g. conv_allowance) are available
+  const allSalaryKeys: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(s)) {
+    if (v !== null && v !== undefined && v !== "-") {
+      const n = Number(v);
+      allSalaryKeys[k] = Number.isFinite(n) ? n : v;
+    } else {
+      allSalaryKeys[k] = 0;
+    }
+  }
   return {
+    // Spread all salary keys first (catches custom template columns like conv_allowance)
+    ...allSalaryKeys,
     // fixed info
     name: emp.fullName ?? "",
     employee_id: emp.employeeId ?? "",
@@ -93,6 +106,7 @@ function buildEmployeeCtx(emp: Employee): Record<string, unknown> {
     // earnings
     hra: Number(s.hra ?? 0),
     gross_rate_pm: Number(s.grossRatePM ?? 0),
+    rate_gross_pm: Number(s.grossRatePM ?? 0), // alias — some templates use this key
     gross_earning: Number(s.totalGrossEarning ?? 0),
     ot_rate: Number(s.otRatePerHour ?? 0),
     single_ot_hours: Number(s.singleOTHours ?? 0),
@@ -115,8 +129,13 @@ function buildEmployeeCtx(emp: Employee): Record<string, unknown> {
     ctc_per_month: Number(s.ctcPerMonth ?? 0),
     // employee type (custom field)
     employee_type: (emp as any).employeeType ?? (emp as any).employee_type ?? "",
-    // spread any extra salary keys
-    ...(emp as any).salaryOverrides,
+    // spread any extra salary keys (sanitize: treat "-"/null/undefined as 0)
+    ...Object.fromEntries(
+      Object.entries((emp as any).salaryOverrides ?? {}).map(([k, v]) => {
+        const n = Number(v);
+        return [k, (v === "-" || v === null || v === undefined || !Number.isFinite(n)) ? 0 : n];
+      })
+    ),
   };
 }
 
@@ -135,8 +154,8 @@ function evalCol(col: TemplateColumn, ctx: Record<string, unknown>): string {
 
   if (col.formula?.expression) {
     const result = evaluateTemplateFormula(col.formula.expression, ctx);
-    if (result === 0 || result === "0") return "₹0";
-    if (typeof result === "number") return `₹${formatNum(result)}`;
+    if (result === 0 || result === "0") return "0";
+    if (typeof result === "number") return formatNum(result);
     if (result === null || result === undefined || result === "") return "-";
     return String(result);
   }
@@ -144,7 +163,7 @@ function evalCol(col: TemplateColumn, ctx: Record<string, unknown>): string {
   // No formula — read the pre-populated stored value from ctx
   const v = ctx[col.key];
   if (v === null || v === undefined || v === "" || v === "-") return "-";
-  if (typeof v === "number") return v === 0 ? "₹0" : `₹${formatNum(v)}`;
+  if (typeof v === "number") return v === 0 ? "0" : formatNum(v);
   return String(v);
 }
 
@@ -191,6 +210,7 @@ export default function TemplateSalaryView({
   onPageChange,
   onRowsPerPageChange,
   onEditEmployee,
+  refreshKey,
 }: Props) {
   const { currentUser } = useAuth();
   const [templates, setTemplates] = useState<SalaryTemplate[]>([]);
@@ -235,6 +255,15 @@ export default function TemplateSalaryView({
       .finally(() => setLoading(false));
   }, [companyId]);
 
+  // Re-fetch templates when parent signals a refresh (e.g. after template save/assignment)
+  useEffect(() => {
+    if (!companyId || !refreshKey) return;
+    salaryTemplateService
+      .getAll(companyId)
+      .then(setTemplates)
+      .catch(console.error);
+  }, [refreshKey, companyId]);
+
   // ── Load attendance variables for all visible employees ──────────────────
 
   const visibleEmployees = useMemo(() => {
@@ -254,15 +283,10 @@ export default function TemplateSalaryView({
   useEffect(() => {
     if (paged.length === 0) return;
 
-    console.log("[TemplateSalaryView] Fetching attendance for", paged.length, "employees, period:", payPeriod);
-
     Promise.all(
       paged.map((emp) =>
         fetchAttendanceVariables(db, emp.id, payPeriod.month, payPeriod.year, payPeriod.totalDays)
-          .then((vars) => {
-            console.log(`[Attendance] emp.id=${emp.id} emp.employeeId=${emp.employeeId}`, vars);
-            return { id: emp.id, vars };
-          })
+          .then((vars) => ({ id: emp.id, vars }))
       )
     ).then((results) => {
       setAttendanceVars((prev) => {
@@ -279,11 +303,16 @@ export default function TemplateSalaryView({
   const getTemplateForManager = useCallback(
     (managerId: string): SalaryTemplate | null => {
       const mgr = managers.find((m) => m.id === managerId);
-      if (!mgr) return null;
-      if (mgr.salaryTemplateId) {
+      // 1. Manager doc has an explicit salaryTemplateId assigned via "Assign Template" dialog
+      if (mgr?.salaryTemplateId) {
         const t = templates.find((t) => t.id === mgr.salaryTemplateId);
         if (t) return t;
       }
+      // 2. Template was assigned to this manager via the template editor's "Assign to Manager" dropdown
+      //    (template.managerId === managerId)
+      const byManagerId = templates.find((t) => t.managerId === managerId);
+      if (byManagerId) return byManagerId;
+      // 3. Fall back to global template (managerId === null)
       return templates.find((t) => t.managerId === null) ?? null;
     },
     [managers, templates]
@@ -315,7 +344,14 @@ export default function TemplateSalaryView({
 
   const getCellValue = useCallback(
     (emp: Employee, section: TemplateSection, col: TemplateColumn): string => {
-      const tmpl = getTemplateForEmployee(emp);
+      // When viewing a specific manager, use that manager's template directly.
+      // When viewing "all", derive the template from the employee's assignment.
+      let tmpl: SalaryTemplate | null;
+      if (selectedManagerId !== "all") {
+        tmpl = getTemplateForManager(selectedManagerId);
+      } else {
+        tmpl = getTemplateForEmployee(emp);
+      }
       if (!tmpl) return "-";
 
       const empSection = tmpl.sections.find(
@@ -338,51 +374,50 @@ export default function TemplateSalaryView({
         ctx.paid_leave_days = vars.paid_leave_days;
         ctx.unmarked_days = vars.unmarked_days;
         ctx.total_days = vars.total_days;
-        // paid_days = present + half*0.5 + leave (unmarked treated as absent)
         ctx.paid_days = vars.present_days + vars.half_days * 0.5 + vars.leave_days + vars.paid_leave_days;
-        if (col.key === "base_after_attendance") {
-          console.log(`[Formula] ${emp.fullName} | formula="${col.formula?.expression}" | basic=${ctx.basic} total_days=${ctx.total_days} present_days=${ctx.present_days} absent_days=${ctx.absent_days}`);
-        }
-      } else {
-        if (col.key === "base_after_attendance") {
-          console.warn(`[Formula] NO attendance vars for emp.id=${emp.id} (${emp.fullName}) — formula will use defaults`);
-        }
       }
 
       // Pre-populate no-formula column values from stored salary data so:
       // 1. evalCol can read them from ctx, and
       // 2. formula columns that reference a no-formula column get the correct value
       const directKeys = ["name", "employee_id", "esic_no", "uan", "basic", "da", "total_days", "paid_days"];
-      const allSections = [...tmpl.sections].sort((a, b) => a.order - b.order);
+      // Sort sections AND columns by order so formula dependencies are always resolved correctly
+      const allSections = [...tmpl.sections]
+        .sort((a, b) => a.order - b.order)
+        .map((sec) => ({ ...sec, columns: [...sec.columns].sort((a, b) => a.order - b.order) }));
       for (const sec of allSections) {
         for (const c of sec.columns) {
           if (!c.formula?.expression && !directKeys.includes(c.key)) {
             const stored =
               (emp.salary as any)?.[c.key] ??
               (emp as any).salaryOverrides?.[c.key];
+            // Always set the key in ctx; use stored value if valid, otherwise 0
+            // so formulas referencing this column treat it as 0 instead of undefined
             if (stored !== undefined && stored !== null && stored !== "" && stored !== "-") {
               ctx[c.key] = stored;
+            } else {
+              ctx[c.key] = 0;
             }
           }
         }
       }
 
-      // Evaluate all columns in order so formulas can reference prior results
+      // Evaluate ALL columns in order first so every formula result is in ctx,
+      // then return the target column's value. This ensures cross-column dependencies
+      // (e.g. gross_earning depends on rate_gross_pm) are always resolved.
       for (const sec of allSections) {
         for (const c of sec.columns) {
           if (c.formula?.expression) {
             const val = evaluateTemplateFormula(c.formula.expression, ctx);
-            ctx[c.key] = typeof val === "number" ? val : 0;
-          }
-          if (c.key === col.key && sec.id === empSection.id) {
-            return evalCol(empCol, ctx);
+            const computed = typeof val === "number" ? val : 0;
+            ctx[c.key] = computed;
           }
         }
       }
 
       return evalCol(empCol, ctx);
     },
-    [getTemplateForEmployee, attendanceVars]
+    [getTemplateForEmployee, getTemplateForManager, selectedManagerId, attendanceVars]
   );
 
   // ── Render ────────────────────────────────────────────────────────────────

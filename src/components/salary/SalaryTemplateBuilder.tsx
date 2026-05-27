@@ -349,7 +349,7 @@ function FormulaDialog({ open, column, allKeys, onSave, onClose }: FormulaDialog
           )}
         </Box>
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mb: 1 }}>
-          {[...allKeys, "employee_type"].map((k) => (
+          {[...new Set([...allKeys, "employee_type"])].map((k) => (
             <Chip
               key={k}
               label={k}
@@ -945,6 +945,7 @@ function SectionCard({ section, getAvailableKeys, onUpdate, onDelete }: SectionC
         {!section.isFixed && (
           <Tooltip title="Delete section">
             <IconButton
+              component="span"
               size="small"
               onClick={(e) => { e.stopPropagation(); onDelete(section.id); }}
               sx={{ color: "#f44336", mr: 1 }}
@@ -1051,14 +1052,14 @@ export default function SalaryTemplateBuilder() {
         // previous sections: all columns
         sec.columns.forEach((c) => keys.push(c.key));
       }
-      return keys;
+      return [...new Set(keys)];
     },
     [editing]
   );
 
-  // All keys across entire template (for display/reference)
+  // All keys across entire template (for display/reference) — deduplicated
   const allKeys = editing
-    ? editing.sections.flatMap((s) => s.columns.map((c) => c.key))
+    ? [...new Set(editing.sections.flatMap((s) => s.columns.map((c) => c.key)))]
     : [];
 
   // ── Create new template ───────────────────────────────────────────────────

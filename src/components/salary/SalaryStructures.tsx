@@ -141,7 +141,7 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-export default function SalaryStructures() {
+export default function SalaryStructures({ refreshKey }: { refreshKey?: number }) {
   // Helper to get formatted filename (without extension)
   const getExportFilename = () => {
     const now = new Date();
@@ -385,10 +385,15 @@ export default function SalaryStructures() {
     managerId: string,
   ): SalaryTemplate | null => {
     const mgr = managers.find((m) => m.id === managerId);
+    // 1. Manager doc has an explicit salaryTemplateId (assigned via "Assign Template" dialog)
     if (mgr?.salaryTemplateId) {
       const t = allTemplates.find((t) => t.id === mgr.salaryTemplateId);
       if (t) return t;
     }
+    // 2. Template was assigned via the template editor's "Assign to Manager" dropdown
+    const byManagerId = allTemplates.find((t) => t.managerId === managerId);
+    if (byManagerId) return byManagerId;
+    // 3. Fall back to global template
     return allTemplates.find((t) => t.managerId === null) ?? null;
   };
 
@@ -449,6 +454,7 @@ export default function SalaryStructures() {
       unmarked_days: Number((s as any).unmarkedDays ?? 0),
       hra: Number((s as any).hra ?? 0),
       gross_rate_pm: Number((s as any).grossRatePM ?? 0),
+      rate_gross_pm: Number((s as any).grossRatePM ?? 0), // alias — some templates use this key
       gross_earning: Number((s as any).totalGrossEarning ?? 0),
       ot_rate: Number((s as any).otRatePerHour ?? 0),
       single_ot_hours: Number((s as any).singleOTHours ?? 0),
@@ -473,9 +479,12 @@ export default function SalaryStructures() {
     const row: Record<string, string | number> = {};
 
     // Evaluate all sections/columns in order, building ctx as we go
+    // Sort columns within each section by order so formula dependencies resolve correctly
     const evalSections = tmpl
-      ? [...tmpl.sections].sort((a, b) => a.order - b.order)
-      : sections;
+      ? [...tmpl.sections]
+          .sort((a, b) => a.order - b.order)
+          .map((sec) => ({ ...sec, columns: [...sec.columns].sort((a, b) => a.order - b.order) }))
+      : sections.map((sec) => ({ ...sec, columns: [...sec.columns].sort((a, b) => a.order - b.order) }));
 
     for (const sec of evalSections) {
       for (const col of sec.columns) {
@@ -675,6 +684,10 @@ export default function SalaryStructures() {
   const [showConfigDialog, setShowConfigDialog] = useState(false);
   const [showBulkEditDialog, setShowBulkEditDialog] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+
+  // Custom template column values for the edit dialog (key → number)
+  // These are no-formula columns from the employee's assigned template (e.g. conv_allowance, washing_allowance)
+  const [templateColumnValues, setTemplateColumnValues] = useState<Record<string, number>>({});
 
   // Form data
   const [editData, setEditData] = useState<SalaryCalculationData>({
@@ -1021,10 +1034,11 @@ export default function SalaryStructures() {
       ctc_per_month: Number(s.ctcPerMonth || 0),
     };
     // custom columns stored under salary with normalized keys (if present)
+    // Treat missing/empty values as 0 so formulas referencing them still compute correctly
     customColumns.forEach((c) => {
       const key = normalizeColumnKey(c.name);
       const value = (employee as any).salary?.[key];
-      ctx[key] = typeof value === "number" ? value : null;
+      ctx[key] = typeof value === "number" ? value : 0;
     });
     // merge overrides if present (take precedence when not '-')
     const overrides = (employee as any).salaryOverrides || {};
@@ -1043,24 +1057,15 @@ export default function SalaryStructures() {
   };
 
   const evaluateFormula = (expr: string, context: Record<string, any>) => {
-    // Identify variables first
-    const identifiers = Array.from(
-      new Set(expr.match(/([a-zA-Z_][a-zA-Z0-9_]*)/g) || []),
-    ).map((x) => x.toLowerCase());
-    // If any known identifier maps to null/'-' -> invalid
-    for (const id of identifiers) {
-      if (Object.prototype.hasOwnProperty.call(context, id)) {
-        const v = context[id];
-        if (v === null || v === undefined || v === "-" || Number.isNaN(v)) {
-          return { ok: false, value: "-" };
-        }
-      }
-    }
-    // Replace variables with values; unknowns become 0
+    // Replace variables with values; unknowns and empty/null values become 0
     const replaced = expr.replace(/([a-zA-Z_][a-zA-Z0-9_]*)/g, (m) => {
       const key = m.toLowerCase();
       if (Object.prototype.hasOwnProperty.call(context, key)) {
-        return String(context[key]);
+        const v = context[key];
+        // Treat null, undefined, "-", NaN, or non-numeric as 0
+        if (v === null || v === undefined || v === "-" || (typeof v !== "number" && typeof v !== "string")) return "0";
+        const n = Number(v);
+        return Number.isFinite(n) ? String(n) : "0";
       }
       return "0";
     });
@@ -1150,6 +1155,19 @@ export default function SalaryStructures() {
   useEffect(() => {
     setPage(0);
   }, [searchTerm, selectedManagerId]);
+
+  // Reload managers (and templates) when parent signals a refresh (e.g. after template assignment)
+  useEffect(() => {
+    if (refreshKey === undefined || refreshKey === 0) return;
+    loadManagers();
+    if (currentUser?.uid) {
+      salaryTemplateService
+        .getAll(currentUser.uid)
+        .then(setAllTemplates)
+        .catch(console.error);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   // When the advanced calculations toggle changes, persist immediate effect:
   // - If disabled: remove advanced arrays from firebase (preserve formulaDrafts)
@@ -2296,6 +2314,26 @@ export default function SalaryStructures() {
       pfEmployerPercentage: employee.salary?.pfEmployerPercentage || 13,
       mlwfEmployerAmount: employee.salary?.mlwfEmployerAmount ?? 1,
     });
+
+    // Load custom template column values (no-formula columns from the assigned template)
+    const managerId =
+      (Array.isArray(employee.assignedManagers)
+        ? employee.assignedManagers[0]
+        : employee.assignedManager) ?? "";
+    const tmpl = getTemplateForManagerId(managerId);
+    const directKeys = new Set(["name", "employee_id", "esic_no", "uan", "basic", "da", "total_days", "paid_days"]);
+    const colVals: Record<string, number> = {};
+    if (tmpl) {
+      for (const sec of tmpl.sections) {
+        for (const col of sec.columns) {
+          if (!col.formula?.expression && !directKeys.has(col.key) && !col.isFixed) {
+            colVals[col.key] = Number((employee.salary as any)?.[col.key] ?? 0);
+          }
+        }
+      }
+    }
+    setTemplateColumnValues(colVals);
+
     setShowEditDialog(true);
   };
 
@@ -2333,7 +2371,11 @@ export default function SalaryStructures() {
       await updateDoc(doc(db, "employees", editingEmployee.id), {
         esicNo: editData.esicNo,
         uan: editData.uan,
-        salary: calculatedSalary,
+        salary: {
+          ...calculatedSalary,
+          // Persist custom template column values (e.g. conv_allowance, washing_allowance)
+          ...templateColumnValues,
+        },
         // Save pre-calculated values for easy access in payroll
         grossSalary: totalGross,
         taxAmount: taxAmount,
@@ -2348,7 +2390,10 @@ export default function SalaryStructures() {
                 ...emp,
                 esicNo: editData.esicNo,
                 uan: editData.uan,
-                salary: calculatedSalary,
+                salary: {
+                  ...calculatedSalary,
+                  ...templateColumnValues,
+                },
                 grossSalary: totalGross,
                 taxAmount: taxAmount,
                 netSalary: calculatedSalary.netSalary || 0,
@@ -2373,7 +2418,7 @@ export default function SalaryStructures() {
   };
 
   const formatCurrency = (amount: number | undefined): string => {
-    return amount ? `₹${amount.toLocaleString()}` : "₹0";
+    return amount ? amount.toLocaleString() : "0";
   };
 
   if (loading) {
@@ -2613,6 +2658,7 @@ export default function SalaryStructures() {
             setPage(0);
           }}
           onEditEmployee={(emp) => handleIndividualEdit(emp)}
+          refreshKey={refreshKey}
         />
       </Paper>
       {/* Edit Salary Structure Dialog */}
@@ -2692,6 +2738,35 @@ export default function SalaryStructures() {
                 />
               </Box>
             </Box>
+
+            {/* Template Columns — no-formula columns from the assigned template (e.g. conv_allowance, washing_allowance) */}
+            {Object.keys(templateColumnValues).length > 0 && (
+              <>
+                <Divider sx={{ my: 3 }} />
+                <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+                  Salary Components
+                </Typography>
+                <Box sx={{ display: "flex", gap: 2, mb: 3, flexWrap: "wrap" }}>
+                  {Object.entries(templateColumnValues).map(([key, val]) => (
+                    <Box key={key} sx={{ flex: 1, minWidth: 200 }}>
+                      <TextField
+                        label={key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                        type="number"
+                        value={val}
+                        onChange={(e) =>
+                          setTemplateColumnValues((prev) => ({
+                            ...prev,
+                            [key]: parseFloat(e.target.value) || 0,
+                          }))
+                        }
+                        fullWidth
+                        inputProps={{ min: 0 }}
+                      />
+                    </Box>
+                  ))}
+                </Box>
+              </>
+            )}
 
             <Divider sx={{ my: 3 }} />
 
@@ -3055,7 +3130,7 @@ export default function SalaryStructures() {
                       >
                         {skillCategories.map((skill) => (
                           <MenuItem key={skill.id} value={skill.name}>
-                            {skill.name} (₹{skill.amount.toLocaleString()})
+                            {skill.name} ({skill.amount.toLocaleString()})
                           </MenuItem>
                         ))}
                       </Select>
@@ -3166,7 +3241,7 @@ export default function SalaryStructures() {
                         color="primary"
                         fontWeight={600}
                       >
-                        Skill-based adjustment: {editData.skillCategory} (₹
+                        Skill-based adjustment: {editData.skillCategory} (
                         {editData.skillAmount.toLocaleString()})
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
