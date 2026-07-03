@@ -19,6 +19,10 @@ export interface Manager {
   fullName: string;
   email: string;
   companyId: string; // Links manager to their company (admin's uid)
+  /** Password required when an admin deletes this manager */
+  managerDeletePassword?: string;
+  /** Password required when deleting an employee belonging to this manager */
+  employeeDeletePassword?: string;
   payslipBranding?: {
     companyName?: string;
     companyAddress?: string;

@@ -53,6 +53,7 @@ import {
 import { db } from "@/lib/firebase";
 import { Manager, CustomField, TableColumn } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
+import DeletePasswordDialog from "@/components/shared/DeletePasswordDialog";
 import ManagerForm from "./ManagerForm";
 import * as XLSX from "xlsx";
 import { generateUserId } from "@/lib/utils";
@@ -135,6 +136,9 @@ export default function ManagerTable() {
   const [assignMode, setAssignMode] = useState<"bulk" | "single">("bulk");
   const [employees, setEmployees] = useState<{ id: string; employeeId: string; fullName: string }[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<string>("");
+  // Delete password dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [managerToDelete, setManagerToDelete] = useState<Manager | null>(null);
 
   useEffect(() => {
     if (currentUser?.uid) {
@@ -254,6 +258,8 @@ export default function ManagerTable() {
       "createdAt",
       "updatedAt",
       "payslipBranding",
+      "managerDeletePassword",
+      "employeeDeletePassword",
     ];
 
     managersData.forEach((manager) => {
@@ -528,13 +534,23 @@ export default function ManagerTable() {
     }
   };
 
-  const handleDelete = async (managerId: string) => {
-    if (
-      !window.confirm(
+  const handleDelete = (managerId: string) => {
+    const mgr = managers.find((m) => m.id === managerId);
+    if (!mgr) return;
+    // If no password set, confirm with simple dialog
+    if (!mgr.managerDeletePassword) {
+      if (!window.confirm(
         "Are you sure you want to delete this manager?\n\nThis will permanently delete:\n• All assigned employees\n• All their attendance records\n• All their payroll records\n• All their salary slips\n• All their notifications\n\nThis action cannot be undone.",
-      )
-    ) return;
+      )) return;
+      void executeManagerDelete(managerId);
+      return;
+    }
+    // Password is set — open the password dialog
+    setManagerToDelete(mgr);
+    setDeleteDialogOpen(true);
+  };
 
+  const executeManagerDelete = async (managerId: string) => {
     try {
       // 1. Collect all employee doc IDs assigned to this manager
       const [byManagerField, byManagersArray] = await Promise.all([
@@ -569,7 +585,6 @@ export default function ManagerTable() {
             deleteByQuery("salary_slips", "employeeId", empDocId),
             deleteByQuery("notifications","userId",     empDocId),
           ]);
-          // Delete the employee doc itself
           await deleteDoc(doc(db, "employees", empDocId));
         })
       );
@@ -577,11 +592,14 @@ export default function ManagerTable() {
       // 3. Delete the manager doc
       await deleteDoc(doc(db, "managers", managerId));
       setManagers(managers.filter((m) => m.id !== managerId));
+      setDeleteDialogOpen(false);
+      setManagerToDelete(null);
 
       alert(`Manager and ${empIds.length} employee(s) with all their records have been deleted.`);
     } catch (error) {
       console.error("Error deleting manager:", error);
       alert("Error deleting manager: " + (error as Error).message);
+      throw error; // rethrow so dialog shows error
     }
   };
 
@@ -1481,6 +1499,27 @@ export default function ManagerTable() {
           setEditingManager(null);
         }}
       />
+
+      {/* Manager Delete Password Dialog */}
+      {managerToDelete && (
+        <DeletePasswordDialog
+          open={deleteDialogOpen}
+          entityType="manager"
+          entityLabel={managerToDelete.fullName}
+          passwordRequirements={[
+            {
+              managerId: managerToDelete.id,
+              managerName: managerToDelete.fullName,
+              expectedPassword: managerToDelete.managerDeletePassword ?? "",
+            },
+          ]}
+          onConfirm={() => executeManagerDelete(managerToDelete.id)}
+          onCancel={() => {
+            setDeleteDialogOpen(false);
+            setManagerToDelete(null);
+          }}
+        />
+      )}
 
       {/* Assign Employees Dialog */}
       <Dialog

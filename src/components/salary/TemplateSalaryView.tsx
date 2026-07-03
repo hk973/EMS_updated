@@ -171,34 +171,6 @@ function formatNum(n: number): string {
   return Math.round(n).toLocaleString("en-IN");
 }
 
-// ─── Build union sections for "All Managers" view ────────────────────────────
-
-function buildUnionSections(templates: SalaryTemplate[]): TemplateSection[] {
-  if (templates.length === 0) return [];
-
-  // Collect all unique sections by label (case-insensitive)
-  const sectionMap = new Map<string, TemplateSection>();
-
-  for (const tmpl of templates) {
-    for (const sec of tmpl.sections) {
-      const key = sec.label.toLowerCase().trim();
-      if (!sectionMap.has(key)) {
-        sectionMap.set(key, { ...sec, columns: [...sec.columns] });
-      } else {
-        // Merge columns — add any column keys not already present
-        const existing = sectionMap.get(key)!;
-        for (const col of sec.columns) {
-          if (!existing.columns.find((c) => c.key === col.key)) {
-            existing.columns.push(col);
-          }
-        }
-      }
-    }
-  }
-
-  return Array.from(sectionMap.values()).sort((a, b) => a.order - b.order);
-}
-
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function TemplateSalaryView({
@@ -266,38 +238,6 @@ export default function TemplateSalaryView({
 
   // ── Load attendance variables for all visible employees ──────────────────
 
-  const visibleEmployees = useMemo(() => {
-    if (selectedManagerId === "all") return employees;
-    return employees.filter((emp) => {
-      if (Array.isArray(emp.assignedManagers))
-        return emp.assignedManagers.includes(selectedManagerId);
-      return emp.assignedManager === selectedManagerId;
-    });
-  }, [employees, selectedManagerId]);
-
-  const paged = visibleEmployees.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
-
-  useEffect(() => {
-    if (paged.length === 0) return;
-
-    Promise.all(
-      paged.map((emp) =>
-        fetchAttendanceVariables(db, emp.id, payPeriod.month, payPeriod.year, payPeriod.totalDays)
-          .then((vars) => ({ id: emp.id, vars }))
-      )
-    ).then((results) => {
-      setAttendanceVars((prev) => {
-        const next = new Map(prev);
-        results.forEach(({ id, vars }) => next.set(id, vars));
-        return next;
-      });
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paged.map((e) => e.id).join(","), payPeriod]);
-
   // ── Resolve which template applies per employee ───────────────────────────
 
   const getTemplateForManager = useCallback(
@@ -320,12 +260,11 @@ export default function TemplateSalaryView({
 
   // ── Sections to display ───────────────────────────────────────────────────
 
-  const displaySections = useMemo((): TemplateSection[] => {
-    if (selectedManagerId === "all") return buildUnionSections(templates);
-    const tmpl = getTemplateForManager(selectedManagerId);
-    if (!tmpl) return [];
-    return [...tmpl.sections].sort((a, b) => a.order - b.order);
-  }, [selectedManagerId, templates, getTemplateForManager]);
+  /** The single global template (managerId === null), if any */
+  const globalTemplate = useMemo(
+    () => templates.find((t) => t.managerId === null) ?? null,
+    [templates]
+  );
 
   // ── Get template for a specific employee (for formula eval) ──────────────
 
@@ -340,7 +279,55 @@ export default function TemplateSalaryView({
     [getTemplateForManager]
   );
 
-  // ── Evaluate a column value for an employee ───────────────────────────────
+  const visibleEmployees = useMemo(() => {
+    if (selectedManagerId === "all") {
+      // No global template → show nothing
+      if (!globalTemplate) return [];
+      // Only show employees whose resolved template IS the global template
+      // (i.e. their manager has no specific override)
+      return employees.filter((emp) => {
+        const tmpl = getTemplateForEmployee(emp);
+        return tmpl?.id === globalTemplate.id;
+      });
+    }
+    return employees.filter((emp) => {
+      if (Array.isArray(emp.assignedManagers))
+        return emp.assignedManagers.includes(selectedManagerId);
+      return emp.assignedManager === selectedManagerId;
+    });
+  }, [employees, selectedManagerId, globalTemplate, getTemplateForEmployee]);
+
+  const paged = visibleEmployees.slice(
+    page * rowsPerPage,
+    page * rowsPerPage + rowsPerPage
+  );
+
+  useEffect(() => {
+    if (paged.length === 0) return;
+    Promise.all(
+      paged.map((emp) =>
+        fetchAttendanceVariables(db, emp.id, payPeriod.month, payPeriod.year, payPeriod.totalDays)
+          .then((vars) => ({ id: emp.id, vars }))
+      )
+    ).then((results) => {
+      setAttendanceVars((prev) => {
+        const next = new Map(prev);
+        results.forEach(({ id, vars }) => next.set(id, vars));
+        return next;
+      });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paged.map((e) => e.id).join(","), payPeriod]);
+
+  const displaySections = useMemo((): TemplateSection[] => {
+    if (selectedManagerId === "all") {
+      if (!globalTemplate) return [];
+      return [...globalTemplate.sections].sort((a, b) => a.order - b.order);
+    }
+    const tmpl = getTemplateForManager(selectedManagerId);
+    if (!tmpl) return [];
+    return [...tmpl.sections].sort((a, b) => a.order - b.order);
+  }, [selectedManagerId, globalTemplate, getTemplateForManager]);
 
   const getCellValue = useCallback(
     (emp: Employee, section: TemplateSection, col: TemplateColumn): string => {
@@ -445,8 +432,9 @@ export default function TemplateSalaryView({
     return (
       <Box sx={{ p: 3, textAlign: "center" }}>
         <Typography color="text.secondary">
-          No template assigned to this manager. Assign one in the{" "}
-          <strong>Salary Templates</strong> tab.
+          {selectedManagerId === "all"
+            ? "No global template found. Create a global template (not assigned to any specific manager) in the Salary Templates tab to view all employees here."
+            : "No template assigned to this manager. Assign one in the Salary Templates tab."}
         </Typography>
       </Box>
     );

@@ -231,24 +231,116 @@ export const salaryTemplateService = {
 };
 
 // ─── Formula evaluator (shared) ───────────────────────────────────────────────
-// Supports: arithmetic, if(cond, then, else), nested ifs, string comparisons
+// Supports: arithmetic, if(cond, then, else), nested ifs, multiple else-if,
+//           string comparisons, and returns 0 when no condition matches and
+//           no else branch is provided.
 
+/**
+ * Split top-level comma-separated args, respecting nested parens and strings.
+ * e.g. "a > 0, if(b > 0, 1, 2), 3"  →  ["a > 0", "if(b > 0, 1, 2)", "3"]
+ */
 function splitArgs(s: string): string[] {
   const parts: string[] = [];
   let depth = 0;
+  let inStr = false;
+  let strChar = "";
   let cur = "";
-  for (const ch of s) {
-    if (ch === "(") depth++;
-    else if (ch === ")") depth--;
-    else if (ch === "," && depth === 0) {
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      cur += ch;
+      if (ch === strChar && s[i - 1] !== "\\") inStr = false;
+    } else if (ch === '"' || ch === "'") {
+      inStr = true;
+      strChar = ch;
+      cur += ch;
+    } else if (ch === "(") {
+      depth++;
+      cur += ch;
+    } else if (ch === ")") {
+      depth--;
+      cur += ch;
+    } else if (ch === "," && depth === 0) {
       parts.push(cur.trim());
       cur = "";
-      continue;
+    } else {
+      cur += ch;
     }
-    cur += ch;
   }
   if (cur.trim()) parts.push(cur.trim());
   return parts;
+}
+
+/**
+ * Find the matching closing parenthesis position starting just after the
+ * opening '(' at `openPos` in the string `s`.
+ * Returns the index of the ')' that closes it, or -1 if not found.
+ */
+function findClosingParen(s: string, openPos: number): number {
+  let depth = 1;
+  let inStr = false;
+  let strChar = "";
+  for (let i = openPos + 1; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (ch === strChar && s[i - 1] !== "\\") inStr = false;
+    } else if (ch === '"' || ch === "'") {
+      inStr = true;
+      strChar = ch;
+    } else if (ch === "(") {
+      depth++;
+    } else if (ch === ")") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Transform all if(...) calls in `expr` into JS ternaries, handling:
+ *  - 3-arg form:  if(cond, thenVal, elseVal)  → ((cond) ? (thenVal) : (elseVal))
+ *  - 2-arg form:  if(cond, thenVal)            → ((cond) ? (thenVal) : 0)
+ *  - Recursion:   nested if() inside any arg works correctly
+ *
+ * Walks from innermost to outermost so nesting is always resolved before
+ * the outer call is processed.
+ */
+function transformIf(expr: string): string {
+  // Keep transforming until no more if( calls remain
+  let result = expr;
+  let safety = 0;
+  while (/\bif\s*\(/i.test(result) && safety++ < 200) {
+    // Find the LAST (innermost) occurrence of `if(` — this guarantees we
+    // always process the deepest nested call first
+    const ifMatch = [...result.matchAll(/\bif\s*\(/gi)].pop();
+    if (!ifMatch || ifMatch.index === undefined) break;
+
+    const openIdx = ifMatch.index + ifMatch[0].length - 1; // position of '('
+    const closeIdx = findClosingParen(result, openIdx);
+    if (closeIdx === -1) break; // unbalanced parens — give up
+
+    const inner = result.slice(openIdx + 1, closeIdx);
+    const args = splitArgs(inner);
+
+    let ternary: string;
+    if (args.length >= 3) {
+      // if(cond, thenVal, elseVal)
+      ternary = `((${args[0]}) ? (${args[1]}) : (${args[2]}))`;
+    } else if (args.length === 2) {
+      // if(cond, thenVal)  — no else → default 0
+      ternary = `((${args[0]}) ? (${args[1]}) : 0)`;
+    } else {
+      // malformed — replace with 0
+      ternary = "0";
+    }
+
+    result =
+      result.slice(0, ifMatch.index) +
+      ternary +
+      result.slice(closeIdx + 1);
+  }
+  return result;
 }
 
 export function evaluateTemplateFormula(
@@ -257,21 +349,47 @@ export function evaluateTemplateFormula(
 ): number | string {
   if (!expr.trim()) return 0;
   try {
-    const transformed = expr.replace(/\bif\s*\(/gi, "__if__(").replace(
-      /__if__\(([^)]+)\)/g,
-      (_, inner) => {
-        const parts = splitArgs(inner);
-        if (parts.length !== 3) return "0";
-        return `((${parts[0]}) ? (${parts[1]}) : (${parts[2]}))`;
-      }
-    );
+    // Pre-process: convert Excel/common math functions to JS equivalents
+    // ROUND(x, n) → Math.round(x * 10^n) / 10^n  — handled inline via __ROUND__
+    // We inject Math helpers directly into the function scope instead
+    const transformed = transformIf(expr.trim())
+      // Excel-style math functions → JS Math equivalents (case-insensitive)
+      .replace(/\bROUND\s*\(/gi, "Math.round(")
+      .replace(/\bROUNDUP\s*\(/gi, "Math.ceil(")
+      .replace(/\bROUNDDOWN\s*\(/gi, "Math.floor(")
+      .replace(/\bCEIL\s*\(/gi, "Math.ceil(")
+      .replace(/\bFLOOR\s*\(/gi, "Math.floor(")
+      .replace(/\bABS\s*\(/gi, "Math.abs(")
+      .replace(/\bMIN\s*\(/gi, "Math.min(")
+      .replace(/\bMAX\s*\(/gi, "Math.max(")
+      .replace(/\bSQRT\s*\(/gi, "Math.sqrt(")
+      .replace(/\bPOW\s*\(/gi, "Math.pow(")
+      .replace(/\bINT\s*\(/gi, "Math.trunc(")
+      .replace(/\bTRUNC\s*\(/gi, "Math.trunc(");
+
+    // ROUND(x, n) in Excel takes 2 args: value and decimal places.
+    // Math.round only takes 1. We need to keep ROUND(x, n) working.
+    // Replace Math.round(x, n) → our __round__(x, n) helper
+    const finalExpr = transformed.replace(/Math\.round\s*\(/g, "__round__(");
+
     const keys = Object.keys(ctx);
 
-    // First pass: use original values (strings stay strings for if() comparisons)
+    // First pass: use original values (strings stay strings for comparisons like
+    // employee_type == "labor")
     const valsOriginal = keys.map((k) => ctx[k]);
+
+    // __round__(value, decimals) helper — matches Excel ROUND behaviour
+    const __round__ = (v: unknown, dec: unknown) => {
+      const n = Number(v);
+      const d = Number(dec ?? 0);
+      if (!isFinite(n)) return 0;
+      const factor = Math.pow(10, d);
+      return Math.round(n * factor) / factor;
+    };
+
     // eslint-disable-next-line no-new-func
-    const fn = new Function(...keys, `"use strict"; return (${transformed});`);
-    const result = fn(...valsOriginal);
+    const fn = new Function("__round__", ...keys, `"use strict"; return (${finalExpr});`);
+    const result = fn(__round__, ...valsOriginal);
 
     if (result === null || result === undefined) return 0;
     if (typeof result === "string") return result;
@@ -279,7 +397,7 @@ export function evaluateTemplateFormula(
       return Math.round(result * 100) / 100;
     }
 
-    // Result is NaN or Infinity — likely caused by a string variable used in arithmetic
+    // Result is NaN or Infinity — likely a string variable used in arithmetic
     // (e.g. employee_type="labor" in "basic + hra + employee_type").
     // Retry with non-numeric strings coerced to 0.
     const valsNumeric = keys.map((k) => {
@@ -290,8 +408,9 @@ export function evaluateTemplateFormula(
       }
       return v;
     });
-    const result2 = fn(...valsNumeric);
+    const result2 = fn(__round__, ...valsNumeric);
     if (result2 === null || result2 === undefined) return 0;
+    if (typeof result2 === "string") return result2;
     if (typeof result2 === "number") return isFinite(result2) ? Math.round(result2 * 100) / 100 : 0;
     return result2;
   } catch {

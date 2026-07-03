@@ -64,6 +64,8 @@ type ManagerFormValues = {
   logoUrl: string;
   stampUrl: string;
   signUrl: string;
+  managerDeletePassword: string;
+  employeeDeletePassword: string;
   [key: string]: string;
 };
 
@@ -89,6 +91,8 @@ const schema = yup
     logoUrl: yup.string().default(""),
     stampUrl: yup.string().default(""),
     signUrl: yup.string().default(""),
+    managerDeletePassword: yup.string().default(""),
+    employeeDeletePassword: yup.string().default(""),
   })
   .required();
 
@@ -139,6 +143,8 @@ export default function ManagerForm({
               "updatedAt",
               "status",
               "payslipBranding",
+              "managerDeletePassword",
+              "employeeDeletePassword",
             ].includes(key)
           ) {
             allFields.add(key);
@@ -181,6 +187,8 @@ export default function ManagerForm({
       logoUrl: "",
       stampUrl: "",
       signUrl: "",
+      managerDeletePassword: "",
+      employeeDeletePassword: "",
     },
   });
 
@@ -207,6 +215,9 @@ export default function ManagerForm({
       setValue("logoUrl", String(branding.logoUrl || ""));
       setValue("stampUrl", String(branding.stampUrl || ""));
       setValue("signUrl", String(branding.signUrl || ""));
+      // Populate delete passwords if set
+      setValue("managerDeletePassword", String(manager.managerDeletePassword || ""));
+      setValue("employeeDeletePassword", String(manager.employeeDeletePassword || ""));
       // Add all other dynamic fields from the manager
       const additionalFields: { name: string; value: string }[] = [];
       Object.entries(manager).forEach(([key, value]) => {
@@ -221,6 +232,8 @@ export default function ManagerForm({
             "updatedAt",
             "status",
             "payslipBranding",
+            "managerDeletePassword",
+            "employeeDeletePassword",
           ].includes(key) &&
           value !== null &&
           value !== undefined &&
@@ -247,6 +260,8 @@ export default function ManagerForm({
       setValue("logoUrl", "");
       setValue("stampUrl", "");
       setValue("signUrl", "");
+      setValue("managerDeletePassword", "");
+      setValue("employeeDeletePassword", "");
       setMoreInfoFields([]);
     }
   }, [manager, open, setValue, reset, existingFields]);
@@ -361,7 +376,7 @@ export default function ManagerForm({
       await checkDuplicates(data.managerId, data.email);
 
       // Prepare manager data
-      const managerData = {
+      const managerData: Record<string, any> = {
         managerId: data.managerId,
         fullName: data.fullName,
         email: data.email,
@@ -393,6 +408,14 @@ export default function ManagerForm({
           signUrl: String(data.signUrl || ""),
         },
       };
+
+      // Always persist delete passwords (even on edit — allows updating them)
+      if (data.managerDeletePassword?.trim()) {
+        managerData.managerDeletePassword = data.managerDeletePassword.trim();
+      }
+      if (data.employeeDeletePassword?.trim()) {
+        managerData.employeeDeletePassword = data.employeeDeletePassword.trim();
+      }
 
       // Add custom fields
       moreInfoFields.forEach((field) => {
@@ -745,6 +768,52 @@ export default function ManagerForm({
                     {getUploadStatus("signUrl")?.message}
                   </Typography>
                 )}
+              </Box>
+
+              {/* Delete Password Section */}
+              <Box sx={{ gridColumn: "1 / -1", mt: 1 }}>
+                <Divider sx={{ borderColor: "#3b3b3b", mb: 2 }} />
+                <Typography variant="h6" gutterBottom sx={{ color: "#ff9800" }}>
+                  Delete Protection Passwords
+                </Typography>
+                <Typography variant="body2" sx={{ color: "#9ca3af", mb: 2 }}>
+                  These passwords will be required to confirm delete actions.
+                  Keep them safe — they cannot be recovered from the UI, only updated.
+                </Typography>
+              </Box>
+
+              <Box>
+                <Controller
+                  name="managerDeletePassword"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      fullWidth
+                      label="Manager Delete Password"
+                      type="password"
+                      helperText="Admin must enter this to delete this manager"
+                      placeholder="Set a password to protect manager deletion"
+                    />
+                  )}
+                />
+              </Box>
+
+              <Box>
+                <Controller
+                  name="employeeDeletePassword"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      fullWidth
+                      label="Employee Delete Password"
+                      type="password"
+                      helperText="Required when deleting any employee assigned to this manager"
+                      placeholder="Set a password to protect employee deletion"
+                    />
+                  )}
+                />
               </Box>
 
               {/* Existing Custom Fields from other managers */}

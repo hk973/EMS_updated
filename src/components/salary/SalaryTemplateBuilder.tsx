@@ -67,8 +67,87 @@ const normalize = (s: string) =>
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
 
-// ─── Formula evaluator ────────────────────────────────────────────────────────
-// Supports: arithmetic, if(cond, then, else), nested if, string comparisons, string concat (+)
+// ─── Formula evaluator (preview) ─────────────────────────────────────────────
+// Supports: arithmetic, if(cond, then, else), nested ifs, multiple else-if,
+//           string comparisons. No-else if() returns 0.
+
+/** Split top-level comma-separated args, respecting nested parens and strings. */
+function splitArgs(s: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let inStr = false;
+  let strChar = "";
+  let cur = "";
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      cur += ch;
+      if (ch === strChar && s[i - 1] !== "\\") inStr = false;
+    } else if (ch === '"' || ch === "'") {
+      inStr = true; strChar = ch; cur += ch;
+    } else if (ch === "(") {
+      depth++; cur += ch;
+    } else if (ch === ")") {
+      depth--; cur += ch;
+    } else if (ch === "," && depth === 0) {
+      parts.push(cur.trim()); cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur.trim()) parts.push(cur.trim());
+  return parts;
+}
+
+/** Find matching closing ')' starting just after `openPos`. Returns index or -1. */
+function findClosingParen(s: string, openPos: number): number {
+  let depth = 1;
+  let inStr = false;
+  let strChar = "";
+  for (let i = openPos + 1; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (ch === strChar && s[i - 1] !== "\\") inStr = false;
+    } else if (ch === '"' || ch === "'") {
+      inStr = true; strChar = ch;
+    } else if (ch === "(") {
+      depth++;
+    } else if (ch === ")") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Transform all if(...) calls into JS ternaries, innermost-first.
+ *  - 3-arg: if(cond, thenVal, elseVal) → ((cond) ? (thenVal) : (elseVal))
+ *  - 2-arg: if(cond, thenVal)          → ((cond) ? (thenVal) : 0)
+ */
+function transformIf(expr: string): string {
+  let result = expr;
+  let safety = 0;
+  while (/\bif\s*\(/i.test(result) && safety++ < 200) {
+    const ifMatch = [...result.matchAll(/\bif\s*\(/gi)].pop();
+    if (!ifMatch || ifMatch.index === undefined) break;
+    const openIdx = ifMatch.index + ifMatch[0].length - 1;
+    const closeIdx = findClosingParen(result, openIdx);
+    if (closeIdx === -1) break;
+    const inner = result.slice(openIdx + 1, closeIdx);
+    const args = splitArgs(inner);
+    let ternary: string;
+    if (args.length >= 3) {
+      ternary = `((${args[0]}) ? (${args[1]}) : (${args[2]}))`;
+    } else if (args.length === 2) {
+      ternary = `((${args[0]}) ? (${args[1]}) : 0)`;
+    } else {
+      ternary = "0";
+    }
+    result = result.slice(0, ifMatch.index) + ternary + result.slice(closeIdx + 1);
+  }
+  return result;
+}
 
 function evaluateFormula(expr: string, ctx: Record<string, unknown>): string {
   if (!expr.trim()) return "-";
@@ -76,40 +155,41 @@ function evaluateFormula(expr: string, ctx: Record<string, unknown>): string {
     const keys = Object.keys(ctx);
     const vals = keys.map((k) => ctx[k]);
 
-    // Replace if(...) with ternary — supports nested
-    const transformed = expr
-      .replace(/\bif\s*\(/gi, "__if__(")
-      .replace(/__if__\(([^)]+)\)/g, (_, inner) => {
-        const parts = splitArgs(inner);
-        if (parts.length !== 3) return "0";
-        return `((${parts[0]}) ? (${parts[1]}) : (${parts[2]}))`;
-      });
+    const transformed = transformIf(expr.trim())
+      .replace(/\bROUND\s*\(/gi, "Math.round(")
+      .replace(/\bROUNDUP\s*\(/gi, "Math.ceil(")
+      .replace(/\bROUNDDOWN\s*\(/gi, "Math.floor(")
+      .replace(/\bCEIL\s*\(/gi, "Math.ceil(")
+      .replace(/\bFLOOR\s*\(/gi, "Math.floor(")
+      .replace(/\bABS\s*\(/gi, "Math.abs(")
+      .replace(/\bMIN\s*\(/gi, "Math.min(")
+      .replace(/\bMAX\s*\(/gi, "Math.max(")
+      .replace(/\bSQRT\s*\(/gi, "Math.sqrt(")
+      .replace(/\bPOW\s*\(/gi, "Math.pow(")
+      .replace(/\bINT\s*\(/gi, "Math.trunc(")
+      .replace(/\bTRUNC\s*\(/gi, "Math.trunc(");
+
+    const finalExpr = transformed.replace(/Math\.round\s*\(/g, "__round__(");
+
+    const __round__ = (v: unknown, dec: unknown) => {
+      const n = Number(v);
+      const d = Number(dec ?? 0);
+      if (!isFinite(n)) return 0;
+      const factor = Math.pow(10, d);
+      return Math.round(n * factor) / factor;
+    };
 
     // eslint-disable-next-line no-new-func
-    const fn = new Function(...keys, `"use strict"; return (${transformed});`);
-    const result = fn(...vals);
+    const fn = new Function("__round__", ...keys, `"use strict"; return (${finalExpr});`);
+    const result = fn(__round__, ...vals);
     if (result === null || result === undefined) return "-";
     if (result === "") return '""';
+    if (typeof result === "string") return result;
     if (typeof result === "number") return isFinite(result) ? String(Math.round(result * 100) / 100) : "-";
     return String(result);
   } catch {
     return "error";
   }
-}
-
-/** Split top-level comma-separated args (respects nested parens) */
-function splitArgs(s: string): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let cur = "";
-  for (const ch of s) {
-    if (ch === "(" ) depth++;
-    else if (ch === ")") depth--;
-    else if (ch === "," && depth === 0) { parts.push(cur.trim()); cur = ""; continue; }
-    cur += ch;
-  }
-  if (cur.trim()) parts.push(cur.trim());
-  return parts;
 }
 
 // ─── Condition builder types ──────────────────────────────────────────────────
@@ -155,7 +235,8 @@ const SAMPLE_CTX: Record<string, unknown> = {
   basic: 15000, da: 775, hra: 788, paid_days: 26,
   gross_rate_pm: 16563, gross_earning: 14355, ot_rate: 69.01,
   single_ot_hours: 0, double_ot_hours: 0, ot_amount: 0, difference: 0,
-  total_gross: 14355, professional_tax: 200, esic_employee: 108,
+  total_gross: 14355,
+  professional_tax: 200, esic_employee: 108,
   pf_base: 13400, pf_employee: 1608, advance: 0, total_deduction: 1916,
   net_salary: 12439, esic_employer: 467, pf_employer: 1742,
   mlwf_employer: 1, ctc_per_month: 16565,
@@ -174,6 +255,138 @@ export const ATTENDANCE_VARIABLES: { key: string; label: string }[] = [
   { key: "unmarked_days",   label: "Unmarked Days" },
   { key: "total_days",      label: "Total Days" },
 ];
+
+// ─── Excel → EMS formula converter ───────────────────────────────────────────
+
+/**
+ * Converts an Excel-style formula to EMS template formula syntax.
+ *
+ * Handles:
+ *  - IF(cond, then, else)        → if(cond, then, else)
+ *  - AND(a, b, ...)              → (a && b && ...)
+ *  - OR(a, b, ...)               → (a || b || ...)
+ *  - NOT(a)                      → (!a)
+ *  - =  (equality operator)      → ==   (only when standalone, not >= <=)
+ *  - <> (not-equal)              → !=
+ *  - TRUE / FALSE                → true / false
+ *  - & (string concat)           → +
+ *  - Removes leading = from formula
+ */
+function convertExcelFormula(raw: string): { result: string; warnings: string[]; cellRefs: string[] } {
+  const warnings: string[] = [];
+  let s = raw.trim();
+
+  // Strip leading = (Excel formula bar prefix)
+  if (s.startsWith("=")) s = s.slice(1).trim();
+
+  // Recursively process function calls from innermost outward
+  // We replace: IF(, AND(, OR(, NOT(  (case-insensitive)
+  let safety = 0;
+  while (/\b(IF|AND|OR|NOT)\s*\(/i.test(s) && safety++ < 300) {
+    s = s.replace(/\b(IF|AND|OR|NOT)\s*\(/gi, (_, fn) => `__EX_${fn.toUpperCase()}__(`);
+
+    // Process innermost __EX_XXX__(...) — no nested parens inside
+    s = s.replace(/__EX_(IF|AND|OR|NOT)__\(([^()]*)\)/g, (_, fn: string, inner: string) => {
+      const args = splitExcelArgs(inner);
+      switch (fn) {
+        case "IF": {
+          if (args.length === 3) return `if(${args[0]}, ${args[1]}, ${args[2]})`;
+          if (args.length === 2) return `if(${args[0]}, ${args[1]})`;
+          warnings.push(`IF with ${args.length} args — check manually`);
+          return `if(${args.join(", ")})`;
+        }
+        case "AND":
+          return `(${args.join(" && ")})`;
+        case "OR":
+          return `(${args.join(" || ")})`;
+        case "NOT":
+          return `(!${args[0]})`;
+        default:
+          return inner;
+      }
+    });
+  }
+
+  // Clean up any leftover __EX_XXX__ markers (shouldn't happen but safety)
+  s = s.replace(/__EX_(IF|AND|OR|NOT)__/g, (_, fn) => fn.toLowerCase());
+
+  // <> → !=
+  s = s.replace(/<>/g, "!=");
+
+  // Standalone = → ==
+  // Must not touch >= <= != ==
+  s = s.replace(/([^!<>=])=([^=])/g, "$1==$2");
+  // Edge case: = at start of token
+  s = s.replace(/^=([^=])/g, "==$1");
+
+  // TRUE / FALSE (whole word, case-insensitive) → JS booleans
+  s = s.replace(/\bTRUE\b/gi, "true").replace(/\bFALSE\b/gi, "false");
+
+  // Strip quotes from purely numeric string literals: "0" → 0, "175" → 175
+  // These come from Excel formulas where users wrote IF(cond,"200",0) instead of IF(cond,200,0)
+  // Match "123", "123.45", "-123" — but NOT strings like "labor" or "active"
+  s = s.replace(/"(-?\d+(?:\.\d+)?)"/g, "$1");
+  s = s.replace(/'(-?\d+(?:\.\d+)?)'/g, "$1");
+
+  // String concat & → +  (but not && which we already placed)
+  s = s.replace(/([^&])&([^&])/g, "$1+$2");
+  s = s.replace(/^&/, "+").replace(/&$/, "+");
+
+  // Detect Excel cell refs like A1, B12, AA3
+  const cellRefMatches = s.match(/\b[A-Z]{1,3}\d+\b/g);
+  const cellRefs = cellRefMatches ? [...new Set(cellRefMatches)] : [];
+
+  // Excel functions we don't handle — warn
+  const unknownFns = s.match(/\b([A-Z][A-Z0-9_]+)\s*\(/g);
+  if (unknownFns) {
+    const names = unknownFns.map((f) => f.replace(/\s*\($/, ""));
+    warnings.push(`Unsupported Excel functions: ${names.join(", ")} — convert manually`);
+  }
+
+  return { result: s.trim(), warnings, cellRefs };
+}
+
+/** Apply cell ref → variable name mappings to a converted formula string */
+function applyCellMappings(formula: string, mappings: Record<string, string>): string {
+  let result = formula;
+  // Sort longest refs first to avoid partial replacement (e.g. AA1 before A1)
+  const sorted = Object.keys(mappings).sort((a, b) => b.length - a.length);
+  for (const ref of sorted) {
+    const varName = mappings[ref]?.trim();
+    if (!varName) continue;
+    // Replace whole-word occurrences only
+    result = result.replace(new RegExp(`\\b${ref}\\b`, "g"), varName);
+  }
+  return result;
+}
+
+/** Split comma-separated Excel args, respecting nested parens and strings */
+function splitExcelArgs(s: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let inStr = false;
+  let strChar = "";
+  let cur = "";
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      cur += ch;
+      if (ch === strChar) inStr = false;
+    } else if (ch === '"' || ch === "'") {
+      inStr = true; strChar = ch; cur += ch;
+    } else if (ch === "(") {
+      depth++; cur += ch;
+    } else if (ch === ")") {
+      depth--; cur += ch;
+    } else if (ch === "," && depth === 0) {
+      parts.push(cur.trim()); cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur.trim()) parts.push(cur.trim());
+  return parts;
+}
 
 function FormulaDialog({ open, column, allKeys, onSave, onClose }: FormulaDialogProps) {
   const [mode, setMode] = useState<"simple" | "conditional">("simple");
@@ -196,17 +409,29 @@ function FormulaDialog({ open, column, allKeys, onSave, onClose }: FormulaDialog
     { id: uid(), left: "basic", op: ">", right: "10000", thenExpr: "basic * 0.05", elseExpr: "0" },
   ]);
 
+  // Excel converter state
+  const [excelInput, setExcelInput] = useState("");
+  const [convertResult, setConvertResult] = useState<{ result: string; warnings: string[] } | null>(null);
+  // Cell ref → variable mapping: { A1: "basic", B1: "da", ... }
+  const [cellMappings, setCellMappings] = useState<Record<string, string>>({});
+  // Step: "input" | "mapping" | "done"
+  const [converterStep, setConverterStep] = useState<"input" | "mapping" | "done">("input");
+
   useEffect(() => {
     const raw = column?.formula?.expression ?? "";
     setExpr(raw);
     setDesc(column?.formula?.description ?? "");
     setMode(raw.toLowerCase().includes("if(") ? "conditional" : "simple");
     setFocusedCondField(null);
+    conditionsReady.current = false; // reset so sync doesn't fire on open
   }, [column]);
 
   // Sync condition builder → raw expr
+  // conditionsReady guards against the initial render overwriting the loaded formula
+  const conditionsReady = React.useRef(false);
   useEffect(() => {
-    if (mode !== "conditional") return;
+    if (mode !== "conditional") { conditionsReady.current = false; return; }
+    if (!conditionsReady.current) { conditionsReady.current = true; return; }
     if (conditions.length === 0) return;
     let built = conditions[conditions.length - 1].elseExpr || "0";
     for (let i = conditions.length - 1; i >= 0; i--) {
@@ -475,6 +700,194 @@ function FormulaDialog({ open, column, allKeys, onSave, onClose }: FormulaDialog
         )}
 
         <Divider sx={{ my: 2, borderColor: "#333" }} />
+
+        {/* Excel formula converter */}
+        <Accordion sx={{ mb: 2, backgroundColor: "#1a1a1a", border: "1px solid #2196f3" }}>
+          <AccordionSummary expandIcon={<ExpandMore sx={{ color: "#90caf9" }} />}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Functions sx={{ color: "#2196f3", fontSize: 18 }} />
+              <Typography variant="caption" sx={{ color: "#90caf9", fontWeight: 600 }}>
+                Excel Formula Converter — paste Excel formula, get EMS formula
+              </Typography>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+
+            {/* ── Step 1: Paste input ── */}
+            {converterStep === "input" && (
+              <Box>
+                <Typography variant="caption" sx={{ color: "#888", display: "block", mb: 1 }}>
+                  Paste your Excel formula. Cell refs like A1, B2 will be detected and you can map them to variable names.
+                </Typography>
+                <TextField
+                  label="Paste Excel Formula here"
+                  value={excelInput}
+                  onChange={(e) => { setExcelInput(e.target.value); setConvertResult(null); }}
+                  fullWidth
+                  multiline
+                  rows={2}
+                  sx={{ mb: 1, "& textarea": { fontFamily: "monospace", fontSize: 12 } }}
+                  placeholder={"e.g.  =IF(AND(A1>=10000,A1<=20000),A1*0.05,0)"}
+                />
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<PlayArrow />}
+                  onClick={() => {
+                    if (!excelInput.trim()) return;
+                    const res = convertExcelFormula(excelInput);
+                    setConvertResult(res);
+                    // Pre-fill mappings with empty strings for each detected ref
+                    const initial: Record<string, string> = {};
+                    res.cellRefs.forEach((ref) => { initial[ref] = ""; });
+                    setCellMappings(initial);
+                    // If cell refs found → go to mapping step; else go straight to done
+                    setConverterStep(res.cellRefs.length > 0 ? "mapping" : "done");
+                  }}
+                  sx={{ backgroundColor: "#2196f3", "&:hover": { backgroundColor: "#1565c0" } }}
+                >
+                  Convert
+                </Button>
+              </Box>
+            )}
+
+            {/* ── Step 2: Map cell refs to variable names ── */}
+            {converterStep === "mapping" && convertResult && (
+              <Box>
+                <Typography variant="body2" sx={{ color: "#fff", mb: 0.5, fontWeight: 600 }}>
+                  Map cell references to variable names
+                </Typography>
+                <Typography variant="caption" sx={{ color: "#888", display: "block", mb: 2 }}>
+                  Each cell reference found in your formula needs to be replaced with an EMS variable (e.g. <code style={{ color: "#4caf50" }}>basic</code>, <code style={{ color: "#4caf50" }}>da</code>, <code style={{ color: "#4caf50" }}>paid_days</code>). Leave blank to keep as-is.
+                </Typography>
+
+                {/* Show partially converted formula for reference */}
+                <Paper sx={{ p: 1, mb: 2, backgroundColor: "#0d1117", border: "1px solid #333" }}>
+                  <Typography variant="caption" sx={{ color: "#666", display: "block" }}>Converted so far (cell refs still need replacing):</Typography>
+                  <Typography sx={{ fontFamily: "monospace", fontSize: 11, color: "#aaa", wordBreak: "break-all" }}>
+                    {convertResult.result}
+                  </Typography>
+                </Paper>
+
+                {Object.keys(cellMappings).map((ref) => (
+                  <Box key={ref} sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1.5 }}>
+                    <Paper sx={{ px: 1.5, py: 0.75, backgroundColor: "#1e1e1e", border: "1px solid #555", borderRadius: 1, minWidth: 56, textAlign: "center" }}>
+                      <Typography sx={{ fontFamily: "monospace", fontSize: 13, color: "#f59e0b", fontWeight: 700 }}>
+                        {ref}
+                      </Typography>
+                    </Paper>
+                    <Typography sx={{ color: "#666", fontSize: 18 }}>→</Typography>
+                    <TextField
+                      size="small"
+                      label={`Replace ${ref} with`}
+                      value={cellMappings[ref]}
+                      onChange={(e) => setCellMappings((prev) => ({ ...prev, [ref]: e.target.value }))}
+                      placeholder="e.g. basic"
+                      sx={{ flex: 1, "& input": { fontFamily: "monospace", fontSize: 12 } }}
+                      select={allKeys.length > 0}
+                      SelectProps={allKeys.length > 0 ? { displayEmpty: true } : undefined}
+                    >
+                      {allKeys.length > 0 && [
+                        <MenuItem key="" value=""><em style={{ color: "#666" }}>— type custom or pick —</em></MenuItem>,
+                        ...[ ...new Set([...allKeys, "basic","da","hra","paid_days","total_days","gross_rate_pm",
+                          "gross_earning","ot_amount","professional_tax","esic_employee","pf_base","pf_employee",
+                          "advance","total_deduction","net_salary","esic_employer","pf_employer","mlwf_employer",
+                          "ctc_per_month","total_gross","present_days","absent_days","half_days","leave_days",
+                          "paid_leave_days","unmarked_days","employee_type"])
+                        ].map((k) => (
+                          <MenuItem key={k} value={k} sx={{ fontFamily: "monospace", fontSize: 12 }}>{k}</MenuItem>
+                        )),
+                      ]}
+                    </TextField>
+                  </Box>
+                ))}
+
+                {convertResult.warnings.filter(w => !w.startsWith("Cell ref")).length > 0 && (
+                  <Alert severity="warning" sx={{ mb: 1, fontSize: 11 }}>
+                    {convertResult.warnings.filter(w => !w.startsWith("Cell ref")).map((w, i) => <div key={i}>⚠ {w}</div>)}
+                  </Alert>
+                )}
+
+                <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
+                  <Button size="small" onClick={() => setConverterStep("input")} sx={{ color: "#888" }}>
+                    ← Back
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    onClick={() => setConverterStep("done")}
+                    sx={{ backgroundColor: "#4caf50", "&:hover": { backgroundColor: "#388e3c" } }}
+                  >
+                    Apply Mappings →
+                  </Button>
+                </Box>
+              </Box>
+            )}
+
+            {/* ── Step 3: Final result ── */}
+            {converterStep === "done" && convertResult && (() => {
+              const finalFormula = applyCellMappings(convertResult.result, cellMappings);
+              return (
+                <Box>
+                  <Typography variant="body2" sx={{ color: "#fff", mb: 1, fontWeight: 600 }}>
+                    ✓ Converted formula ready
+                  </Typography>
+                  <Paper sx={{ p: 1.5, backgroundColor: "#0d1117", border: "1px solid #4caf50", borderRadius: 1, mb: 1.5 }}>
+                    <Typography variant="caption" sx={{ color: "#888", display: "block", mb: 0.5 }}>Final formula:</Typography>
+                    <Typography sx={{ fontFamily: "monospace", fontSize: 13, color: "#4caf50", wordBreak: "break-all" }}>
+                      {finalFormula}
+                    </Typography>
+                  </Paper>
+                  {convertResult.warnings.length > 0 && (
+                    <Alert severity="warning" sx={{ mb: 1.5, fontSize: 11 }}>
+                      {convertResult.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+                    </Alert>
+                  )}
+                  <Box sx={{ display: "flex", gap: 1 }}>
+                    <Button
+                      size="small"
+                      onClick={() => setConverterStep(convertResult.cellRefs.length > 0 ? "mapping" : "input")}
+                      sx={{ color: "#888" }}
+                    >
+                      ← Back
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      startIcon={<ContentCopy sx={{ fontSize: 14 }} />}
+                      onClick={() => {
+                        setExpr(finalFormula);
+                        setMode("simple");
+                        // Reset converter
+                        setExcelInput("");
+                        setConvertResult(null);
+                        setCellMappings({});
+                        setConverterStep("input");
+                      }}
+                      sx={{ backgroundColor: "#4caf50", "&:hover": { backgroundColor: "#388e3c" } }}
+                    >
+                      Use this formula
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => {
+                        setExcelInput("");
+                        setConvertResult(null);
+                        setCellMappings({});
+                        setConverterStep("input");
+                      }}
+                      sx={{ borderColor: "#555", color: "#888" }}
+                    >
+                      Start over
+                    </Button>
+                  </Box>
+                </Box>
+              );
+            })()}
+
+          </AccordionDetails>
+        </Accordion>
 
         {/* Raw expression (always visible, editable) */}
         <TextField

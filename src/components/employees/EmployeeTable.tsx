@@ -58,6 +58,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { CustomField, TableColumn, Employee as BaseEmployee } from "@/types";
+import type { Manager } from "@/types";
 
 // Extend the base Employee type with additional properties used in this component
 interface Employee extends BaseEmployee {
@@ -72,6 +73,7 @@ interface ManagerFilterOption {
 }
 import { useAuth } from "@/contexts/AuthContext";
 import EmployeeForm from "@/components/employees/EmployeeForm";
+import DeletePasswordDialog from "@/components/shared/DeletePasswordDialog";
 import * as XLSX from "xlsx";
 
 // TODO - Need change
@@ -202,6 +204,13 @@ export default function EmployeeTable() {
     ManagerFilterOption[]
   >([]);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  // Delete password dialog state
+  const [empDeleteDialogOpen, setEmpDeleteDialogOpen] = useState(false);
+  const [empDeleteTarget, setEmpDeleteTarget] = useState<{
+    ids: string[];
+    label: string;
+    passwordRequirements: { managerId: string; managerName: string; expectedPassword: string }[];
+  } | null>(null);
 
   const normalizeManagerIds = (
     value: unknown,
@@ -597,27 +606,124 @@ export default function EmployeeTable() {
   };
 
   const handleDelete = async (employeeId: string) => {
-    if (!window.confirm("Are you sure you want to delete this employee?\n\nThis will also delete all their attendance, payroll, salary slips and notifications. This cannot be undone.")) return;
-    try {
-      await deleteEmployeeAndRelated(employeeId);
-      setEmployees(employees.filter((emp) => emp.id !== employeeId));
-    } catch (error) {
-      console.error("Error deleting employee:", error);
-      alert("Error deleting employee: " + (error as Error).message);
+    const employee = employees.find((e) => e.id === employeeId);
+    if (!employee) return;
+
+    // Determine the manager(s) this employee is assigned to
+    const managerDocIds: string[] = Array.isArray(employee.assignedManagers)
+      ? employee.assignedManagers
+      : employee.assignedManager
+      ? [employee.assignedManager]
+      : [];
+
+    // Fetch manager docs to get their employeeDeletePassword
+    let requirements: { managerId: string; managerName: string; expectedPassword: string }[] = [];
+    if (managerDocIds.length > 0) {
+      const managerDocs = await Promise.all(
+        managerDocIds.map((id) => getDoc(doc(db, "managers", id)))
+      );
+      for (const snap of managerDocs) {
+        if (!snap.exists()) continue;
+        const mgr = snap.data() as Manager;
+        if (mgr.employeeDeletePassword) {
+          requirements.push({
+            managerId: snap.id,
+            managerName: mgr.fullName,
+            expectedPassword: mgr.employeeDeletePassword,
+          });
+        }
+      }
     }
+
+    if (requirements.length === 0) {
+      // No password set for any manager — use simple confirm
+      if (!window.confirm("Are you sure you want to delete this employee?\n\nThis will also delete all their attendance, payroll, salary slips and notifications. This cannot be undone.")) return;
+      try {
+        await deleteEmployeeAndRelated(employeeId);
+        setEmployees(employees.filter((emp) => emp.id !== employeeId));
+      } catch (error) {
+        console.error("Error deleting employee:", error);
+        alert("Error deleting employee: " + (error as Error).message);
+      }
+      return;
+    }
+
+    // Password required — open dialog
+    setEmpDeleteTarget({
+      ids: [employeeId],
+      label: employee.fullName,
+      passwordRequirements: requirements,
+    });
+    setEmpDeleteDialogOpen(true);
   };
 
   const handleBulkDelete = async () => {
     if (selectedEmployeeIds.length === 0) return;
-    if (!window.confirm(`Are you sure you want to delete ${selectedEmployeeIds.length} selected employee(s)?\n\nThis will also delete all their attendance, payroll, salary slips and notifications. This cannot be undone.`)) return;
-    try {
-      await Promise.all(selectedEmployeeIds.map((id) => deleteEmployeeAndRelated(id)));
-      setEmployees((prev) => prev.filter((emp) => !selectedEmployeeIds.includes(emp.id)));
-      setSelectedEmployeeIds([]);
-    } catch (error) {
-      console.error("Error bulk deleting employees:", error);
-      alert("Error deleting employees: " + (error as Error).message);
+
+    // Find all unique managers for the selected employees
+    const managerIdSet = new Set<string>();
+    for (const id of selectedEmployeeIds) {
+      const emp = employees.find((e) => e.id === id);
+      if (!emp) continue;
+      const mgrIds = Array.isArray(emp.assignedManagers)
+        ? emp.assignedManagers
+        : emp.assignedManager
+        ? [emp.assignedManager]
+        : [];
+      mgrIds.forEach((mid) => managerIdSet.add(mid));
     }
+
+    const managerDocIds = Array.from(managerIdSet);
+
+    // Fetch password requirements for all unique managers
+    let requirements: { managerId: string; managerName: string; expectedPassword: string }[] = [];
+    if (managerDocIds.length > 0) {
+      const managerDocs = await Promise.all(
+        managerDocIds.map((id) => getDoc(doc(db, "managers", id)))
+      );
+      for (const snap of managerDocs) {
+        if (!snap.exists()) continue;
+        const mgr = snap.data() as Manager;
+        if (mgr.employeeDeletePassword) {
+          requirements.push({
+            managerId: snap.id,
+            managerName: mgr.fullName,
+            expectedPassword: mgr.employeeDeletePassword,
+          });
+        }
+      }
+    }
+
+    if (requirements.length === 0) {
+      // No password set for any manager — use simple confirm
+      if (!window.confirm(`Are you sure you want to delete ${selectedEmployeeIds.length} selected employee(s)?\n\nThis will also delete all their attendance, payroll, salary slips and notifications. This cannot be undone.`)) return;
+      try {
+        await Promise.all(selectedEmployeeIds.map((id) => deleteEmployeeAndRelated(id)));
+        setEmployees((prev) => prev.filter((emp) => !selectedEmployeeIds.includes(emp.id)));
+        setSelectedEmployeeIds([]);
+      } catch (error) {
+        console.error("Error bulk deleting employees:", error);
+        alert("Error deleting employees: " + (error as Error).message);
+      }
+      return;
+    }
+
+    // Password required for one or more managers — open dialog
+    setEmpDeleteTarget({
+      ids: [...selectedEmployeeIds],
+      label: `${selectedEmployeeIds.length} employee(s)`,
+      passwordRequirements: requirements,
+    });
+    setEmpDeleteDialogOpen(true);
+  };
+
+  const executeEmployeeDelete = async () => {
+    if (!empDeleteTarget) return;
+    await Promise.all(empDeleteTarget.ids.map((id) => deleteEmployeeAndRelated(id)));
+    setEmployees((prev) => prev.filter((emp) => !empDeleteTarget.ids.includes(emp.id)));
+    setSelectedEmployeeIds((prev) => prev.filter((id) => !empDeleteTarget.ids.includes(id)));
+    setEmpDeleteDialogOpen(false);
+    setEmpDeleteTarget(null);
   };
 
   const handleAddColumn = async () => {
@@ -1421,6 +1527,21 @@ export default function EmployeeTable() {
           setEditingEmployee(null);
         }}
       />
+
+      {/* Employee Delete Password Dialog */}
+      {empDeleteTarget && (
+        <DeletePasswordDialog
+          open={empDeleteDialogOpen}
+          entityType="employee"
+          entityLabel={empDeleteTarget.label}
+          passwordRequirements={empDeleteTarget.passwordRequirements}
+          onConfirm={executeEmployeeDelete}
+          onCancel={() => {
+            setEmpDeleteDialogOpen(false);
+            setEmpDeleteTarget(null);
+          }}
+        />
+      )}
 
       {/* Delete Column Dialog */}
       <Dialog

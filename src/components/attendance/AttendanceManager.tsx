@@ -19,35 +19,10 @@ import {
   MenuItem,
   Alert,
   CircularProgress,
-  Grid,
   Card,
   CardContent,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  IconButton,
 } from "@mui/material";
-import {
-  CheckCircle,
-  Cancel,
-  Schedule,
-  Person,
-  FileUpload,
-  FileDownload,
-  Edit,
-  Delete,
-  Add,
-  Save,
-  Close,
-  SelectAll,
-  DeselectOutlined,
-} from "@mui/icons-material";
-import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import LinearProgress from "@mui/material/LinearProgress";
-import * as XLSX from "xlsx";
+import { CheckCircle, Cancel, Schedule, Person, Edit } from "@mui/icons-material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -57,42 +32,20 @@ import {
   addDoc,
   query,
   where,
-  orderBy,
   doc,
-  getDoc,
-  updateDoc,
-  setDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Employee, Attendance } from "@/types";
+import { Employee } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 import BulkAttendancePeriodDialog from "@/components/attendance/BulkAttendancePeriodDialog";
-import BulkAttendanceEditDialog from "@/components/attendance/BulkAttendanceEditDialog";
 import { useAsyncAction, isRowLoading, revertAttendanceStatus } from "@/lib/useAsyncAction";
 import { LoadingButton } from "@/components/ui/LoadingButton";
 
 const attendanceStatuses = [
-  { value: "present", label: "Present", color: "success" as const },
-  { value: "absent", label: "Absent", color: "error" as const },
+  { value: "present",  label: "Present",  color: "success" as const },
+  { value: "absent",   label: "Absent",   color: "error"   as const },
   { value: "half-day", label: "Half Day", color: "warning" as const },
-  { value: "leave", label: "Leave", color: "info" as const },
-];
-
-// Default absence reason codes
-const defaultAbsenceReasonCodes = [
-  { code: 0, reason: "Without Reason" },
-  { code: 1, reason: "On Leave" },
-  { code: 2, reason: "Left Service" },
-  { code: 3, reason: "Retired" },
-  { code: 4, reason: "Out of Coverage" },
-  { code: 5, reason: "Expired" },
-  { code: 6, reason: "Non Implemented area" },
-  { code: 7, reason: "Compliance by Immediate Employer" },
-  { code: 8, reason: "Suspension of work" },
-  { code: 9, reason: "Strike/Lockout" },
-  { code: 10, reason: "Retrenchment" },
-  { code: 11, reason: "No Work" },
-  { code: 12, reason: "Doesnt Belong To This Employer" },
+  { value: "leave",    label: "Leave",    color: "info"    as const },
 ];
 
 interface ManagerOption {
@@ -101,35 +54,23 @@ interface ManagerOption {
 }
 
 export default function AttendanceManager() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [managers, setManagers] = useState<ManagerOption[]>([]);
-  const [selectedManagerId, setSelectedManagerId] = useState("all");
-  const [attendanceData, setAttendanceData] = useState<Record<string, string>>(
-    {},
-  );
-  const [absenceReasonData, setAbsenceReasonData] = useState<
-    Record<string, number>
-  >({});
-  const [absenceReasonCodes, setAbsenceReasonCodes] = useState(
-    defaultAbsenceReasonCodes,
-  );
-  const [newReasonText, setNewReasonText] = useState("");
-  const [newReasonCode, setNewReasonCode] = useState<number | "">("");
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [loading, setLoading] = useState(true);
-  const [savingRows, setSavingRows] = useState<Set<string>>(new Set());
-  const { execute: executeSave, isLoading: isSaving } = useAsyncAction<void>();
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [showBulkEditDialog, setShowBulkEditDialog] = useState(false);
-  const [showBulkPeriodDialog, setShowBulkPeriodDialog] = useState(false);
-  const [showReasonCodeDialog, setShowReasonCodeDialog] = useState(false);
   const { currentUser } = useAuth();
+  const [employees,          setEmployees]          = useState<Employee[]>([]);
+  const [managers,           setManagers]           = useState<ManagerOption[]>([]);
+  const [selectedManagerId,  setSelectedManagerId]  = useState("all");
+  const [attendanceData,     setAttendanceData]     = useState<Record<string, string>>({});
+  const [selectedDate,       setSelectedDate]       = useState<Date>(new Date());
+  const [loading,            setLoading]            = useState(true);
+  const [savingRows,         setSavingRows]         = useState<Set<string>>(new Set());
+  const [error,              setError]              = useState("");
+  const [success,            setSuccess]            = useState("");
+  const [showBulkPeriodDialog, setShowBulkPeriodDialog] = useState(false);
+  const { execute: executeSave, isLoading: isSaving } = useAsyncAction<void>();
 
+  // ── Load on mount ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!currentUser) return;
     fetchEmployees();
-    loadAbsenceReasonCodesFromFirestore();
     if (currentUser.role === "admin") {
       loadManagers();
     } else {
@@ -138,145 +79,60 @@ export default function AttendanceManager() {
     }
   }, [currentUser]);
 
-  const [loadingReasonCodes, setLoadingReasonCodes] = useState(false);
-
-  const loadAbsenceReasonCodesFromFirestore = async () => {
-    if (!currentUser) return;
-    setLoadingReasonCodes(true);
-    try {
-      const companyId = currentUser.companyId || currentUser.uid;
-      const companyRef = doc(db, "companies", companyId);
-      const snapshot = await getDoc(companyRef);
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        if (
-          Array.isArray(data.absenceReasonCodes) &&
-          data.absenceReasonCodes.length > 0
-        ) {
-          setAbsenceReasonCodes(data.absenceReasonCodes);
-        } else {
-          setAbsenceReasonCodes(defaultAbsenceReasonCodes);
-        }
-      } else {
-        setAbsenceReasonCodes(defaultAbsenceReasonCodes);
-      }
-    } catch (e) {
-      console.error("Failed to load absence reason codes from Firestore", e);
-      setAbsenceReasonCodes(defaultAbsenceReasonCodes);
-    } finally {
-      setLoadingReasonCodes(false);
-    }
-  };
-
-  const saveAbsenceReasonCodesToFirestore = async (
-    codes: { code: number; reason: string }[],
-  ) => {
-    if (!currentUser) return;
-    try {
-      const companyId = currentUser.companyId || currentUser.uid;
-      const companyRef = doc(db, "companies", companyId);
-      const snapshot = await getDoc(companyRef);
-      if (snapshot.exists()) {
-        await updateDoc(companyRef, { absenceReasonCodes: codes });
-      } else {
-        await setDoc(
-          companyRef,
-          { absenceReasonCodes: codes },
-          { merge: true },
-        );
-      }
-      setAbsenceReasonCodes(codes);
-    } catch (e) {
-      console.error("Failed to save absence reason codes to Firestore", e);
-    }
-  };
-
   useEffect(() => {
-    if (employees.length > 0) {
-      fetchAttendanceForDate();
-    }
+    if (employees.length > 0) fetchAttendanceForDate();
   }, [selectedDate, employees]);
 
+  // ── Data fetchers ──────────────────────────────────────────────────────────
   const fetchEmployees = async () => {
     try {
       setLoading(true);
       let employeesQuery;
-      let companyId;
       if (currentUser?.role === "admin") {
-        companyId = currentUser.uid;
         employeesQuery = query(
           collection(db, "employees"),
-          where("companyId", "==", companyId),
+          where("companyId", "==", currentUser.uid),
         );
       } else if (currentUser?.role === "manager") {
-        companyId = currentUser.companyId || "";
         employeesQuery = query(
           collection(db, "employees"),
-          where("companyId", "==", companyId),
+          where("companyId", "==", currentUser.companyId || ""),
         );
       } else {
         setEmployees([]);
         setLoading(false);
         return;
       }
-      const snapshot = await getDocs(employeesQuery);
-      let employeesData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Employee[];
 
-      // For managers, filter only assigned employees using Firestore manager document ID
+      const snapshot = await getDocs(employeesQuery);
+      let employeesData = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Employee[];
+
       if (currentUser?.role === "manager") {
-        // Gather all unique manager IDs from employees
         const managerIds = new Set<string>();
         employeesData.forEach((emp) => {
-          if (Array.isArray(emp.assignedManagers)) {
+          if (Array.isArray(emp.assignedManagers))
             emp.assignedManagers.forEach((id: string) => managerIds.add(id));
-          }
         });
 
-        // Fetch managers data
         const managersData = new Map<string, any>();
         if (managerIds.size > 0) {
-          const managersSnapshot = await getDocs(
-            query(
-              collection(db, "managers"),
-              where("__name__", "in", Array.from(managerIds)),
-            ),
+          const snap = await getDocs(
+            query(collection(db, "managers"), where("__name__", "in", Array.from(managerIds))),
           );
-          managersSnapshot.forEach((doc) => {
-            managersData.set(doc.id, doc.data());
-          });
+          snap.forEach((d) => managersData.set(d.id, d.data()));
         }
 
-        // Find manager doc ID by email
         let managerDocId: string | null = null;
         for (const [docId, mgr] of managersData.entries()) {
-          if (mgr.email === currentUser.email) {
-            managerDocId = docId;
-            break;
-          }
+          if (mgr.email === currentUser.email) { managerDocId = docId; break; }
         }
-        // Fallback to currentUser.uid if not found
         managerDocId = managerDocId || currentUser.uid;
         employeesData = employeesData.filter(
-          (emp) =>
-            Array.isArray(emp.assignedManagers) &&
-            emp.assignedManagers.includes(managerDocId),
-        );
-        console.log(
-          "🔍 DEBUGGING - Manager Firestore ID for assignment:",
-          managerDocId,
-          "Filtered employees:",
-          employeesData.map((e) => e.fullName),
+          (emp) => Array.isArray(emp.assignedManagers) && emp.assignedManagers.includes(managerDocId),
         );
       }
 
-      // Sort employees by fullName after fetching
-      employeesData.sort((a, b) =>
-        (a.fullName || "").localeCompare(b.fullName || ""),
-      );
-
+      employeesData.sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
       setEmployees(employeesData);
     } catch (err) {
       console.error("Error fetching employees:", err);
@@ -288,22 +144,16 @@ export default function AttendanceManager() {
 
   const loadManagers = async () => {
     if (!currentUser || currentUser.role !== "admin") return;
-
     try {
-      const managersQuery = query(
-        collection(db, "managers"),
-        where("companyId", "==", currentUser.uid),
+      const snap = await getDocs(
+        query(collection(db, "managers"), where("companyId", "==", currentUser.uid)),
       );
-      const snapshot = await getDocs(managersQuery);
-      const managersData: ManagerOption[] = snapshot.docs.map((managerDoc) => {
-        const data = managerDoc.data();
-        return {
-          id: managerDoc.id,
-          name: data.fullName || data.name || data.email || "Unknown Manager",
-        };
-      });
-
-      setManagers(managersData);
+      setManagers(
+        snap.docs.map((d) => ({
+          id: d.id,
+          name: d.data().fullName || d.data().name || d.data().email || "Unknown Manager",
+        })),
+      );
     } catch (err) {
       console.error("Error loading managers:", err);
     }
@@ -311,132 +161,50 @@ export default function AttendanceManager() {
 
   const fetchAttendanceForDate = async () => {
     try {
-      const startOfDay = new Date(selectedDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(selectedDate);
-      endOfDay.setHours(23, 59, 59, 999);
-
-      const attendanceQuery = query(
-        collection(db, "attendance"),
-        where("date", ">=", startOfDay),
-        where("date", "<=", endOfDay),
+      const startOfDay = new Date(selectedDate); startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay   = new Date(selectedDate); endOfDay.setHours(23, 59, 59, 999);
+      const snap = await getDocs(
+        query(collection(db, "attendance"), where("date", ">=", startOfDay), where("date", "<=", endOfDay)),
       );
-      const snapshot = await getDocs(attendanceQuery);
-
-      const attendanceMap: Record<string, string> = {};
-      const reasonMap: Record<string, number> = {};
-      snapshot.docs.forEach((doc) => {
-        const data = doc.data();
-        attendanceMap[data.employeeId] = data.status;
-        if (data.status === "absent" && data.reasonCode !== undefined) {
-          reasonMap[data.employeeId] = data.reasonCode;
-        }
-      });
-
-      setAttendanceData(attendanceMap);
-      setAbsenceReasonData(reasonMap);
+      const map: Record<string, string> = {};
+      snap.docs.forEach((d) => { map[d.data().employeeId] = d.data().status; });
+      setAttendanceData(map);
     } catch (err) {
       console.error("Error fetching attendance:", err);
     }
   };
 
+  // ── Handlers ───────────────────────────────────────────────────────────────
   const handleAttendanceChange = (employeeId: string, status: string) => {
-    // Optimistic update: reflect new value immediately
-    const previousAttendanceData = { ...attendanceData };
-    setAttendanceData((prev) => ({
-      ...prev,
-      [employeeId]: status,
-    }));
-    if (status !== "absent") {
-      setAbsenceReasonData((prev) => {
-        const copy = { ...prev };
-        delete copy[employeeId];
-        return copy;
-      });
-    }
+    const prev = { ...attendanceData };
+    setAttendanceData((p) => ({ ...p, [employeeId]: status }));
+    setSavingRows((p) => new Set(p).add(employeeId));
 
-    // Persist per-row, independently of other rows
-    setSavingRows((prev) => new Set(prev).add(employeeId));
-    const record = {
+    addDoc(collection(db, "attendance"), {
       employeeId,
       date: selectedDate,
       status,
       markedBy: currentUser?.uid || "",
       markedAt: new Date(),
-      ...(status === "absent"
-        ? { reasonCode: absenceReasonData[employeeId] ?? 0 }
-        : {}),
-    };
-
-    addDoc(collection(db, "attendance"), record)
+    })
       .catch((err) => {
         console.error("Error saving attendance row:", err);
         setError("Failed to save attendance for one employee. Reverting.");
-        setAttendanceData((current) =>
-          revertAttendanceStatus(current, previousAttendanceData, employeeId),
-        );
+        setAttendanceData((cur) => revertAttendanceStatus(cur, prev, employeeId));
       })
       .finally(() => {
-        setSavingRows((prev) => {
-          const next = new Set(prev);
-          next.delete(employeeId);
-          return next;
-        });
+        setSavingRows((p) => { const n = new Set(p); n.delete(employeeId); return n; });
       });
-  };
-
-  // Handle reason code change (admin only)
-  const handleReasonCodeChange = (employeeId: string, code: number) => {
-    setAbsenceReasonData((prev) => ({
-      ...prev,
-      [employeeId]: code,
-    }));
-  };
-
-  const handleAddReason = async () => {
-    if (!newReasonText || newReasonCode === "") return;
-    const code = Number(newReasonCode);
-    if (absenceReasonCodes.some((r) => r.code === code)) {
-      alert("Code already exists");
-      return;
-    }
-    const updated = [
-      ...absenceReasonCodes,
-      { code, reason: newReasonText },
-    ].sort((a, b) => a.code - b.code);
-    await saveAbsenceReasonCodesToFirestore(updated);
-    setNewReasonText("");
-    setNewReasonCode("");
-  };
-
-  const handleDeleteReason = async (code: number) => {
-    if (!confirm("Delete this reason code?")) return;
-    const updated = absenceReasonCodes.filter((r) => r.code !== code);
-    await saveAbsenceReasonCodesToFirestore(updated);
   };
 
   const handleSaveAttendance = async () => {
     await executeSave(async () => {
-      setError("");
-      setSuccess("");
-
-      const attendanceRecords = Object.entries(attendanceData).map(
-        ([employeeId, status]) => ({
-          employeeId,
-          date: selectedDate,
-          status,
-          markedBy: currentUser?.uid || "",
-          markedAt: new Date(),
-          ...(status === "absent"
-            ? { reasonCode: absenceReasonData[employeeId] ?? 0 }
-            : {}),
-        }),
-      );
-
-      for (const record of attendanceRecords) {
-        await addDoc(collection(db, "attendance"), record);
-      }
-
+      setError(""); setSuccess("");
+      const records = Object.entries(attendanceData).map(([employeeId, status]) => ({
+        employeeId, date: selectedDate, status,
+        markedBy: currentUser?.uid || "", markedAt: new Date(),
+      }));
+      for (const record of records) await addDoc(collection(db, "attendance"), record);
       setSuccess("Attendance saved successfully!");
       await fetchAttendanceForDate();
     }).catch((err) => {
@@ -445,143 +213,27 @@ export default function AttendanceManager() {
     });
   };
 
+  // ── Derived values ─────────────────────────────────────────────────────────
   const filteredEmployees =
     currentUser?.role === "admin" && selectedManagerId !== "all"
       ? employees.filter(
-          (employee) =>
-            Array.isArray(employee.assignedManagers) &&
-            employee.assignedManagers.includes(selectedManagerId),
+          (emp) => Array.isArray(emp.assignedManagers) && emp.assignedManagers.includes(selectedManagerId),
         )
       : employees;
 
-  const getAttendanceStats = (employeeList: Employee[]) => {
-    const stats = {
-      present: 0,
-      absent: 0,
-      "half-day": 0,
-      leave: 0,
-      total: employeeList.length,
-    };
-
-    employeeList.forEach((employee) => {
-      const status = attendanceData[employee.id];
-      if (status && status in stats) {
-        stats[status as keyof typeof stats]++;
-      }
+  const stats = (() => {
+    const s = { present: 0, absent: 0, "half-day": 0, leave: 0 };
+    filteredEmployees.forEach((emp) => {
+      const st = attendanceData[emp.id];
+      if (st && st in s) s[st as keyof typeof s]++;
     });
+    return s;
+  })();
 
-    return stats;
-  };
-
-  const handleDownloadSample = () => {
-    const sampleData = [
-      {
-        "Employee ID": "EMP001",
-        "Attendance Status": "present",
-        "Reason Code": "",
-        Date: new Date().toISOString().split("T")[0],
-      },
-      {
-        "Employee ID": "EMP002",
-        "Attendance Status": "absent",
-        // example reason code for absent row
-        "Reason Code": 1,
-        Date: new Date().toISOString().split("T")[0],
-      },
-    ];
-
-    const ws = XLSX.utils.json_to_sheet(sampleData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Attendance Sample");
-    XLSX.writeFile(wb, "attendance_sample.xlsx");
-  };
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: "array" });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        // default value for empty cells to avoid undefined
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-
-        const newAttendanceData = { ...attendanceData };
-        const newReasonMap: Record<string, number> = {};
-
-        for (const row of jsonData as any[]) {
-          // support several header variations and trim
-          const employeeId = String(
-            row["Employee ID"] ??
-              row["employee id"] ??
-              row["Emp ID"] ??
-              row["empId"] ??
-              "",
-          ).trim();
-          const statusRaw = String(
-            row["Attendance Status"] ??
-              row["Attendance"] ??
-              row["Status"] ??
-              "",
-          )
-            .toLowerCase()
-            .trim();
-
-          // support several reason column names
-          const reasonCandidate =
-            row["Reason Code"] ??
-            row["ReasonCode"] ??
-            row["Reason"] ??
-            row["reason_code"] ??
-            row["reason"] ??
-            "";
-
-          const employee = employees.find(
-            (emp) => emp.employeeId === employeeId,
-          );
-
-          if (
-            employee &&
-            attendanceStatuses.some((s) => s.value === statusRaw)
-          ) {
-            newAttendanceData[employee.id] = statusRaw;
-            if (statusRaw === "absent") {
-              const parsed =
-                reasonCandidate === "" ? undefined : Number(reasonCandidate);
-              if (parsed !== undefined && !isNaN(parsed)) {
-                newReasonMap[employee.id] = parsed;
-              }
-            }
-          }
-        }
-
-        setAttendanceData(newAttendanceData);
-        // merge any parsed reason codes with existing ones
-        setAbsenceReasonData((prev) => ({ ...prev, ...newReasonMap }));
-        setSuccess("Attendance data imported successfully!");
-      } catch (error) {
-        console.error("Error uploading attendance:", error);
-        setError(
-          "Failed to import attendance data. Please check the file format.",
-        );
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const stats = getAttendanceStats(filteredEmployees);
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="400px"
-      >
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <CircularProgress />
       </Box>
     );
@@ -594,11 +246,10 @@ export default function AttendanceManager() {
           Attendance Management
         </Typography>
 
+        {/* Manager filter (admin only) */}
         {currentUser?.role === "admin" && (
           <FormControl size="small" sx={{ minWidth: 260, mb: 2, mr: 2 }}>
-            <InputLabel id="attendance-manager-filter-label">
-              Filter By Manager
-            </InputLabel>
+            <InputLabel id="attendance-manager-filter-label">Filter By Manager</InputLabel>
             <Select
               labelId="attendance-manager-filter-label"
               value={selectedManagerId}
@@ -606,71 +257,25 @@ export default function AttendanceManager() {
               onChange={(e) => setSelectedManagerId(e.target.value)}
             >
               <MenuItem value="all">All Managers</MenuItem>
-              {managers.map((manager) => (
-                <MenuItem key={manager.id} value={manager.id}>
-                  {manager.name}
-                </MenuItem>
+              {managers.map((m) => (
+                <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
               ))}
             </Select>
           </FormControl>
         )}
 
-        <Button
-          variant="outlined"
-          color="info"
-          startIcon={<FileDownload />}
-          onClick={async () => {
-            await loadAbsenceReasonCodesFromFirestore();
-            setShowReasonCodeDialog(true);
-          }}
-          sx={{ mb: 2 }}
-        >
-          View Absence Reason Codes
-        </Button>
+        {error   && <Alert severity="error"   sx={{ mb: 2 }}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
-
-        {success && (
-          <Alert severity="success" sx={{ mb: 2 }}>
-            {success}
-          </Alert>
-        )}
-
-        {/* Date Selection, Bulk Actions and Stats */}
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "1fr 2fr",
-            gap: 3,
-            mb: 3,
-          }}
-        >
+        {/* Date picker + Bulk Edit Period + Stats */}
+        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 3, mb: 3 }}>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <DatePicker
               label="Select Date"
               value={selectedDate}
-              onChange={(newDate) => setSelectedDate(newDate || new Date())}
-              slotProps={{
-                textField: {
-                  fullWidth: true,
-                },
-              }}
+              onChange={(d) => setSelectedDate(d || new Date())}
+              slotProps={{ textField: { fullWidth: true } }}
             />
-
-            {/* Bulk Action Buttons */}
-            <Button
-              variant="contained"
-              startIcon={<Edit />}
-              onClick={() => setShowBulkEditDialog(true)}
-              fullWidth
-            >
-              Bulk Edit Status
-            </Button>
-
             <Button
               variant="outlined"
               startIcon={<Edit />}
@@ -679,76 +284,24 @@ export default function AttendanceManager() {
             >
               Bulk Edit Period
             </Button>
-
-            <Button
-              variant="contained"
-              startIcon={<FileUpload />}
-              component="label"
-              fullWidth
-            >
-              Upload XLSX/CSV
-              <input
-                type="file"
-                hidden
-                accept=".xlsx,.xls,.csv"
-                onChange={handleFileUpload}
-              />
-            </Button>
-
-            <Button
-              variant="contained"
-              startIcon={<FileDownload />}
-              onClick={handleDownloadSample}
-              fullWidth
-            >
-              Download Sample
-            </Button>
           </Box>
-          <Box>
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                gap: 2,
-              }}
-            >
-              <Box>
-                <Card>
-                  <CardContent sx={{ textAlign: "center", py: 2 }}>
-                    <CheckCircle color="success" sx={{ fontSize: 40, mb: 1 }} />
-                    <Typography variant="h6">{stats.present}</Typography>
-                    <Typography variant="caption">Present</Typography>
-                  </CardContent>
-                </Card>
-              </Box>
-              <Box>
-                <Card>
-                  <CardContent sx={{ textAlign: "center", py: 2 }}>
-                    <Cancel color="error" sx={{ fontSize: 40, mb: 1 }} />
-                    <Typography variant="h6">{stats.absent}</Typography>
-                    <Typography variant="caption">Absent</Typography>
-                  </CardContent>
-                </Card>
-              </Box>
-              <Box>
-                <Card>
-                  <CardContent sx={{ textAlign: "center", py: 2 }}>
-                    <Schedule color="warning" sx={{ fontSize: 40, mb: 1 }} />
-                    <Typography variant="h6">{stats["half-day"]}</Typography>
-                    <Typography variant="caption">Half Day</Typography>
-                  </CardContent>
-                </Card>
-              </Box>
-              <Box>
-                <Card>
-                  <CardContent sx={{ textAlign: "center", py: 2 }}>
-                    <Person color="info" sx={{ fontSize: 40, mb: 1 }} />
-                    <Typography variant="h6">{stats.leave}</Typography>
-                    <Typography variant="caption">Leave</Typography>
-                  </CardContent>
-                </Card>
-              </Box>
-            </Box>
+
+          {/* Stats cards */}
+          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 2 }}>
+            {[
+              { icon: <CheckCircle color="success" sx={{ fontSize: 40, mb: 1 }} />, value: stats.present,       label: "Present"  },
+              { icon: <Cancel      color="error"   sx={{ fontSize: 40, mb: 1 }} />, value: stats.absent,        label: "Absent"   },
+              { icon: <Schedule    color="warning" sx={{ fontSize: 40, mb: 1 }} />, value: stats["half-day"],   label: "Half Day" },
+              { icon: <Person      color="info"    sx={{ fontSize: 40, mb: 1 }} />, value: stats.leave,         label: "Leave"    },
+            ].map(({ icon, value, label }) => (
+              <Card key={label}>
+                <CardContent sx={{ textAlign: "center", py: 2 }}>
+                  {icon}
+                  <Typography variant="h6">{value}</Typography>
+                  <Typography variant="caption">{label}</Typography>
+                </CardContent>
+              </Card>
+            ))}
           </Box>
         </Box>
 
@@ -763,7 +316,6 @@ export default function AttendanceManager() {
                   <TableCell>Department</TableCell>
                   <TableCell>Designation</TableCell>
                   <TableCell align="center">Attendance Status</TableCell>
-                  <TableCell align="center">Reason Code</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -771,58 +323,24 @@ export default function AttendanceManager() {
                   <TableRow key={employee.id}>
                     <TableCell>{employee.employeeId}</TableCell>
                     <TableCell>{employee.fullName}</TableCell>
-                    <TableCell>{employee.department || "-"}</TableCell>
-                    <TableCell>{employee.designation || "-"}</TableCell>
+                    <TableCell>{(employee as any).department  || "-"}</TableCell>
+                    <TableCell>{(employee as any).designation || "-"}</TableCell>
                     <TableCell align="center">
                       <FormControl size="small" sx={{ minWidth: 120 }}>
                         <Select
                           value={attendanceData[employee.id] || ""}
-                          onChange={(e) =>
-                            handleAttendanceChange(employee.id, e.target.value)
-                          }
+                          onChange={(e) => handleAttendanceChange(employee.id, e.target.value)}
                           displayEmpty
                           disabled={isRowLoading(savingRows, employee.id)}
                         >
-                          <MenuItem value="">
-                            <em>Not Marked</em>
-                          </MenuItem>
-                          {attendanceStatuses.map((status) => (
-                            <MenuItem key={status.value} value={status.value}>
-                              <Chip
-                                label={status.label}
-                                color={status.color}
-                                size="small"
-                                sx={{ minWidth: 80 }}
-                              />
+                          <MenuItem value=""><em>Not Marked</em></MenuItem>
+                          {attendanceStatuses.map((s) => (
+                            <MenuItem key={s.value} value={s.value}>
+                              <Chip label={s.label} color={s.color} size="small" sx={{ minWidth: 80 }} />
                             </MenuItem>
                           ))}
                         </Select>
                       </FormControl>
-                    </TableCell>
-                    <TableCell align="center">
-                      {attendanceData[employee.id] === "absent" ? (
-                        <FormControl size="small" sx={{ minWidth: 120 }}>
-                          <Select
-                            value={absenceReasonData[employee.id] ?? 0}
-                            onChange={(e) =>
-                              handleReasonCodeChange(
-                                employee.id,
-                                Number(e.target.value),
-                              )
-                            }
-                          >
-                            {absenceReasonCodes.map((reason) => (
-                              <MenuItem key={reason.code} value={reason.code}>
-                                {reason.code} - {reason.reason}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      ) : (
-                        <Typography variant="caption" color="text.secondary">
-                          -
-                        </Typography>
-                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -833,143 +351,18 @@ export default function AttendanceManager() {
 
         {/* Save Button */}
         <Box display="flex" justifyContent="flex-end" sx={{ mt: 3 }}>
-          <LoadingButton
-            variant="contained"
-            onClick={handleSaveAttendance}
-            isLoading={isSaving}
-            size="large"
-          >
+          <LoadingButton variant="contained" onClick={handleSaveAttendance} isLoading={isSaving} size="large">
             Save Attendance
           </LoadingButton>
         </Box>
-
-        {/* Bulk Edit Dialog */}
-        <BulkAttendanceEditDialog
-          open={showBulkEditDialog}
-          onClose={() => setShowBulkEditDialog(false)}
-          onApply={(status) => {
-            const newAttendanceData = { ...attendanceData };
-            filteredEmployees.forEach((employee) => {
-              newAttendanceData[employee.id] = status;
-              if (status !== "absent") {
-                setAbsenceReasonData((prev) => {
-                  const copy = { ...prev };
-                  delete copy[employee.id];
-                  return copy;
-                });
-              }
-            });
-            setAttendanceData(newAttendanceData);
-          }}
-        />
 
         {/* Bulk Attendance Period Dialog */}
         <BulkAttendancePeriodDialog
           open={showBulkPeriodDialog}
           onClose={() => setShowBulkPeriodDialog(false)}
-          onSaved={() => {
-            setShowBulkPeriodDialog(false);
-            fetchAttendanceForDate();
-          }}
+          onSaved={() => { setShowBulkPeriodDialog(false); fetchAttendanceForDate(); }}
           employees={filteredEmployees}
         />
-
-        {/* Reason Code Dialog */}
-        <Dialog
-          open={showReasonCodeDialog}
-          onClose={() => setShowReasonCodeDialog(false)}
-          maxWidth="md"
-          fullWidth
-        >
-          <DialogTitle>Absence Reason Codes</DialogTitle>
-          <DialogContent>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>
-                    <b>Code</b>
-                  </TableCell>
-                  <TableCell>
-                    <b>Reason</b>
-                  </TableCell>
-                  {currentUser?.role === "admin" && (
-                    <TableCell>
-                      <b>Actions</b>
-                    </TableCell>
-                  )}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {absenceReasonCodes.map((reason) => (
-                  <TableRow key={reason.code}>
-                    <TableCell>{reason.code}</TableCell>
-                    <TableCell>{reason.reason}</TableCell>
-                    {currentUser?.role === "admin" && (
-                      <TableCell>
-                        <IconButton
-                          color="error"
-                          onClick={() => handleDeleteReason(reason.code)}
-                        >
-                          <Delete />
-                        </IconButton>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-
-            {currentUser?.role === "admin" && (
-              <Box
-                sx={{ display: "flex", gap: 2, mt: 2, alignItems: "center" }}
-              >
-                <TextField
-                  label="Code"
-                  type="number"
-                  value={newReasonCode}
-                  onChange={(e) =>
-                    setNewReasonCode(
-                      e.target.value === "" ? "" : Number(e.target.value),
-                    )
-                  }
-                  sx={{ width: 120 }}
-                />
-                <TextField
-                  label="Reason"
-                  value={newReasonText}
-                  onChange={(e) => setNewReasonText(e.target.value)}
-                  fullWidth
-                />
-                <Button
-                  variant="contained"
-                  startIcon={<Add />}
-                  onClick={handleAddReason}
-                >
-                  Add
-                </Button>
-              </Box>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button
-              onClick={() => setShowReasonCodeDialog(false)}
-              startIcon={<Close />}
-            >
-              Close
-            </Button>
-            {currentUser?.role === "admin" && (
-              <Button
-                onClick={async () =>
-                  await saveAbsenceReasonCodesToFirestore(absenceReasonCodes)
-                }
-                startIcon={<Save />}
-                variant="contained"
-              >
-                Save
-              </Button>
-            )}
-          </DialogActions>
-        </Dialog>
       </Box>
     </LocalizationProvider>
   );
