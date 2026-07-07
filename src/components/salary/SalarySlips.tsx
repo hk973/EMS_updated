@@ -8,7 +8,7 @@ import {
   TextField,
   Table,
   TableBody,
-  TableCell,
+  TableCell as MuiTableCell,
   TableContainer,
   TableHead,
   TableRow,
@@ -57,6 +57,9 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { salaryTemplateService, evaluateTemplateFormula } from "@/lib/salaryTemplateService";
 import type { SalaryTemplate } from "@/lib/salaryTemplateService";
+import { slipTemplateService } from "@/lib/slipTemplateService";
+import type { SlipTemplate, SlipElement, TextElement, VariableElement, LineElement, RectElement, LogoElement, StampElement, SignatureElement, TableElement, TableCell } from "@/lib/slipTemplateService";
+import { ALL_SLIP_VARIABLES } from "@/lib/slipVariables";
 import {
   computeAttendanceDeduction,
   AttendanceDeductionConfig,
@@ -140,6 +143,7 @@ export default function SalarySlips() {
   const [error, setError] = useState("");
   const [imageCache, setImageCache] = useState<Record<string, string>>({});
   const [allTemplates, setAllTemplates] = useState<SalaryTemplate[]>([]);
+  const [allSlipTemplates, setAllSlipTemplates] = useState<SlipTemplate[]>([]);
   // attendanceDeductionByEmployee[employeeId] = result from computeAttendanceDeduction
   const [attendanceDeductionByEmployee, setAttendanceDeductionByEmployee] = useState<
     Record<string, AttendanceDeductionResult>
@@ -172,6 +176,7 @@ export default function SalarySlips() {
     // Load templates for dynamic slip generation
     if (currentUser?.uid) {
       salaryTemplateService.getAll(currentUser.uid).then(setAllTemplates).catch(console.error);
+      slipTemplateService.getAll(currentUser.uid).then(setAllSlipTemplates).catch(console.error);
     }
   }, [selectedMonth, selectedYear]);
 
@@ -448,6 +453,7 @@ export default function SalarySlips() {
     const s = (employee.salary ?? {}) as Record<string, unknown>;
 
     // ── Seed ctx with ALL pre-calculated values from employee.salary ──────────
+    // (section.type drives earnings/deductions — slipConfig is NOT used)
     // This ensures columns without formulas (e.g. professional_tax) still work
 
     // Attendance counts: use live vars when available (Req 2.1, 2.2, 2.3, 4.1),
@@ -528,96 +534,73 @@ export default function SalarySlips() {
 
     const earnings: string[][] = [];
     const deductions: string[][] = [];
-    let earningsTotal: number | null = null;
-    let deductionsTotal: number | null = null;
-    let netSalaryVal: number | null = null;
 
-    // First pass: find designated totals and net salary
+    // ── Route columns into earnings/deductions based on section.type ──────────
+    // "earnings"              → all columns go to earnings table
+    // "deductions"            → all columns go to deductions table
+    // "employer_contributions"→ skip (not shown on employee-facing slip)
+    // "custom"                → skip info/identity columns; include if section
+    //                           label contains "earn" or "deduc" (graceful fallback)
+    // slipConfig is intentionally ignored — section.type is the source of truth.
     for (const sec of sortedSections) {
-      for (const col of sec.columns) {
-        const sc = col.slipConfig;
-        if (!sc) continue;
-        const val = toAmount(ctx[col.key]);
-        if (sc.isNetSalary) netSalaryVal = val;
-        if (sc.isEarningsTotal) earningsTotal = val;
-        if (sc.isDeductionsTotal) deductionsTotal = val;
+      const secType = sec.type as string;
+      if (secType === "employer_contributions") continue; // never on employee slip
+
+      // Determine which bucket this section feeds
+      let bucket: "earnings" | "deductions" | "skip" = "skip";
+      if (secType === "earnings") {
+        bucket = "earnings";
+      } else if (secType === "deductions") {
+        bucket = "deductions";
+      } else {
+        // custom section — infer from label as last resort
+        const lbl = sec.label.toLowerCase();
+        if (lbl.includes("earn") || lbl.includes("salary") || lbl.includes("gross") || lbl.includes("allowance")) {
+          bucket = "earnings";
+        } else if (lbl.includes("deduc") || lbl.includes("tax") || lbl.includes("pf") || lbl.includes("esic")) {
+          bucket = "deductions";
+        }
       }
-    }
+      if (bucket === "skip") continue;
 
-    // Second pass: build slip rows (skip zero-value rows unless they're subtotals or explicitly included)
-    for (const sec of sortedSections) {
       for (const col of sec.columns) {
-        const sc = col.slipConfig;
-        if (!sc?.includeInSlip || sc.slipSection === "none") continue;
+        // Skip pure identity/info columns that have no numeric meaning
+        const infoKeys = new Set(["name", "employee_id", "esic_no", "uan", "employee_type"]);
+        if (infoKeys.has(col.key)) continue;
+
+        // Skip attendance count columns (they appear in the attendance table already)
+        const attendanceKeys = new Set(["total_days", "paid_days", "present_days", "absent_days", "half_days", "leave_days", "paid_leave_days", "unmarked_days"]);
+        if (attendanceKeys.has(col.key)) continue;
+
         const val = toAmount(ctx[col.key]);
-        // Skip zero rows only for auto-detected columns (no formula), not user-configured ones
-        if (val === 0 && !sc.isSubtotal && !sc.isEarningsTotal && !sc.isDeductionsTotal && !col.formula?.expression) continue;
-        const label = sc.slipLabel || col.label;
+
+        // Skip zero-value rows for non-formula columns to keep the slip clean
+        // (formula columns at zero are kept — they may be intentional e.g. "no OT this month")
+        if (val === 0 && !col.formula?.expression) continue;
+
+        const label = col.slipConfig?.slipLabel || col.label;
         const formatted = fmtAmount(val);
 
-        if (sc.slipSection === "earnings") {
+        if (bucket === "earnings") {
           earnings.push([label, formatted, formatted]);
-        } else if (sc.slipSection === "deductions") {
+        } else {
           deductions.push([label, formatted]);
         }
       }
     }
 
-    // ── Net salary computation — 3-tier priority ──────────────────────────────
+    // ── Net salary: look for net_salary key in ctx first, then auto-compute ───
     let finalNet: number;
-
-    if (netSalaryVal !== null) {
-      // Tier 1: explicit isNetSalary column
-      finalNet = netSalaryVal;
-    } else if (earningsTotal !== null && deductionsTotal !== null) {
-      // Tier 2: designated total columns
-      finalNet = earningsTotal - deductionsTotal;
-    } else if (earningsTotal !== null) {
-      // Tier 2b: only earnings total designated — subtract sum of non-subtotal deductions
-      const sumDed = deductions
-        .filter((_, i) => {
-          let idx = 0;
-          for (const sec of sortedSections) {
-            for (const col of sec.columns) {
-              const sc = col.slipConfig;
-              if (sc?.includeInSlip && sc.slipSection === "deductions") {
-                if (idx === i) return !sc.isSubtotal && !sc.isDeductionsTotal;
-                idx++;
-              }
-            }
-          }
-          return true;
-        })
-        .reduce((sum, row) => sum + parseFloat(row[1] || "0"), 0);
-      finalNet = earningsTotal - sumDed;
+    const ctxNet = toAmount(ctx["net_salary"]);
+    if (ctxNet > 0) {
+      finalNet = ctxNet;
     } else {
-      // Tier 3: auto-sum — sum non-subtotal earnings minus non-subtotal deductions
-      // Build lookup of which row indices are subtotals
-      const earningSubtotalIdx = new Set<number>();
-      const deductionSubtotalIdx = new Set<number>();
-      let ei = 0, di = 0;
-      for (const sec of sortedSections) {
-        for (const col of sec.columns) {
-          const sc = col.slipConfig;
-          if (!sc?.includeInSlip || sc.slipSection === "none") continue;
-          const val = toAmount(ctx[col.key]);
-          if (val === 0 && !sc.isSubtotal && !sc.isEarningsTotal && !sc.isDeductionsTotal && !col.formula?.expression) continue;
-          if (sc.slipSection === "earnings") {
-            if (sc.isSubtotal || sc.isEarningsTotal) earningSubtotalIdx.add(ei);
-            ei++;
-          } else if (sc.slipSection === "deductions") {
-            if (sc.isSubtotal || sc.isDeductionsTotal) deductionSubtotalIdx.add(di);
-            di++;
-          }
-        }
-      }
-      const sumE = earnings
-        .filter((_, i) => !earningSubtotalIdx.has(i))
-        .reduce((sum, row) => sum + parseFloat(row[1] || "0"), 0);
-      const sumD = deductions
-        .filter((_, i) => !deductionSubtotalIdx.has(i))
-        .reduce((sum, row) => sum + parseFloat(row[1] || "0"), 0);
-      finalNet = sumE - sumD;
+      // Auto-sum: sum all earnings rows minus all deductions rows
+      // The last row of each group is typically a subtotal; sum everything since
+      // we already skipped employer contributions
+      const sumE = earnings.reduce((sum, row) => sum + parseFloat(row[1] || "0"), 0);
+      const sumD = deductions.reduce((sum, row) => sum + parseFloat(row[1] || "0"), 0);
+      finalNet = Math.max(0, sumE - sumD);
     }
 
     return {
@@ -799,23 +782,27 @@ export default function SalarySlips() {
       earnings: (() => {
         const tmpl = getTemplateForEmployee(employee);
         const liveVars = attendanceVarsByEmployee.get(employee.id ?? "");
-        const liveAttendanceDeduction = liveVars ? attendanceDeduction : attendanceDeduction;
-        const liveBaseAfterAttendance = liveVars ? baseAfterAttendance : baseAfterAttendance;
         if (tmpl) {
-          const rows = buildTemplateSlipRows(employee, payroll, tmpl, liveAttendanceDeduction, liveBaseAfterAttendance, liveVars);
-          return rows.earnings;
+          return buildTemplateSlipRows(employee, payroll, tmpl, attendanceDeduction, baseAfterAttendance, liveVars).earnings;
         }
-        // Fallback: hardcoded — Req 5.1, 5.5
+        // Fallback: use live salary data from employee.salary
         const rows: string[][] = [
-          ["BASE SALARY", fmtAmount(basic), fmtAmount(basic)],
-          ["H.R.A", fmtAmount(hra), fmtAmount(hra)],
-          ["CONVEYANCE ALL.", fmtAmount(ta), fmtAmount(ta)],
-          ["D.A.", fmtAmount(da), fmtAmount(da)],
-          ["OTHER ALL.", fmtAmount(totalBonus), fmtAmount(totalBonus)],
+          ["BASIC SALARY", fmtAmount(basic), fmtAmount(basic)],
         ];
+        if (hra > 0)        rows.push(["H.R.A",              fmtAmount(hra),        fmtAmount(hra)]);
+        if (da > 0)         rows.push(["D.A.",               fmtAmount(da),         fmtAmount(da)]);
+        if (ta > 0)         rows.push(["CONVEYANCE ALL.",    fmtAmount(ta),         fmtAmount(ta)]);
+        if (totalBonus > 0) rows.push(["OTHER ALLOWANCES",  fmtAmount(totalBonus), fmtAmount(totalBonus)]);
+        // Custom allowances from employee.salary
+        const customAllowances = Array.isArray((salary as any).customAllowances)
+          ? (salary as any).customAllowances as Array<{ label?: string; amount?: unknown }>
+          : [];
+        customAllowances.forEach((a) => {
+          const amt = toAmount(a.amount);
+          if (amt > 0) rows.push([a.label || "Allowance", fmtAmount(amt), fmtAmount(amt)]);
+        });
         if (attendanceDeduction > 0) {
           rows.push(["ATTENDANCE DEDUCTION", `-${fmtAmount(attendanceDeduction)}`, `-${fmtAmount(attendanceDeduction)}`]);
-          rows.push(["BASE AFTER ATTENDANCE", fmtAmount(baseAfterAttendance), fmtAmount(baseAfterAttendance)]);
         }
         rows.push(["TOTAL GROSS EARNING", fmtAmount(grossSalary), fmtAmount(grossSalary)]);
         return rows.map((row) => row.map(String));
@@ -824,19 +811,26 @@ export default function SalarySlips() {
         const tmpl = getTemplateForEmployee(employee);
         const liveVars = attendanceVarsByEmployee.get(employee.id ?? "");
         if (tmpl) {
-          const rows = buildTemplateSlipRows(employee, payroll, tmpl, attendanceDeduction, baseAfterAttendance, liveVars);
-          return rows.deductions;
+          return buildTemplateSlipRows(employee, payroll, tmpl, attendanceDeduction, baseAfterAttendance, liveVars).deductions;
         }
-        // Fallback: hardcoded
-        return [
-          ["EPF", fmtAmount(epf)],
-          ["PT", fmtAmount(pt)],
-          ["ESIC", fmtAmount(esic)],
-          ["TDS", fmtAmount(tds)],
-          ["ADVANCE", fmtAmount(advance)],
-          ["MLWF", fmtAmount(mlwf)],
-          ["Total", fmtAmount(totalDeduction)],
-        ].map((row) => row.map(String));
+        // Fallback: use pre-calculated values from employee.salary
+        const rows: string[][] = [];
+        if (pt > 0)       rows.push(["PROF. TAX",  fmtAmount(pt)]);
+        if (esic > 0)     rows.push(["ESIC",        fmtAmount(esic)]);
+        if (epf > 0)      rows.push(["EPF / PF",    fmtAmount(epf)]);
+        if (tds > 0)      rows.push(["TDS",          fmtAmount(tds)]);
+        if (advance > 0)  rows.push(["ADVANCE",      fmtAmount(advance)]);
+        if (mlwf > 0)     rows.push(["MLWF",         fmtAmount(mlwf)]);
+        // Custom deductions from employee.salary
+        const customDeductions = Array.isArray((salary as any).customDeductions)
+          ? (salary as any).customDeductions as Array<{ label?: string; amount?: unknown }>
+          : [];
+        customDeductions.forEach((d) => {
+          const amt = toAmount(d.amount);
+          if (amt > 0) rows.push([d.label || "Deduction", fmtAmount(amt)]);
+        });
+        rows.push(["TOTAL DEDUCTION", fmtAmount(totalDeduction)]);
+        return rows.map((row) => row.map(String));
       })(),
       netSalary: (() => {
         const tmpl = getTemplateForEmployee(employee);
@@ -1177,6 +1171,319 @@ export default function SalarySlips() {
     }
   };
 
+  // ── Slip template (canvas) resolver ──────────────────────────────────────────
+  // Picks the right SlipTemplate (from slipTemplates collection) for an employee:
+  //   1. Manager-specific template if the employee's manager has one
+  //   2. Global template (scope === "global")
+  //   3. null → fall back to hardcoded layout
+  const getSlipTemplateForEmployee = (employee: Employee): SlipTemplate | null => {
+    const managerId =
+      (Array.isArray(employee.assignedManagers)
+        ? employee.assignedManagers[0]
+        : (employee as any).assignedManager) ?? "";
+    // Manager-specific first
+    if (managerId) {
+      const managerTmpl = allSlipTemplates.find(
+        (t) => t.scope === "manager" && t.managerId === managerId
+      );
+      if (managerTmpl) return managerTmpl;
+    }
+    // Global fallback
+    return allSlipTemplates.find((t) => t.scope === "global") ?? null;
+  };
+
+  // ── Variable context builder ──────────────────────────────────────────────────
+  // Builds a flat key→value map of every variable the slip template can reference.
+  const buildSlipVariableContext = (
+    employee: Employee,
+    payroll: Payroll,
+    managerData: Record<string, unknown> | undefined,
+    companyData: Record<string, unknown> | undefined,
+  ): Record<string, string> => {
+    const s = (employee.salary ?? {}) as Record<string, unknown>;
+    const months_names = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const payPeriod = `${months_names[(payroll.month ?? 1) - 1]?.slice(0, 3).toUpperCase() ?? "?"}-${payroll.year}`;
+
+    const liveVars = attendanceVarsByEmployee.get(employee.id ?? "");
+
+    const fmt = (v: unknown) => {
+      const n = toAmount(v);
+      return n === 0 ? "0.00" : n.toFixed(2);
+    };
+
+    const payslipBranding = (managerData?.payslipBranding as Record<string, unknown> | undefined) ?? {};
+    const companyAddressObj = (companyData?.address as Record<string, unknown> | undefined) ?? {};
+    const companyAddr = [
+      String(companyAddressObj.buildingBlock || ""),
+      String(companyAddressObj.street || ""),
+      String(companyAddressObj.city || ""),
+      String(companyAddressObj.state || ""),
+      String(companyAddressObj.pinCode || ""),
+    ].filter(Boolean).join(", ");
+
+    return {
+      // Employee Info
+      employee_name:  String(employee.fullName ?? "-"),
+      employee_id:    String(employee.employeeId ?? "-"),
+      designation:    String((employee as any).designation ?? "-"),
+      department:     String((employee as any).department ?? "-"),
+      father_name:    String((employee as any).fatherName ?? "-"),
+      dob:            formatEmployeeDate((employee as any).dob),
+      joining_date:   formatEmployeeDate((employee as any).joinDate),
+      esic_no:        String(employee.esicNo ?? "-"),
+      uan:            String(employee.uan ?? "-"),
+      epf_no:         String((employee as any).epfNo ?? "-"),
+      bank_account:   String((employee as any).bankAccount ?? "-"),
+      ifsc_code:      String((employee as any).ifscCode ?? "-"),
+      hq_location:    String((employee as any).hqLocation ?? "-"),
+      // Pay Period
+      pay_month:      String(months_names[(payroll.month ?? 1) - 1] ?? "-"),
+      pay_year:       String(payroll.year ?? "-"),
+      pay_period:     payPeriod,
+      total_days:     String(liveVars ? liveVars.total_days : (toAmount(s.totalDays) || 30)),
+      paid_days:      String(liveVars
+        ? (liveVars.present_days + liveVars.half_days * 0.5 + liveVars.leave_days + liveVars.paid_leave_days)
+        : (toAmount(s.paidDays) || 30)),
+      present_days:   String(liveVars ? liveVars.present_days   : toAmount(s.presentDays)),
+      absent_days:    String(liveVars ? liveVars.absent_days    : toAmount(s.absentDays)),
+      half_days:      String(liveVars ? liveVars.half_days      : toAmount(s.halfDayDays)),
+      leave_days:     String(liveVars ? liveVars.leave_days     : toAmount(s.leaveDays)),
+      paid_leave_days:String(liveVars ? liveVars.paid_leave_days : "0"),
+      unmarked_days:  String(liveVars ? liveVars.unmarked_days  : "0"),
+      // Earnings
+      basic:          fmt(s.basic ?? s.base ?? payroll.baseSalary),
+      da:             fmt(s.da ?? payroll.da),
+      hra:            fmt(s.hra ?? payroll.hra),
+      gross_rate_pm:  fmt(s.grossRatePM ?? payroll.grossSalary),
+      gross_earning:  fmt(s.totalGrossEarning ?? payroll.grossSalary),
+      ot_rate:        fmt(s.otRatePerHour),
+      single_ot_hours:String(toAmount(s.singleOTHours)),
+      double_ot_hours:String(toAmount(s.doubleOTHours)),
+      ot_amount:      fmt(s.otAmount),
+      difference:     fmt(s.difference),
+      total_gross:    fmt(s.totalGrossEarning ?? payroll.grossSalary),
+      // Deductions
+      professional_tax: fmt(s.professionalTax),
+      esic_employee:    fmt(s.esicEmployee),
+      pf_base:          fmt(s.pfBase),
+      pf_employee:      fmt(s.pfEmployee),
+      advance:          fmt(s.advance),
+      mlwf_employer:    fmt(s.mlwfEmployer),
+      total_deduction:  fmt(s.totalDeduction ?? payroll.totalDeduction),
+      // Net
+      net_salary:       fmt(s.netSalary ?? payroll.netSalary),
+      // Employer
+      esic_employer:    fmt(s.esicEmployer),
+      pf_employer:      fmt(s.pfEmployer),
+      ctc_per_month:    fmt(s.ctcPerMonth),
+      // Company / Manager
+      company_name:    String(
+        payslipBranding.companyName || companyData?.companyName || companyData?.name || "COMPANY NAME"
+      ),
+      company_address: String(payslipBranding.companyAddress || companyAddr || "-"),
+    };
+  };
+
+  // ── Canvas-template PDF renderer ──────────────────────────────────────────────
+  // Renders a SlipTemplate (canvas-based) to a jsPDF document.
+  // Canvas is 794×1123px (A4 @96dpi). jsPDF A4 = 210×297mm.
+  // Scale factor: 210/794 ≈ 0.2644 for x, 297/1123 ≈ 0.2645 for y.
+  const renderSlipTemplatePDF = async (
+    slipTmpl: SlipTemplate,
+    employee: Employee,
+    payroll: Payroll,
+    logoDataUrl: string,
+    stampDataUrl: string,
+    signDataUrl: string,
+  ): Promise<jsPDF> => {
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const PW = pdf.internal.pageSize.getWidth();   // 210mm
+    const PH = pdf.internal.pageSize.getHeight();  // 297mm
+    const CW = slipTmpl.canvasWidth  || 794;
+    const CH = slipTmpl.canvasHeight || 1123;
+    const sx = PW / CW;  // x scale
+    const sy = PH / CH;  // y scale
+
+    // Resolve manager data for this employee
+    const managerId =
+      (Array.isArray(employee.assignedManagers)
+        ? employee.assignedManagers[0]
+        : (employee as any).assignedManager) ?? "";
+    const managerData = managerId ? managersById[managerId] : undefined;
+    const companyData = companiesById[employee.companyId ?? currentUser?.uid ?? ""];
+
+    const varCtx = buildSlipVariableContext(employee, payroll, managerData, companyData);
+
+    const resolveVar = (key: string): string => varCtx[key] ?? key;
+
+    // Sort elements by zIndex so lower layers render first
+    const sorted = [...slipTmpl.elements].sort((a, b) => a.zIndex - b.zIndex);
+
+    for (const el of sorted) {
+      const x = el.x * sx;
+      const y = el.y * sy;
+      const w = el.width  * sx;
+      const h = el.height * sy;
+
+      switch (el.type) {
+        case "text": {
+          const te = el as TextElement;
+          const [r, g, b] = hexToRgb(te.color);
+          pdf.setTextColor(r, g, b);
+          pdf.setFontSize(te.fontSize * sx * 2.835); // px→pt
+          pdf.setFont("helvetica", te.fontStyle === "italic"
+            ? (te.fontWeight === "bold" ? "bolditalic" : "italic")
+            : (te.fontWeight === "bold" ? "bold" : "normal"));
+          const tx = te.textAlign === "center" ? x + w / 2
+            : te.textAlign === "right" ? x + w : x;
+          const align = te.textAlign === "center" ? "center"
+            : te.textAlign === "right" ? "right" : "left";
+          pdf.text(te.content, tx, y + h / 2 + (te.fontSize * sx * 2.835) / 4, { align });
+          break;
+        }
+        case "variable": {
+          const ve = el as VariableElement;
+          const value = resolveVar(ve.variableKey);
+          const [r, g, b] = hexToRgb(ve.color);
+          pdf.setTextColor(r, g, b);
+          pdf.setFontSize(ve.fontSize * sx * 2.835);
+          pdf.setFont("helvetica", ve.fontStyle === "italic"
+            ? (ve.fontWeight === "bold" ? "bolditalic" : "italic")
+            : (ve.fontWeight === "bold" ? "bold" : "normal"));
+          const tx = ve.textAlign === "center" ? x + w / 2
+            : ve.textAlign === "right" ? x + w : x;
+          const align = ve.textAlign === "center" ? "center"
+            : ve.textAlign === "right" ? "right" : "left";
+          pdf.text(value, tx, y + h / 2 + (ve.fontSize * sx * 2.835) / 4, { align });
+          break;
+        }
+        case "line": {
+          const le = el as LineElement;
+          const [r, g, b] = hexToRgb(le.color);
+          pdf.setDrawColor(r, g, b);
+          pdf.setLineWidth(le.thickness * sx);
+          if (le.orientation === "horizontal") {
+            pdf.line(x, y + h / 2, x + w, y + h / 2);
+          } else {
+            pdf.line(x + w / 2, y, x + w / 2, y + h);
+          }
+          break;
+        }
+        case "rectangle": {
+          const re = el as RectElement;
+          const [br, bg, bb] = hexToRgb(re.borderColor);
+          pdf.setDrawColor(br, bg, bb);
+          pdf.setLineWidth(re.borderWidth * sx);
+          if (re.fillColor && re.fillColor !== "transparent") {
+            const [fr, fg, fb] = hexToRgb(re.fillColor);
+            pdf.setFillColor(fr, fg, fb);
+            pdf.rect(x, y, w, h, re.borderWidth > 0 ? "FD" : "F");
+          } else if (re.borderWidth > 0) {
+            pdf.rect(x, y, w, h, "S");
+          }
+          break;
+        }
+        case "logo": {
+          const imgUrl = logoDataUrl;
+          if (imgUrl) {
+            try {
+              pdf.addImage(imgUrl, detectImageFormat(imgUrl), x, y, w, h);
+            } catch { /* skip if image fails */ }
+          }
+          break;
+        }
+        case "stamp": {
+          const imgUrl = stampDataUrl;
+          if (imgUrl) {
+            try {
+              pdf.addImage(imgUrl, detectImageFormat(imgUrl), x, y, w, h);
+            } catch { /* skip */ }
+          }
+          break;
+        }
+        case "signature": {
+          const imgUrl = signDataUrl;
+          if (imgUrl) {
+            try {
+              pdf.addImage(imgUrl, detectImageFormat(imgUrl), x, y, w, h);
+            } catch { /* skip */ }
+          }
+          break;
+        }
+        case "table": {
+          const te = el as TableElement;
+
+          // Resolve each cell to a display string
+          const resolveCellValue = (cell: TableCell): string => {
+            switch (cell.kind) {
+              case "variable":  return resolveVar(cell.variableKey ?? "");
+              case "text":      return cell.text ?? "";
+              case "logo":      return "[Logo]";
+              case "stamp":     return "[Stamp]";
+              case "signature": return "[Signature]";
+              default:          return "";
+            }
+          };
+
+          const [hbr, hbg, hbb] = hexToRgb(te.headerBgColor ?? "#2196f3");
+          const [htR, htG, htB] = hexToRgb(te.headerTextColor ?? "#ffffff");
+          const [brR, brG, brB] = hexToRgb(te.borderColor ?? "#cccccc");
+
+          // Build head and body from the cell grid
+          const headRows: string[][] = [];
+          const bodyRows: string[][] = [];
+          te.rows.forEach((row, ri) => {
+            const cells = row.map(resolveCellValue);
+            if (te.hasHeaderRow && ri === 0) headRows.push(cells);
+            else bodyRows.push(cells);
+          });
+
+          autoTable(pdf, {
+            startY: y,
+            head: headRows.length > 0 ? headRows : undefined,
+            body: bodyRows.length > 0 ? bodyRows : [[""]],
+            theme: "grid",
+            margin: { left: x, right: PW - (x + w) },
+            tableWidth: w,
+            styles: {
+              fontSize: (te.fontSize ?? 10) * sx * 2.835,
+              cellPadding: 1.5,
+              textColor: [31, 41, 55],
+              lineColor: [brR, brG, brB],
+              lineWidth: (te.borderWidth ?? 1) * sx,
+            },
+            headStyles: {
+              fillColor: [hbr, hbg, hbb],
+              textColor: [htR, htG, htB],
+              fontStyle: "bold",
+            },
+            alternateRowStyles: te.alternateRowColor ? { fillColor: [245, 245, 245] } : {},
+          });
+          break;
+        }
+      }
+    }
+
+    return pdf;
+  };
+
+  // ── Hex colour helper ─────────────────────────────────────────────────────────
+  const hexToRgb = (hex: string): [number, number, number] => {
+    const clean = hex.replace("#", "");
+    if (clean.length === 3) {
+      return [
+        parseInt(clean[0] + clean[0], 16),
+        parseInt(clean[1] + clean[1], 16),
+        parseInt(clean[2] + clean[2], 16),
+      ];
+    }
+    return [
+      parseInt(clean.slice(0, 2), 16) || 0,
+      parseInt(clean.slice(2, 4), 16) || 0,
+      parseInt(clean.slice(4, 6), 16) || 0,
+    ];
+  };
+
   const generateSalarySlipPDF = async (
     employee: Employee,
     payroll: Payroll,
@@ -1231,193 +1538,185 @@ export default function SalarySlips() {
           preloadImageToCache(String(slip.stampUrl || ""), stampCacheKey),
         ]);
 
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.width;
-      const pageHeight = doc.internal.pageSize.height;
+      // ── Choose rendering path ─────────────────────────────────────────────────
+      // If there is a canvas slip template, render from it.
+      // Otherwise fall back to the hardcoded layout.
+      const canvasSlipTmpl = getSlipTemplateForEmployee(employee);
 
-      doc.setDrawColor(31, 41, 55);
-      doc.rect(8, 8, pageWidth - 16, pageHeight - 16);
-
-      doc.setFontSize(9);
-      doc.setTextColor(15, 118, 110);
-      if (logoImageDataUrl) {
-        try {
-          const logoFormat = detectImageFormat(logoImageDataUrl);
-          console.log(`[PDF] Adding logo as ${logoFormat}`);
-          doc.addImage(logoImageDataUrl, logoFormat, 13, 13, 14, 14);
-        } catch (err) {
-          console.warn("[PDF] Failed to add logo image:", err);
-          doc.text("TW", 20, 21.2, { align: "center" });
-        }
-      } else {
-        doc.text("TW", 20, 21.2, { align: "center" });
-      }
-
-      doc.setTextColor(31, 41, 55);
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.text(String(slip.companyName).toUpperCase(), pageWidth / 2, 18, {
-        align: "center",
-      });
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.text(slip.companyAddress, pageWidth / 2, 23, { align: "center" });
-      doc.setFont("helvetica", "bold");
-      doc.text(`Pay Slip for the month of ${slip.period}`, pageWidth / 2, 28, {
-        align: "center",
-      });
-
-      doc.line(8, 32, pageWidth - 8, 32);
-
-      autoTable(doc, {
-        startY: 34,
-        head: [],
-        body: slip.details,
-        theme: "grid",
-        margin: { left: 10, right: 102 },
-        styles: { fontSize: 7.5, cellPadding: 1.8, textColor: [31, 41, 55] },
-        columnStyles: {
-          0: { fontStyle: "bold", fillColor: [248, 250, 252], cellWidth: 28 },
-          1: { cellWidth: 64 },
-        },
-      });
-
-      autoTable(doc, {
-        startY: 34,
-        head: [["Attendance", "Days"]],
-        body: slip.attendance,
-        theme: "grid",
-        margin: { left: 108, right: 10 },
-        styles: {
-          fontSize: 7.5,
-          cellPadding: 1.6,
-          halign: "right",
-          textColor: [31, 41, 55],
-        },
-        columnStyles: { 0: { halign: "left", cellWidth: 28 } },
-        headStyles: { fillColor: [248, 250, 252], textColor: [31, 41, 55], fontStyle: "bold" },
-      });
-
-      autoTable(doc, {
-        startY: 112,
-        head: [["Description", "Amount"]],
-        body: (() => {
-          const rows: (string | { content: string; styles: Record<string, unknown> })[][] = [];
-
-          // Earnings rows — positive
-          slip.earnings.forEach((row, idx) => {
-            const isTotal = idx === slip.earnings.length - 1;
-            const label = row[0] || "";
-            const amount = row[1] || "0.00";
-            rows.push([
-              { content: label, styles: { fontStyle: isTotal ? "bold" : "normal" } },
-              { content: `+${amount}`, styles: { textColor: [31, 41, 55], fontStyle: isTotal ? "bold" : "normal", halign: "right" } },
-            ]);
-          });
-
-          // Separator row
-          rows.push([
-            { content: "", styles: { fillColor: [248, 250, 252] } },
-            { content: "", styles: { fillColor: [248, 250, 252] } },
-          ]);
-
-          // Deduction rows — negative
-          slip.deductions.forEach((row, idx) => {
-            const isTotal = idx === slip.deductions.length - 1;
-            const label = row[0] || "";
-            const amount = row[1] || "0.00";
-            rows.push([
-              { content: label, styles: { fontStyle: isTotal ? "bold" : "normal" } },
-              { content: `-${amount}`, styles: { textColor: [31, 41, 55], fontStyle: isTotal ? "bold" : "normal", halign: "right" } },
-            ]);
-          });
-
-          // Net Total row
-          rows.push([
-            { content: "NET SALARY", styles: { fontStyle: "bold" } },
-            { content: slip.netSalary, styles: { fontStyle: "bold", textColor: [31, 41, 55], halign: "right" } },
-          ]);
-
-          return rows;
-        })(),
-        theme: "grid",
-        margin: { left: 10, right: 10 },
-        styles: { fontSize: 8, cellPadding: 2, textColor: [31, 41, 55] },
-        columnStyles: {
-          0: { halign: "left", cellWidth: 120 },
-          1: { halign: "right" },
-        },
-        headStyles: { fillColor: [248, 250, 252], textColor: [31, 41, 55], fontStyle: "bold" },
-      });
-
-      // Net Pay bar
-      const salaryTableEnd = (doc as any).lastAutoTable?.finalY ?? 188;
-      doc.setFillColor(248, 250, 252);
-      doc.rect(10, salaryTableEnd + 4, pageWidth - 20, 10, "FD");
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(31, 41, 55);
-      doc.text("Net Pay", 13, salaryTableEnd + 10.5);
-      doc.text(slip.netSalary, pageWidth - 13, salaryTableEnd + 10.5, { align: "right" });
-
-      // Sign table — below Net Pay
-      const signTableStart = salaryTableEnd + 18;
-
-      // Payroll processed date
-      const processedAtRaw = (payroll as any).processedAt;
-      let processedDateStr = "-";
-      if (processedAtRaw) {
-        const d = processedAtRaw?.toDate ? processedAtRaw.toDate() : new Date(processedAtRaw);
-        if (!isNaN(d.getTime())) {
-          processedDateStr = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-        }
-      }
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(31, 41, 55);
-      doc.text(`Processed Date: ${processedDateStr}`, 13, signTableStart - 4);
-
-      autoTable(doc, {
-        startY: signTableStart,
-        head: [],
-        body: [["Authorised Person Sign", "Company Stamp"]],
-        theme: "grid",
-        margin: { left: 10, right: 10 },
-        styles: {
-          fontSize: 8,
-          minCellHeight: 22,
-          valign: "bottom",
-          halign: "center",
-        },
-      });
-
-      const signTableEnd = (doc as any).lastAutoTable?.finalY ?? signTableStart + 24;
-      const colMid1 = 10 + (pageWidth - 20) / 4;
-      const colMid2 = 10 + (3 * (pageWidth - 20)) / 4;
-
-      if (signImageDataUrl) {
-        try {
-          const signFormat = detectImageFormat(signImageDataUrl);
-          doc.addImage(signImageDataUrl, signFormat, colMid1 - 15, signTableEnd - 18, 30, 10);
-        } catch (err) {
-          console.warn("[PDF] Failed to add sign image:", err);
-        }
-      }
-
-      if (stampImageDataUrl) {
-        try {
-          const stampFormat = detectImageFormat(stampImageDataUrl);
-          doc.addImage(stampImageDataUrl, stampFormat, colMid2 - 12, signTableEnd - 20, 24, 18);
-        } catch (err) {
-          console.warn("[PDF] Failed to add stamp image:", err);
-        }
-      }
-
-      // Save the PDF
       const fileName =
         options?.fileNameOverride ||
         `salary_slip_${employee.employeeId}_${payroll.month}_${payroll.year}.pdf`;
-      doc.save(fileName);
+
+      let finalDoc: jsPDF;
+
+      if (canvasSlipTmpl && canvasSlipTmpl.elements.length > 0) {
+        // ── Canvas-template path ────────────────────────────────────────────────
+        finalDoc = await renderSlipTemplatePDF(
+          canvasSlipTmpl,
+          employee,
+          payroll,
+          logoImageDataUrl,
+          stampImageDataUrl,
+          signImageDataUrl,
+        );
+      } else {
+        // ── Hardcoded layout path (fallback) ────────────────────────────────────
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.width;
+        const pageHeight = doc.internal.pageSize.height;
+
+        doc.setDrawColor(31, 41, 55);
+        doc.rect(8, 8, pageWidth - 16, pageHeight - 16);
+
+        doc.setFontSize(9);
+        doc.setTextColor(15, 118, 110);
+        if (logoImageDataUrl) {
+          try {
+            const logoFormat = detectImageFormat(logoImageDataUrl);
+            doc.addImage(logoImageDataUrl, logoFormat, 13, 13, 14, 14);
+          } catch (err) {
+            console.warn("[PDF] Failed to add logo image:", err);
+            doc.text("TW", 20, 21.2, { align: "center" });
+          }
+        } else {
+          doc.text("TW", 20, 21.2, { align: "center" });
+        }
+
+        doc.setTextColor(31, 41, 55);
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.text(String(slip.companyName).toUpperCase(), pageWidth / 2, 18, { align: "center" });
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.text(slip.companyAddress, pageWidth / 2, 23, { align: "center" });
+        doc.setFont("helvetica", "bold");
+        doc.text(`Pay Slip for the month of ${slip.period}`, pageWidth / 2, 28, { align: "center" });
+
+        doc.line(8, 32, pageWidth - 8, 32);
+
+        autoTable(doc, {
+          startY: 34,
+          head: [],
+          body: slip.details,
+          theme: "grid",
+          margin: { left: 10, right: 102 },
+          styles: { fontSize: 7.5, cellPadding: 1.8, textColor: [31, 41, 55] },
+          columnStyles: {
+            0: { fontStyle: "bold", fillColor: [248, 250, 252], cellWidth: 28 },
+            1: { cellWidth: 64 },
+          },
+        });
+
+        autoTable(doc, {
+          startY: 34,
+          head: [["Attendance", "Days"]],
+          body: slip.attendance,
+          theme: "grid",
+          margin: { left: 108, right: 10 },
+          styles: { fontSize: 7.5, cellPadding: 1.6, halign: "right", textColor: [31, 41, 55] },
+          columnStyles: { 0: { halign: "left", cellWidth: 28 } },
+          headStyles: { fillColor: [248, 250, 252], textColor: [31, 41, 55], fontStyle: "bold" },
+        });
+
+        autoTable(doc, {
+          startY: 112,
+          head: [["Description", "Amount"]],
+          body: (() => {
+            const rows: (string | { content: string; styles: Record<string, unknown> })[][] = [];
+            slip.earnings.forEach((row, idx) => {
+              const isTotal = idx === slip.earnings.length - 1;
+              const label = row[0] || "";
+              const amount = row[1] || "0.00";
+              rows.push([
+                { content: label, styles: { fontStyle: isTotal ? "bold" : "normal" } },
+                { content: `+${amount}`, styles: { textColor: [31, 41, 55], fontStyle: isTotal ? "bold" : "normal", halign: "right" } },
+              ]);
+            });
+            rows.push([
+              { content: "", styles: { fillColor: [248, 250, 252] } },
+              { content: "", styles: { fillColor: [248, 250, 252] } },
+            ]);
+            slip.deductions.forEach((row, idx) => {
+              const isTotal = idx === slip.deductions.length - 1;
+              const label = row[0] || "";
+              const amount = row[1] || "0.00";
+              rows.push([
+                { content: label, styles: { fontStyle: isTotal ? "bold" : "normal" } },
+                { content: `-${amount}`, styles: { textColor: [31, 41, 55], fontStyle: isTotal ? "bold" : "normal", halign: "right" } },
+              ]);
+            });
+            rows.push([
+              { content: "NET SALARY", styles: { fontStyle: "bold" } },
+              { content: slip.netSalary, styles: { fontStyle: "bold", textColor: [31, 41, 55], halign: "right" } },
+            ]);
+            return rows;
+          })(),
+          theme: "grid",
+          margin: { left: 10, right: 10 },
+          styles: { fontSize: 8, cellPadding: 2, textColor: [31, 41, 55] },
+          columnStyles: { 0: { halign: "left", cellWidth: 120 }, 1: { halign: "right" } },
+          headStyles: { fillColor: [248, 250, 252], textColor: [31, 41, 55], fontStyle: "bold" },
+        });
+
+        const salaryTableEnd = (doc as any).lastAutoTable?.finalY ?? 188;
+        doc.setFillColor(248, 250, 252);
+        doc.rect(10, salaryTableEnd + 4, pageWidth - 20, 10, "FD");
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(31, 41, 55);
+        doc.text("Net Pay", 13, salaryTableEnd + 10.5);
+        doc.text(slip.netSalary, pageWidth - 13, salaryTableEnd + 10.5, { align: "right" });
+
+        const signTableStart = salaryTableEnd + 18;
+        const processedAtRaw = (payroll as any).processedAt;
+        let processedDateStr = "-";
+        if (processedAtRaw) {
+          const d = processedAtRaw?.toDate ? processedAtRaw.toDate() : new Date(processedAtRaw);
+          if (!isNaN(d.getTime())) {
+            processedDateStr = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+          }
+        }
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(31, 41, 55);
+        doc.text(`Processed Date: ${processedDateStr}`, 13, signTableStart - 4);
+
+        autoTable(doc, {
+          startY: signTableStart,
+          head: [],
+          body: [["Authorised Person Sign", "Company Stamp"]],
+          theme: "grid",
+          margin: { left: 10, right: 10 },
+          styles: { fontSize: 8, minCellHeight: 22, valign: "bottom", halign: "center" },
+        });
+
+        const signTableEnd = (doc as any).lastAutoTable?.finalY ?? signTableStart + 24;
+        const colMid1 = 10 + (pageWidth - 20) / 4;
+        const colMid2 = 10 + (3 * (pageWidth - 20)) / 4;
+
+        if (signImageDataUrl) {
+          try {
+            const signFormat = detectImageFormat(signImageDataUrl);
+            doc.addImage(signImageDataUrl, signFormat, colMid1 - 15, signTableEnd - 18, 30, 10);
+          } catch (err) {
+            console.warn("[PDF] Failed to add sign image:", err);
+          }
+        }
+
+        if (stampImageDataUrl) {
+          try {
+            const stampFormat = detectImageFormat(stampImageDataUrl);
+            doc.addImage(stampImageDataUrl, stampFormat, colMid2 - 12, signTableEnd - 20, 24, 18);
+          } catch (err) {
+            console.warn("[PDF] Failed to add stamp image:", err);
+          }
+        }
+
+        finalDoc = doc;
+      }
+
+      // Save the PDF
+      finalDoc.save(fileName);
 
       if (!options?.skipPersist) {
         // Check if salary slip already exists for this employee, month, year
@@ -1910,7 +2209,7 @@ export default function SalarySlips() {
                 <Table size="small">
                   <TableHead>
                     <TableRow sx={{ backgroundColor: "#1e1e1e" }}>
-                      <TableCell
+                      <MuiTableCell
                         sx={{
                           fontWeight: 600,
                           color: "#ffffff",
@@ -1918,8 +2217,8 @@ export default function SalarySlips() {
                         }}
                       >
                         Employee Name
-                      </TableCell>
-                      <TableCell
+                      </MuiTableCell>
+                      <MuiTableCell
                         sx={{
                           fontWeight: 600,
                           color: "#ffffff",
@@ -1927,8 +2226,8 @@ export default function SalarySlips() {
                         }}
                       >
                         Employee ID
-                      </TableCell>
-                      <TableCell
+                      </MuiTableCell>
+                      <MuiTableCell
                         sx={{
                           fontWeight: 600,
                           color: "#ffffff",
@@ -1936,8 +2235,8 @@ export default function SalarySlips() {
                         }}
                       >
                         Net Salary
-                      </TableCell>
-                      <TableCell
+                      </MuiTableCell>
+                      <MuiTableCell
                         sx={{
                           fontWeight: 600,
                           color: "#ffffff",
@@ -1945,7 +2244,7 @@ export default function SalarySlips() {
                         }}
                       >
                         Actions
-                      </TableCell>
+                      </MuiTableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -1984,23 +2283,23 @@ export default function SalarySlips() {
                             key={payroll.id}
                             sx={{ "&:hover": { backgroundColor: "#4d4d4d" } }}
                           >
-                            <TableCell
+                            <MuiTableCell
                               sx={{
                                 borderBottom: "1px solid #333",
                                 color: "#ffffff",
                               }}
                             >
                               {employee?.fullName || "Unknown"}
-                            </TableCell>
-                            <TableCell
+                            </MuiTableCell>
+                            <MuiTableCell
                               sx={{
                                 borderBottom: "1px solid #333",
                                 color: "#ffffff",
                               }}
                             >
                               {employee?.employeeId || "Unknown"}
-                            </TableCell>
-                            <TableCell
+                            </MuiTableCell>
+                            <MuiTableCell
                               sx={{
                                 borderBottom: "1px solid #333",
                                 color: "#ffffff",
@@ -2022,8 +2321,8 @@ export default function SalarySlips() {
                                 const { netSalary } = getDeductionAmounts(employee, payroll);
                                 return `₹${netSalary.toFixed(2)}`;
                               })()}
-                            </TableCell>
-                            <TableCell
+                            </MuiTableCell>
+                            <MuiTableCell
                               sx={{
                                 borderBottom: "1px solid #333",
                                 color: "#ffffff",
@@ -2044,7 +2343,7 @@ export default function SalarySlips() {
                                   </IconButton>
                                 </Tooltip>
                               </Box>
-                            </TableCell>
+                            </MuiTableCell>
                           </TableRow>
                         );
                       })}
@@ -2083,7 +2382,7 @@ export default function SalarySlips() {
           <Table>
             <TableHead>
               <TableRow sx={{ backgroundColor: "#1e1e1e" }}>
-                <TableCell
+                <MuiTableCell
                   sx={{
                     fontWeight: 600,
                     color: "#ffffff",
@@ -2091,8 +2390,8 @@ export default function SalarySlips() {
                   }}
                 >
                   Employee Name
-                </TableCell>
-                <TableCell
+                </MuiTableCell>
+                <MuiTableCell
                   sx={{
                     fontWeight: 600,
                     color: "#ffffff",
@@ -2100,8 +2399,8 @@ export default function SalarySlips() {
                   }}
                 >
                   Employee ID
-                </TableCell>
-                <TableCell
+                </MuiTableCell>
+                <MuiTableCell
                   sx={{
                     fontWeight: 600,
                     color: "#ffffff",
@@ -2109,8 +2408,8 @@ export default function SalarySlips() {
                   }}
                 >
                   Month/Year
-                </TableCell>
-                <TableCell
+                </MuiTableCell>
+                <MuiTableCell
                   sx={{
                     fontWeight: 600,
                     color: "#ffffff",
@@ -2118,8 +2417,8 @@ export default function SalarySlips() {
                   }}
                 >
                   Net Salary
-                </TableCell>
-                <TableCell
+                </MuiTableCell>
+                <MuiTableCell
                   sx={{
                     fontWeight: 600,
                     color: "#ffffff",
@@ -2127,8 +2426,8 @@ export default function SalarySlips() {
                   }}
                 >
                   Status
-                </TableCell>
-                <TableCell
+                </MuiTableCell>
+                <MuiTableCell
                   sx={{
                     fontWeight: 600,
                     color: "#ffffff",
@@ -2136,8 +2435,8 @@ export default function SalarySlips() {
                   }}
                 >
                   Generated On
-                </TableCell>
-                <TableCell
+                </MuiTableCell>
+                <MuiTableCell
                   sx={{
                     fontWeight: 600,
                     color: "#ffffff",
@@ -2145,7 +2444,7 @@ export default function SalarySlips() {
                   }}
                 >
                   Actions
-                </TableCell>
+                </MuiTableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -2167,23 +2466,23 @@ export default function SalarySlips() {
                       key={slip.id}
                       sx={{ "&:hover": { backgroundColor: "#3d3d3d" } }}
                     >
-                      <TableCell
+                      <MuiTableCell
                         sx={{
                           borderBottom: "1px solid #333",
                           color: "#ffffff",
                         }}
                       >
                         {employee?.fullName || "Unknown"}
-                      </TableCell>
-                      <TableCell
+                      </MuiTableCell>
+                      <MuiTableCell
                         sx={{
                           borderBottom: "1px solid #333",
                           color: "#ffffff",
                         }}
                       >
                         {employee?.employeeId || "Unknown"}
-                      </TableCell>
-                      <TableCell
+                      </MuiTableCell>
+                      <MuiTableCell
                         sx={{
                           borderBottom: "1px solid #333",
                           color: "#ffffff",
@@ -2191,8 +2490,8 @@ export default function SalarySlips() {
                       >
                         {months.find((m) => m.value === slip.month)?.label}{" "}
                         {slip.year}
-                      </TableCell>
-                      <TableCell
+                      </MuiTableCell>
+                      <MuiTableCell
                         sx={{
                           borderBottom: "1px solid #333",
                           color: "#ffffff",
@@ -2208,8 +2507,8 @@ export default function SalarySlips() {
                             payroll?.netSalary ||
                             "0.00",
                         )}
-                      </TableCell>
-                      <TableCell
+                      </MuiTableCell>
+                      <MuiTableCell
                         sx={{
                           borderBottom: "1px solid #333",
                           color: "#ffffff",
@@ -2221,8 +2520,8 @@ export default function SalarySlips() {
                           size="small"
                           sx={{ backgroundColor: "#4caf50" }}
                         />
-                      </TableCell>
-                      <TableCell
+                      </MuiTableCell>
+                      <MuiTableCell
                         sx={{
                           borderBottom: "1px solid #333",
                           color: "#ffffff",
@@ -2233,8 +2532,8 @@ export default function SalarySlips() {
                           : (slip.generatedAt as any)
                               ?.toDate?.()
                               ?.toLocaleDateString() || "Unknown"}
-                      </TableCell>
-                      <TableCell
+                      </MuiTableCell>
+                      <MuiTableCell
                         sx={{
                           borderBottom: "1px solid #333",
                           color: "#ffffff",
@@ -2268,7 +2567,7 @@ export default function SalarySlips() {
                             </IconButton>
                           </Tooltip>
                         </Box>
-                      </TableCell>
+                      </MuiTableCell>
                     </TableRow>
                   );
                 })}
@@ -2309,346 +2608,245 @@ export default function SalarySlips() {
           </Typography>
         </DialogTitle>
         <DialogContent>
-          {previewData && (
-            <Box sx={{ mt: 2, backgroundColor: "#f3f5f8", p: 2 }}>
-              {(() => {
-                const slip: PayslipModel = getPayslipModel(
-                  previewData.employee,
-                  previewData.payroll,
-                  selectedManager,
-                  attendanceDeductionByEmployee[
-                    previewData.employee.id ?? ""
-                  ],
-                );
-                return (
-                  <Box
-                    sx={{
-                      maxWidth: 980,
-                      mx: "auto",
-                      bgcolor: "#fff",
-                      border: "2px solid #1f2937",
-                      boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        textAlign: "center",
-                        px: 2,
-                        py: 1.5,
-                        borderBottom: "2px solid #1f2937",
-                        position: "relative",
-                        background:
-                          "linear-gradient(180deg, #fff 0%, #fbfcff 100%)",
-                      }}
-                    >
-                      {slip.logoUrl ? (
-                        <Box
-                          component="img"
-                          src={slip.logoUrl}
-                          alt="Company logo"
-                          sx={{
-                            position: "absolute",
-                            left: 16,
-                            top: 12,
-                            width: 52,
-                            height: 52,
-                            objectFit: "cover",
-                          }}
-                        />
-                      ) : (
-                        <Box
-                          sx={{
-                            position: "absolute",
-                            left: 16,
-                            top: 12,
-                            width: 52,
-                            height: 52,
-                            border: "2px solid #0f766e",
-                            borderRadius: "50%",
-                            display: "grid",
-                            placeItems: "center",
-                            color: "#0f766e",
-                            fontWeight: 700,
-                            backgroundColor: "#d9f3ef",
-                          }}
-                        >
-                          TW
-                        </Box>
-                      )}
-                      <Typography
-                        sx={{
-                          fontSize: "1.2rem",
-                          letterSpacing: "0.5px",
-                          textTransform: "uppercase",
-                          fontWeight: 700,
-                        }}
-                      >
-                        {slip.companyName}
-                      </Typography>
-                      <Typography sx={{ color: "#6b7280", fontSize: "0.9rem" }}>
-                        {slip.companyAddress}
-                      </Typography>
-                      <Typography
-                        sx={{
-                          color: "#374151",
-                          fontWeight: 700,
-                          mt: 0.5,
-                          fontSize: "0.9rem",
-                        }}
-                      >
-                        Pay Slip for the month of {slip.period}
-                      </Typography>
-                    </Box>
+          {previewData && (() => {
+            const canvasTmpl = getSlipTemplateForEmployee(previewData.employee);
 
-                    <Box
-                      sx={{
-                        display: "grid",
-                        gridTemplateColumns: { xs: "1fr", md: "1.2fr 1fr" },
-                        borderBottom: "1px solid #1f2937",
-                      }}
-                    >
-                      <Table
-                        size="small"
-                        sx={{
-                          "& td": {
-                            border: "1px solid #d5d9df",
-                            p: "6px 8px",
-                            fontSize: "0.84rem",
-                          },
-                        }}
-                      >
-                        <TableBody>
-                          {slip.details.map(([label, value]) => (
-                            <TableRow key={String(label)}>
-                              <TableCell
-                                sx={{
-                                  width: "34%",
-                                  bgcolor: "#fcfcfd",
-                                  fontWeight: 600,
-                                  color: "#374151",
-                                }}
-                              >
-                                {label}
-                              </TableCell>
-                              <TableCell>{value}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+            // ── Canvas-template preview ──────────────────────────────────────
+            if (canvasTmpl && canvasTmpl.elements.length > 0) {
+              const managerId =
+                (Array.isArray(previewData.employee.assignedManagers)
+                  ? previewData.employee.assignedManagers[0]
+                  : (previewData.employee as any).assignedManager) ?? "";
+              const managerData = managerId ? managersById[managerId] : undefined;
+              const companyData = companiesById[previewData.employee.companyId ?? currentUser?.uid ?? ""];
+              const varCtx = buildSlipVariableContext(previewData.employee, previewData.payroll, managerData, companyData);
+              const branding = (managerData?.payslipBranding as Record<string, unknown> | undefined) ?? {};
 
-                      <Table
-                        size="small"
-                        sx={{
-                          "& th, & td": {
-                            border: "1px solid #d5d9df",
-                            p: "6px 8px",
-                            fontSize: "0.84rem",
-                          },
-                          "& th": { bgcolor: "#f8fafc", fontWeight: 700 },
-                          "& td:not(:first-of-type)": { textAlign: "right" },
-                        }}
-                      >
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Attendance</TableCell>
-                            <TableCell>Days</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {slip.attendance.map((row, idx) => (
-                            <TableRow
-                              key={`${row[0]}-${idx}`}
-                            >
-                              {row.map((cell, cellIndex) => (
-                                <TableCell key={`${cell}-${cellIndex}`}>
-                                  {cell}
-                                </TableCell>
-                              ))}
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </Box>
+              // A4 canvas at 794×1123px, displayed at 60% scale inside the dialog
+              const SCALE = 0.6;
+              const CW = canvasTmpl.canvasWidth || 794;
+              const CH = canvasTmpl.canvasHeight || 1123;
 
-                    <Box
-                      sx={{
-                        borderBottom: "1px solid #1f2937",
-                      }}
-                    >
-                      <Table
-                        size="small"
-                        sx={{
-                          "& th, & td": {
-                            border: "1px solid #d5d9df",
-                            p: "6px 10px",
-                            fontSize: "0.84rem",
-                          },
-                          "& th": { bgcolor: "#f8fafc", fontWeight: 700 },
-                        }}
-                      >
-                        <TableHead>
-                          <TableRow>
-                            <TableCell sx={{ width: "75%" }}>Description</TableCell>
-                            <TableCell sx={{ textAlign: "right", width: "25%" }}>Amount</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {/* Earnings rows */}
-                          {slip.earnings.map((row, idx) => {
-                            const isTotal = idx === slip.earnings.length - 1;
-                            return (
-                              <TableRow key={`earn-${idx}`}>
-                                <TableCell sx={{ fontWeight: isTotal ? 700 : 400 }}>
-                                  {row[0]}
-                                </TableCell>
-                                <TableCell
-                                  sx={{
-                                    textAlign: "right",
-                                    color: "#1f2937",
-                                    fontWeight: isTotal ? 700 : 500,
-                                    fontFamily: "monospace",
-                                  }}
-                                >
-                                  +{row[1]}
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
+              const sorted = [...canvasTmpl.elements].sort((a, b) => a.zIndex - b.zIndex);
 
-                          {/* Separator */}
-                          <TableRow>
-                            <TableCell colSpan={2} sx={{ p: "2px 0", bgcolor: "#f8fafc", border: "none" }} />
-                          </TableRow>
+              return (
+                <Box sx={{ mt: 2, overflowX: "auto", display: "flex", justifyContent: "center" }}>
+                  <Box sx={{
+                    position: "relative",
+                    width: CW,
+                    height: CH,
+                    backgroundColor: "#fff",
+                    transform: `scale(${SCALE})`,
+                    transformOrigin: "top center",
+                    mb: `${CH * (SCALE - 1)}px`,
+                    boxShadow: "0 4px 24px rgba(0,0,0,0.25)",
+                    flexShrink: 0,
+                  }}>
+                    {sorted.map((el) => {
+                      const base = {
+                        position: "absolute" as const,
+                        left: el.x, top: el.y,
+                        width: el.width, height: el.height,
+                        zIndex: el.zIndex,
+                        overflow: "hidden",
+                        boxSizing: "border-box" as const,
+                      };
 
-                          {/* Deduction rows */}
-                          {slip.deductions.map((row, idx) => {
-                            const isTotal = idx === slip.deductions.length - 1;
-                            return (
-                              <TableRow key={`ded-${idx}`}>
-                                <TableCell sx={{ fontWeight: isTotal ? 700 : 400 }}>
-                                  {row[0]}
-                                </TableCell>
-                                <TableCell
-                                  sx={{
-                                    textAlign: "right",
-                                    color: "#1f2937",
-                                    fontWeight: isTotal ? 700 : 500,
-                                    fontFamily: "monospace",
-                                  }}
-                                >
-                                  -{row[1]}
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-
-                          {/* Net Total row */}
-                          <TableRow sx={{ bgcolor: "#f8fafc" }}>
-                            <TableCell
-                              sx={{ fontWeight: 800, fontSize: "0.95rem", color: "#1f2937" }}
-                            >
-                              NET SALARY
-                            </TableCell>
-                            <TableCell
-                              sx={{
-                                textAlign: "right",
-                                fontWeight: 800,
-                                fontSize: "0.95rem",
-                                color: "#1f2937",
-                                fontFamily: "monospace",
-                              }}
-                            >
-                              {slip.netSalary}
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </Box>
-
-                    {/* Net Pay bar */}
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        px: 2,
-                        py: 1,
-                        bgcolor: "#f8fafc",
-                        borderBottom: "1px solid #1f2937",
-                        borderTop: "1px solid #1f2937",
-                      }}
-                    >
-                      <Typography sx={{ fontWeight: 800, fontSize: "0.95rem" }}>Net Pay</Typography>
-                      <Typography sx={{ fontWeight: 800, fontSize: "0.95rem", fontFamily: "monospace" }}>
-                        {slip.netSalary}
-                      </Typography>
-                    </Box>
-
-                    {/* Sign table — below Net Pay */}
-                    <Table
-                      size="small"
-                      sx={{
-                        "& td": {
-                          border: "1px solid #d5d9df",
-                          p: "24px 12px 12px",
-                          textAlign: "center",
-                          verticalAlign: "bottom",
-                          fontWeight: 600,
-                        },
-                      }}
-                    >
-                      <TableBody>
-                        <TableRow>
-                          <TableCell>Employee&apos;s Sign</TableCell>
-                          <TableCell>Checked By</TableCell>
-                          <TableCell>
-                            <Box
-                              sx={{
-                                display: "flex",
-                                flexDirection: "column",
-                                alignItems: "center",
-                                gap: 0.5,
-                              }}
-                            >
-                              {slip.stampUrl ? (
-                                <Box
-                                  component="img"
-                                  src={slip.stampUrl}
-                                  alt="Company stamp"
-                                  sx={{ width: 60, height: 60, objectFit: "contain" }}
-                                />
-                              ) : null}
-                              {slip.signUrl ? (
-                                <Box
-                                  component="img"
-                                  src={slip.signUrl}
-                                  alt="Company sign"
-                                  sx={{ width: 90, height: 30, objectFit: "cover" }}
-                                />
-                              ) : null}
-                              {!slip.stampUrl && !slip.signUrl ? "Company Stamp and Sign" : null}
+                      switch (el.type) {
+                        case "text": {
+                          const te = el as TextElement;
+                          return (
+                            <Box key={el.id} sx={{ ...base, display: "flex", alignItems: "center",
+                              justifyContent: te.textAlign === "center" ? "center" : te.textAlign === "right" ? "flex-end" : "flex-start" }}>
+                              <span style={{ fontSize: te.fontSize, fontWeight: te.fontWeight, fontStyle: te.fontStyle,
+                                color: te.color, lineHeight: 1.3, whiteSpace: "pre-wrap" }}>{te.content}</span>
                             </Box>
-                          </TableCell>
-                        </TableRow>
+                          );
+                        }
+                        case "variable": {
+                          const ve = el as VariableElement;
+                          const val = varCtx[ve.variableKey] ?? "";
+                          return (
+                            <Box key={el.id} sx={{ ...base, display: "flex", alignItems: "center",
+                              justifyContent: ve.textAlign === "center" ? "center" : ve.textAlign === "right" ? "flex-end" : "flex-start",
+                              borderBottom: "1px solid #ddd" }}>
+                              <span style={{ fontSize: ve.fontSize, fontWeight: ve.fontWeight, fontStyle: ve.fontStyle,
+                                color: ve.color, lineHeight: 1.3 }}>{val}</span>
+                            </Box>
+                          );
+                        }
+                        case "line": {
+                          const le = el as LineElement;
+                          return (
+                            <Box key={el.id} sx={{ ...base, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              {le.orientation === "horizontal"
+                                ? <Box sx={{ width: "100%", height: le.thickness, backgroundColor: le.color }} />
+                                : <Box sx={{ height: "100%", width: le.thickness, backgroundColor: le.color }} />}
+                            </Box>
+                          );
+                        }
+                        case "rectangle": {
+                          const re = el as RectElement;
+                          return (
+                            <Box key={el.id} sx={{ ...base,
+                              border: `${re.borderWidth}px solid ${re.borderColor}`,
+                              borderRadius: re.borderRadius,
+                              backgroundColor: re.fillColor === "transparent" ? "transparent" : re.fillColor,
+                              opacity: re.opacity }} />
+                          );
+                        }
+                        case "logo": {
+                          const logoUrl = String(branding.logoUrl || "");
+                          return (
+                            <Box key={el.id} sx={{ ...base }}>
+                              {logoUrl
+                                ? <Box component="img" src={logoUrl} sx={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                                : <Box sx={{ ...base, left: 0, top: 0, backgroundColor: "#e3f2fd", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #2196f3", fontSize: 11, color: "#2196f3" }}>Logo</Box>}
+                            </Box>
+                          );
+                        }
+                        case "stamp": {
+                          const stampUrl = String(branding.stampUrl || "");
+                          return (
+                            <Box key={el.id} sx={{ ...base }}>
+                              {stampUrl
+                                ? <Box component="img" src={stampUrl} sx={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                                : <Box sx={{ ...base, left: 0, top: 0, backgroundColor: "#fce4ec", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #e91e63", borderRadius: "50%", fontSize: 11, color: "#e91e63" }}>Stamp</Box>}
+                            </Box>
+                          );
+                        }
+                        case "signature": {
+                          const signUrl = String(branding.signUrl || "");
+                          return (
+                            <Box key={el.id} sx={{ ...base }}>
+                              {signUrl
+                                ? <Box component="img" src={signUrl} sx={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                                : <Box sx={{ ...base, left: 0, top: 0, borderBottom: "2px solid #ff5722", backgroundColor: "#fff3e0", display: "flex", alignItems: "flex-end", justifyContent: "center", fontSize: 11, color: "#ff5722", pb: 0.5 }}>Signature</Box>}
+                            </Box>
+                          );
+                        }
+                        case "table": {
+                          const te = el as TableElement;
+                          const colW = el.width / te.cols;
+                          return (
+                            <Box key={el.id} sx={{ ...base, border: `${te.borderWidth}px solid ${te.borderColor}` }}>
+                              {te.rows.map((row, ri) => {
+                                const isHdr = te.hasHeaderRow && ri === 0;
+                                const isAlt = te.alternateRowColor && !isHdr && ri % 2 === 0;
+                                return (
+                                  <Box key={ri} sx={{ display: "flex", height: te.rowHeight,
+                                    backgroundColor: isHdr ? te.headerBgColor : isAlt ? "rgba(0,0,0,0.04)" : "transparent" }}>
+                                    {row.map((cell, ci) => {
+                                      const cellVal =
+                                        cell.kind === "variable" ? (varCtx[cell.variableKey ?? ""] ?? "") :
+                                        cell.kind === "text" ? (cell.text ?? "") :
+                                        cell.kind === "logo" ? "[Logo]" :
+                                        cell.kind === "stamp" ? "[Stamp]" :
+                                        cell.kind === "signature" ? "[Signature]" : "";
+                                      return (
+                                        <Box key={ci} sx={{
+                                          width: colW * (cell.colSpan ?? 1), height: "100%",
+                                          borderRight: ci < row.length - 1 ? `${te.borderWidth}px solid ${te.borderColor}` : "none",
+                                          borderBottom: ri < te.rows.length - 1 ? `${te.borderWidth}px solid ${te.borderColor}` : "none",
+                                          display: "flex", alignItems: "center",
+                                          justifyContent: cell.textAlign === "center" ? "center" : cell.textAlign === "right" ? "flex-end" : "flex-start",
+                                          px: 0.75, overflow: "hidden", boxSizing: "border-box",
+                                        }}>
+                                          <span style={{ fontSize: te.fontSize, fontWeight: cell.fontWeight ?? (isHdr ? "bold" : "normal"),
+                                            fontStyle: cell.fontStyle ?? "normal",
+                                            color: cell.color ?? (isHdr ? te.headerTextColor : "#000"),
+                                            lineHeight: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                            {cellVal}
+                                          </span>
+                                        </Box>
+                                      );
+                                    })}
+                                  </Box>
+                                );
+                              })}
+                            </Box>
+                          );
+                        }
+                        default: return null;
+                      }
+                    })}
+                  </Box>
+                </Box>
+              );
+            }
+
+            // ── Fallback: old hardcoded layout ───────────────────────────────
+            const slip: PayslipModel = getPayslipModel(
+              previewData.employee,
+              previewData.payroll,
+              selectedManager,
+              attendanceDeductionByEmployee[previewData.employee.id ?? ""],
+            );
+            return (
+              <Box sx={{ mt: 2, backgroundColor: "#f3f5f8", p: 2 }}>
+                <Box sx={{ maxWidth: 980, mx: "auto", bgcolor: "#fff", border: "2px solid #1f2937", boxShadow: "0 12px 30px rgba(0,0,0,0.12)" }}>
+                  {/* Header */}
+                  <Box sx={{ textAlign: "center", px: 2, py: 1.5, borderBottom: "2px solid #1f2937", position: "relative" }}>
+                    {slip.logoUrl && <Box component="img" src={slip.logoUrl} sx={{ position: "absolute", left: 16, top: 12, width: 52, height: 52, objectFit: "cover" }} />}
+                    <Typography sx={{ fontSize: "1.2rem", textTransform: "uppercase", fontWeight: 700 }}>{slip.companyName}</Typography>
+                    <Typography sx={{ color: "#6b7280", fontSize: "0.9rem" }}>{slip.companyAddress}</Typography>
+                    <Typography sx={{ color: "#374151", fontWeight: 700, mt: 0.5, fontSize: "0.9rem" }}>Pay Slip for the month of {slip.period}</Typography>
+                  </Box>
+                  {/* Details + Attendance */}
+                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1.2fr 1fr" }, borderBottom: "1px solid #1f2937" }}>
+                    <Table size="small" sx={{ "& td": { border: "1px solid #d5d9df", p: "6px 8px", fontSize: "0.84rem" } }}>
+                      <TableBody>
+                        {slip.details.map(([label, value]) => (
+                          <TableRow key={String(label)}>
+                            <MuiTableCell sx={{ width: "34%", bgcolor: "#fcfcfd", fontWeight: 600 }}>{label}</MuiTableCell>
+                            <MuiTableCell>{value}</MuiTableCell>
+                          </TableRow>
+                        ))}
                       </TableBody>
                     </Table>
-
-                    <Typography
-                      sx={{
-                        textAlign: "center",
-                        p: "10px 12px 16px",
-                        fontSize: "0.8rem",
-                        color: "#6b7280",
-                        fontStyle: "italic",
-                      }}
-                    >
-                      This is a computer generated document. No signature
-                      required.
-                    </Typography>
+                    <Table size="small" sx={{ "& th, & td": { border: "1px solid #d5d9df", p: "6px 8px", fontSize: "0.84rem" }, "& th": { bgcolor: "#f8fafc", fontWeight: 700 } }}>
+                      <TableHead><TableRow><MuiTableCell>Attendance</MuiTableCell><MuiTableCell>Days</MuiTableCell></TableRow></TableHead>
+                      <TableBody>{slip.attendance.map((row, i) => <TableRow key={i}>{row.map((c, j) => <MuiTableCell key={j}>{c}</MuiTableCell>)}</TableRow>)}</TableBody>
+                    </Table>
                   </Box>
-                );
-              })()}
-            </Box>
-          )}
+                  {/* Earnings/Deductions */}
+                  <Box sx={{ borderBottom: "1px solid #1f2937" }}>
+                    <Table size="small" sx={{ "& th, & td": { border: "1px solid #d5d9df", p: "6px 10px", fontSize: "0.84rem" }, "& th": { bgcolor: "#f8fafc", fontWeight: 700 } }}>
+                      <TableHead><TableRow><MuiTableCell sx={{ width: "75%" }}>Description</MuiTableCell><MuiTableCell sx={{ textAlign: "right" }}>Amount</MuiTableCell></TableRow></TableHead>
+                      <TableBody>
+                        {slip.earnings.map((row, i) => <TableRow key={`e${i}`}><MuiTableCell sx={{ fontWeight: i === slip.earnings.length - 1 ? 700 : 400 }}>{row[0]}</MuiTableCell><MuiTableCell sx={{ textAlign: "right", fontFamily: "monospace" }}>+{row[1]}</MuiTableCell></TableRow>)}
+                        <TableRow><MuiTableCell colSpan={2} sx={{ p: "2px 0", bgcolor: "#f8fafc", border: "none" }} /></TableRow>
+                        {slip.deductions.map((row, i) => <TableRow key={`d${i}`}><MuiTableCell sx={{ fontWeight: i === slip.deductions.length - 1 ? 700 : 400 }}>{row[0]}</MuiTableCell><MuiTableCell sx={{ textAlign: "right", fontFamily: "monospace" }}>-{row[1]}</MuiTableCell></TableRow>)}
+                        <TableRow sx={{ bgcolor: "#f8fafc" }}><MuiTableCell sx={{ fontWeight: 800 }}>NET SALARY</MuiTableCell><MuiTableCell sx={{ textAlign: "right", fontWeight: 800, fontFamily: "monospace" }}>{slip.netSalary}</MuiTableCell></TableRow>
+                      </TableBody>
+                    </Table>
+                  </Box>
+                  {/* Net Pay bar */}
+                  <Box sx={{ display: "flex", justifyContent: "space-between", px: 2, py: 1, bgcolor: "#f8fafc", borderBottom: "1px solid #1f2937" }}>
+                    <Typography sx={{ fontWeight: 800 }}>Net Pay</Typography>
+                    <Typography sx={{ fontWeight: 800, fontFamily: "monospace" }}>{slip.netSalary}</Typography>
+                  </Box>
+                  {/* Signature row */}
+                  <Table size="small" sx={{ "& td": { border: "1px solid #d5d9df", p: "24px 12px 12px", textAlign: "center", verticalAlign: "bottom", fontWeight: 600 } }}>
+                    <TableBody>
+                      <TableRow>
+                        <MuiTableCell>Employee&apos;s Sign</MuiTableCell>
+                        <MuiTableCell>Checked By</MuiTableCell>
+                        <MuiTableCell>
+                          {slip.stampUrl && <Box component="img" src={slip.stampUrl} sx={{ width: 60, height: 60, objectFit: "contain", display: "block", mx: "auto" }} />}
+                          {slip.signUrl && <Box component="img" src={slip.signUrl} sx={{ width: 90, height: 30, objectFit: "cover", display: "block", mx: "auto" }} />}
+                          {!slip.stampUrl && !slip.signUrl && "Company Stamp and Sign"}
+                        </MuiTableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                  <Typography sx={{ textAlign: "center", p: "10px 12px 16px", fontSize: "0.8rem", color: "#6b7280", fontStyle: "italic" }}>
+                    This is a computer generated document. No signature required.
+                  </Typography>
+                </Box>
+              </Box>
+            );
+          })()}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowPreviewDialog(false)}>Close</Button>

@@ -716,19 +716,72 @@ describe("Property 2 (attendance-variables): Context merge completeness", () => 
 function splitArgsLocal(s: string): string[] {
   const parts: string[] = [];
   let depth = 0;
+  let inStr = false;
+  let strChar = "";
   let cur = "";
-  for (const ch of s) {
-    if (ch === "(") depth++;
-    else if (ch === ")") depth--;
-    else if (ch === "," && depth === 0) {
-      parts.push(cur.trim());
-      cur = "";
-      continue;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      cur += ch;
+      if (ch === strChar && s[i - 1] !== "\\") inStr = false;
+    } else if (ch === '"' || ch === "'") {
+      inStr = true; strChar = ch; cur += ch;
+    } else if (ch === "(") {
+      depth++; cur += ch;
+    } else if (ch === ")") {
+      depth--; cur += ch;
+    } else if (ch === "," && depth === 0) {
+      parts.push(cur.trim()); cur = "";
+    } else {
+      cur += ch;
     }
-    cur += ch;
   }
   if (cur.trim()) parts.push(cur.trim());
   return parts;
+}
+
+function findClosingParenLocal(s: string, openPos: number): number {
+  let depth = 1;
+  let inStr = false;
+  let strChar = "";
+  for (let i = openPos + 1; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (ch === strChar && s[i - 1] !== "\\") inStr = false;
+    } else if (ch === '"' || ch === "'") {
+      inStr = true; strChar = ch;
+    } else if (ch === "(") {
+      depth++;
+    } else if (ch === ")") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function transformIfLocal(expr: string): string {
+  let result = expr;
+  let safety = 0;
+  while (/\bif\s*\(/i.test(result) && safety++ < 200) {
+    const ifMatch = [...result.matchAll(/\bif\s*\(/gi)].pop();
+    if (!ifMatch || ifMatch.index === undefined) break;
+    const openIdx = ifMatch.index + ifMatch[0].length - 1;
+    const closeIdx = findClosingParenLocal(result, openIdx);
+    if (closeIdx === -1) break;
+    const inner = result.slice(openIdx + 1, closeIdx);
+    const args = splitArgsLocal(inner);
+    let ternary: string;
+    if (args.length >= 3) {
+      ternary = `((${args[0]}) ? (${args[1]}) : (${args[2]}))`;
+    } else if (args.length === 2) {
+      ternary = `((${args[0]}) ? (${args[1]}) : 0)`;
+    } else {
+      ternary = "0";
+    }
+    result = result.slice(0, ifMatch.index) + ternary + result.slice(closeIdx + 1);
+  }
+  return result;
 }
 
 function evaluateTemplateFormula(
@@ -737,14 +790,7 @@ function evaluateTemplateFormula(
 ): number | string {
   if (!expr.trim()) return 0;
   try {
-    const transformed = expr.replace(/\bif\s*\(/gi, "__if__(").replace(
-      /__if__\(([^)]+)\)/g,
-      (_, inner) => {
-        const parts = splitArgsLocal(inner);
-        if (parts.length !== 3) return "0";
-        return `((${parts[0]}) ? (${parts[1]}) : (${parts[2]}))`;
-      },
-    );
+    const transformed = transformIfLocal(expr.trim());
     const keys = Object.keys(ctx);
     const vals = keys.map((k) => ctx[k]);
     // eslint-disable-next-line no-new-func

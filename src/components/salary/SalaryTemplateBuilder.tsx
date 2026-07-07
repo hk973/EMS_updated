@@ -411,7 +411,7 @@ function FormulaDialog({ open, column, allKeys, onSave, onClose }: FormulaDialog
 
   // Excel converter state
   const [excelInput, setExcelInput] = useState("");
-  const [convertResult, setConvertResult] = useState<{ result: string; warnings: string[] } | null>(null);
+  const [convertResult, setConvertResult] = useState<{ result: string; warnings: string[]; cellRefs: string[] } | null>(null);
   // Cell ref → variable mapping: { A1: "basic", B1: "da", ... }
   const [cellMappings, setCellMappings] = useState<Record<string, string>>({});
   // Step: "input" | "mapping" | "done"
@@ -992,167 +992,6 @@ function FormulaDialog({ open, column, allKeys, onSave, onClose }: FormulaDialog
   );
 }
 
-// ─── Slip Config Dialog ───────────────────────────────────────────────────────
-
-import { Switch, FormControlLabel as MuiFormControlLabel, RadioGroup, Radio } from "@mui/material";
-import { Receipt } from "@mui/icons-material";
-import type { ColumnSlipConfig } from "@/lib/salaryTemplateService";
-
-interface SlipConfigDialogProps {
-  open: boolean;
-  column: TemplateColumn | null;
-  onSave: (col: TemplateColumn) => void;
-  onClose: () => void;
-}
-
-function SlipConfigDialog({ open, column, onSave, onClose }: SlipConfigDialogProps) {
-  const defaultCfg: ColumnSlipConfig = {
-    includeInSlip: false,
-    slipSection: "none",
-    slipLabel: "",
-    isNetSalary: false,
-  };
-  const [cfg, setCfg] = useState<ColumnSlipConfig>(column?.slipConfig ?? defaultCfg);
-
-  useEffect(() => {
-    setCfg(column?.slipConfig ?? { ...defaultCfg, slipLabel: column?.label ?? "" });
-  }, [column]);
-
-  if (!column) return null;
-
-  const handleSave = () => {
-    onSave({ ...column, slipConfig: cfg });
-    onClose();
-  };
-
-  const sectionIcon =
-    cfg.slipSection === "earnings" ? "+" :
-    cfg.slipSection === "deductions" ? "−" : "";
-
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ color: "#ff9800", pb: 0 }}>
-        Salary Slip Config —{" "}
-        <span style={{ color: "#fff" }}>{column.label}</span>
-      </DialogTitle>
-      <DialogContent>
-        <Box sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 2 }}>
-
-          {/* Include toggle */}
-          <MuiFormControlLabel
-            control={
-              <Switch
-                checked={cfg.includeInSlip}
-                onChange={(e) =>
-                  setCfg((p) => ({
-                    ...p,
-                    includeInSlip: e.target.checked,
-                    slipSection: e.target.checked
-                      ? p.slipSection === "none" ? "earnings" : p.slipSection
-                      : "none",
-                    isNetSalary: e.target.checked ? false : p.isNetSalary,
-                  }))
-                }
-                color="warning"
-              />
-            }
-            label={<Typography sx={{ fontWeight: 600 }}>Include in Salary Slip</Typography>}
-          />
-
-          {cfg.includeInSlip && (
-            <>
-              {/* Section */}
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
-                  Section on slip:
-                </Typography>
-                <RadioGroup
-                  row
-                  value={cfg.slipSection}
-                  onChange={(e) =>
-                    setCfg((p) => ({
-                      ...p,
-                      slipSection: e.target.value as ColumnSlipConfig["slipSection"],
-                    }))
-                  }
-                >
-                  {[
-                    { value: "earnings", label: "+ Earnings" },
-                    { value: "deductions", label: "− Deductions" },
-                    { value: "details", label: "Employee Details" },
-                  ].map((opt) => (
-                    <MuiFormControlLabel
-                      key={opt.value}
-                      value={opt.value}
-                      control={<Radio size="small" />}
-                      label={<Typography variant="body2">{opt.label}</Typography>}
-                    />
-                  ))}
-                </RadioGroup>
-              </Box>
-
-              {/* Label override */}
-              <TextField
-                label="Display label on slip"
-                value={cfg.slipLabel ?? ""}
-                onChange={(e) => setCfg((p) => ({ ...p, slipLabel: e.target.value }))}
-                fullWidth
-                size="small"
-                placeholder={`Default: "${column.label}"`}
-                helperText="Leave blank to use the column label"
-              />
-
-              {/* Preview */}
-              {cfg.slipSection !== "details" && (
-                <Box sx={{ p: 1.5, backgroundColor: "#1a1a1a", border: "1px solid #333", borderRadius: 1, display: "flex", justifyContent: "space-between" }}>
-                  <Typography variant="body2" sx={{ color: "#ccc" }}>
-                    {cfg.slipLabel || column.label}
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontFamily: "monospace", color: "#ccc" }}>
-                    {sectionIcon}₹ (calculated)
-                  </Typography>
-                </Box>
-              )}
-            </>
-          )}
-
-          {/* Net salary toggle — only when NOT included in table */}
-          {!cfg.includeInSlip && (
-            <MuiFormControlLabel
-              control={
-                <Switch
-                  checked={cfg.isNetSalary ?? false}
-                  onChange={(e) => setCfg((p) => ({ ...p, isNetSalary: e.target.checked }))}
-                  color="success"
-                />
-              }
-              label={
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>This is the Net Salary column</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Its value will be shown as Net Pay at the bottom of the slip.
-                  </Typography>
-                </Box>
-              }
-            />
-          )}
-        </Box>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          variant="contained"
-          onClick={handleSave}
-          startIcon={<Receipt />}
-          sx={{ backgroundColor: "#ff9800", "&:hover": { backgroundColor: "#f57c00" } }}
-        >
-          Save
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
 // ─── Column row ───────────────────────────────────────────────────────────────
 
 interface ColumnRowProps {
@@ -1164,14 +1003,6 @@ interface ColumnRowProps {
 
 function ColumnRow({ column, availableKeys, onUpdate, onDelete }: ColumnRowProps) {
   const [formulaOpen, setFormulaOpen] = useState(false);
-  const [slipOpen, setSlipOpen] = useState(false);
-
-  const slipCfg = column.slipConfig;
-  const slipBadgeColor = slipCfg?.includeInSlip
-    ? slipCfg.slipSection === "earnings" ? "#4caf50"
-    : slipCfg.slipSection === "deductions" ? "#f44336"
-    : "#2196f3"
-    : "#555";
 
   return (
     <>
@@ -1219,23 +1050,7 @@ function ColumnRow({ column, availableKeys, onUpdate, onDelete }: ColumnRowProps
           <Chip label="no formula" size="small" variant="outlined" sx={{ fontSize: 10, color: "#666" }} />
         )}
 
-        {/* Slip config badge */}
-        <Tooltip title={slipCfg?.includeInSlip ? `Slip: ${slipCfg.slipSection} — "${slipCfg.slipLabel || column.label}"` : "Not on slip"}>
-          <Chip
-            label={slipCfg?.includeInSlip ? `slip: ${slipCfg.slipSection}` : "no slip"}
-            size="small"
-            onClick={() => setSlipOpen(true)}
-            sx={{
-              fontSize: 10,
-              cursor: "pointer",
-              borderColor: slipBadgeColor,
-              color: slipBadgeColor,
-              border: "1px solid",
-              backgroundColor: "transparent",
-            }}
-          />
-        </Tooltip>
-
+        {/* Set formula button */}
         <Tooltip title="Set formula">
           <span>
             <IconButton
@@ -1247,12 +1062,6 @@ function ColumnRow({ column, availableKeys, onUpdate, onDelete }: ColumnRowProps
               <Functions fontSize="small" />
             </IconButton>
           </span>
-        </Tooltip>
-
-        <Tooltip title="Salary slip config">
-          <IconButton size="small" onClick={() => setSlipOpen(true)} sx={{ color: "#ff9800" }}>
-            <Receipt fontSize="small" />
-          </IconButton>
         </Tooltip>
 
         {column.isFixed ? (
@@ -1274,13 +1083,6 @@ function ColumnRow({ column, availableKeys, onUpdate, onDelete }: ColumnRowProps
         allKeys={availableKeys}
         onSave={(updated) => onUpdate(updated)}
         onClose={() => setFormulaOpen(false)}
-      />
-
-      <SlipConfigDialog
-        open={slipOpen}
-        column={column}
-        onSave={(updated) => onUpdate(updated)}
-        onClose={() => setSlipOpen(false)}
       />
     </>
   );
