@@ -50,6 +50,7 @@ import {
   TemplateColumn,
   salaryTemplateService,
   evaluateTemplateFormula,
+  stripRemovedFixedColumns,
 } from "@/lib/salaryTemplateService";
 import { Employee } from "@/types";
 import {
@@ -222,7 +223,14 @@ export default function TemplateSalaryView({
     setLoading(true);
     salaryTemplateService
       .getAll(companyId)
-      .then(setTemplates)
+      .then((tmpl) =>
+        setTemplates(
+          tmpl.map((t) => ({
+            ...t,
+            sections: stripRemovedFixedColumns(t.sections),
+          })),
+        ),
+      )
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [companyId]);
@@ -232,7 +240,14 @@ export default function TemplateSalaryView({
     if (!companyId || !refreshKey) return;
     salaryTemplateService
       .getAll(companyId)
-      .then(setTemplates)
+      .then((tmpl) =>
+        setTemplates(
+          tmpl.map((t) => ({
+            ...t,
+            sections: stripRemovedFixedColumns(t.sections),
+          })),
+        ),
+      )
       .catch(console.error);
   }, [refreshKey, companyId]);
 

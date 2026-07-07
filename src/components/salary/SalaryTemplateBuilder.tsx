@@ -54,6 +54,7 @@ import {
   SalaryTemplate,
   TemplateSection,
   TemplateColumn,
+  stripRemovedFixedColumns,
 } from "@/lib/salaryTemplateService";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -1231,7 +1232,14 @@ export default function SalaryTemplateBuilder() {
         salaryTemplateService.getAll(companyId),
         getDocs(query(collection(db, "managers"), where("companyId", "==", companyId))),
       ]);
-      setTemplates(tmpl);
+      // Strip retired fixed columns (Basic Salary, D.A., Paid Days) from any
+      // previously-saved templates so they no longer appear while editing.
+      setTemplates(
+        tmpl.map((t) => ({
+          ...t,
+          sections: stripRemovedFixedColumns(t.sections),
+        })),
+      );
       setManagers(
         mgrs.docs.map((d) => ({
           id: d.id,

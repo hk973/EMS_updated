@@ -90,12 +90,28 @@ export const FIXED_SECTIONS: TemplateSection[] = [
       { id: "col_emp_id", label: "Employee ID", key: "employee_id", isFixed: true, order: 1 },
       { id: "col_esic", label: "ESIC No", key: "esic_no", isFixed: true, order: 2 },
       { id: "col_uan", label: "UAN", key: "uan", isFixed: true, order: 3 },
-      { id: "col_basic", label: "Basic Salary", key: "basic", isFixed: true, order: 4 },
-      { id: "col_da", label: "D.A.", key: "da", isFixed: true, order: 5 },
-      { id: "col_paid_days", label: "Paid Days", key: "paid_days", isFixed: true, order: 6 },
     ],
   },
 ];
+
+// ─── Removed fixed columns ────────────────────────────────────────────────────
+// Basic Salary, D.A. and Paid Days are no longer shown as columns in the
+// "Employee Info & Basic" section (neither while creating a template nor while
+// assigning/viewing an employee's salary). Their values still come from the
+// employee's stored salary data, so formulas that reference these keys keep
+// working. We strip them from any previously-saved templates on load so old
+// templates behave the same as new ones.
+export const REMOVED_FIXED_COLUMN_KEYS = ["basic", "da", "paid_days"];
+
+/** Remove the retired fixed columns (basic/da/paid_days) from template sections. */
+export function stripRemovedFixedColumns(sections: TemplateSection[]): TemplateSection[] {
+  return sections.map((sec) => ({
+    ...sec,
+    columns: sec.columns.filter(
+      (col) => !REMOVED_FIXED_COLUMN_KEYS.includes(col.key),
+    ),
+  }));
+}
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 

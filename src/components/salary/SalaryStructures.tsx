@@ -142,23 +142,25 @@ function TabPanel(props: TabPanelProps) {
 }
 
 export default function SalaryStructures({ refreshKey }: { refreshKey?: number }) {
-  // Helper to get formatted filename (without extension)
-  const getExportFilename = () => {
-    const now = new Date();
-    const month = now
+  // Resolve the month/year that exports should be scoped to. This follows the
+  // attendance period selected in the toolbar (falling back to the current
+  // calendar month only when no period is available/selected).
+  const getExportPeriodLabel = () => {
+    const month = new Date(selectedYear, selectedMonth - 1, 1)
       .toLocaleString("default", { month: "long" })
       .toUpperCase();
-    const year = now.getFullYear();
+    return { month, year: selectedYear };
+  };
+
+  // Helper to get formatted filename (without extension)
+  const getExportFilename = () => {
+    const { month, year } = getExportPeriodLabel();
     return `${month}-${year}_WAGES_UPDATE`;
   };
 
   // Helper to get ESIC export filename
   const getESICExportFilename = () => {
-    const now = new Date();
-    const month = now
-      .toLocaleString("default", { month: "long" })
-      .toUpperCase();
-    const year = now.getFullYear();
+    const { month, year } = getExportPeriodLabel();
     return `${month}-${year}_ESIC_MC`; // MC = Monthly Contribution
   };
 
@@ -237,11 +239,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
 
   // Helper to get UAN ECR filename
   const getUANECRExportFilename = () => {
-    const now = new Date();
-    const month = now
-      .toLocaleString("default", { month: "long" })
-      .toUpperCase();
-    const year = now.getFullYear();
+    const { month, year } = getExportPeriodLabel();
     return `${month}-${year}_UAN_ECR`;
   };
 
@@ -418,6 +416,20 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     return Array.from(map.values()).sort((a, b) => a.order - b.order);
   };
 
+  // Key used to store/look up the per-month salary data (e.g. "2025-7").
+  const getMonthlyKey = () => `${selectedYear}-${selectedMonth}`;
+
+  // The salary record for the currently selected month/year. Each month keeps
+  // its own data under employee.salaryByMonth, so downloading/uploading a month
+  // only touches that month. When a month has no saved data yet this is empty,
+  // so the export produces a blank fill-in template for that month.
+  const getMonthlySalary = (emp: Employee): Record<string, unknown> => {
+    const byMonth = (emp as unknown as {
+      salaryByMonth?: Record<string, Record<string, unknown>>;
+    }).salaryByMonth;
+    return byMonth?.[getMonthlyKey()] ?? {};
+  };
+
   /** Evaluate all columns for an employee using their assigned template */
   const buildEmployeeExportRow = (
     emp: Employee,
@@ -429,8 +441,8 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
         : emp.assignedManager) ?? "";
     const tmpl = getTemplateForManagerId(managerId);
 
-    // Build context progressively
-    const s = emp.salary ?? {};
+    // Build context progressively — sourced from the SELECTED month's data.
+    const s = getMonthlySalary(emp);
     const totalDaysVal = Number((s as any).totalDays ?? 30);
     const paidDaysVal = Number((s as any).paidDays ?? totalDaysVal);
     const presentDays = Number((s as any).presentDays ?? paidDaysVal);
@@ -500,14 +512,30 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           "paid_days",
         ];
         if (directKeys.includes(col.key)) {
-          val = (ctx[col.key] as string | number) ?? "-";
+          const textKeys = ["name", "employee_id", "esic_no", "uan"];
+          if (textKeys.includes(col.key)) {
+            val = (ctx[col.key] as string | number) ?? "";
+          } else {
+            // Numeric direct fields (basic/da/total_days/paid_days): show a
+            // blank cell when this month has no saved data instead of a
+            // misleading 0, so the download is a clean fill-in template.
+            const rawDirect: Record<string, unknown> = {
+              basic: (s as any).basic ?? (s as any).base,
+              da: (s as any).da,
+              total_days: (s as any).totalDays,
+              paid_days: (s as any).paidDays ?? (s as any).totalDays,
+            };
+            val = isBlankCell(rawDirect[col.key])
+              ? ""
+              : (ctx[col.key] as number);
+          }
         } else if (col.formula?.expression) {
+          // Still evaluate so later formulas depending on this column resolve,
+          // but in the fill-and-upload export we mark auto-calculated columns
+          // with the text "auto calculated" instead of the computed number.
           const result = evaluateTemplateFormula(col.formula.expression, ctx);
-          val =
-            typeof result === "number"
-              ? Math.round(result * 100) / 100
-              : (result as string) || "-";
           if (typeof result === "number") ctx[col.key] = result;
+          val = "auto calculated";
         } else {
           const storedValue =
             (s as Record<string, unknown>)[col.key] ??
@@ -590,7 +618,15 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
 
   // Export to CSV
   const handleExportCSV = () => {
-    const data = getExportData();
+    const data = getExportData().map((row) => {
+      const sanitized: Record<string, string | number> = {};
+      Object.entries(row).forEach(([key, value]) => {
+        // Leave cells with no data blank (per the fill-and-upload template).
+        sanitized[key] =
+          String(value) === "-" ? "" : (value as string | number);
+      });
+      return sanitized;
+    });
     if (!data || data.length === 0) {
       setAlert({ type: "error", message: "No data to export" });
       return;
@@ -674,6 +710,14 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
   >([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedManagerId, setSelectedManagerId] = useState("all");
+  // Attendance period that scopes the export, chosen via separate Month and
+  // Year selectors (month-and-year format).
+  const [selectedMonth, setSelectedMonth] = useState<number>(
+    new Date().getMonth() + 1,
+  );
+  const [selectedYear, setSelectedYear] = useState<number>(
+    new Date().getFullYear(),
+  );
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [tabValue, setTabValue] = useState(0);
@@ -2073,7 +2117,12 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
 
         if (!employee) return null;
 
-        const existingSalary = (employee.salary ?? {}) as Record<string, any>;
+        // Merge against this month's existing data (not the global record), so
+        // uploading a specific month only changes that month.
+        const existingSalary = getMonthlySalary(employee) as Record<
+          string,
+          any
+        >;
         const currentExportRow = buildEmployeeExportRow(
           employee,
           getActiveExportSections(),
@@ -2257,6 +2306,12 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
         return updateDoc(doc(db, "employees", employee.id), {
           esicNo: salaryData.esicNo,
           uan: salaryData.uan,
+          // Save this upload against the selected month only, so each month
+          // keeps its own salary data (download May → upload as July keeps a
+          // separate July copy).
+          [`salaryByMonth.${getMonthlyKey()}`]: mergedSalary,
+          // Keep the global salary in sync for the rest of the app (payroll,
+          // edit dialog, slips) which still read employee.salary.
           salary: mergedSalary,
           updatedAt: new Date(),
         });
@@ -2268,9 +2323,11 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           `You are trying to update is auto-calculated from calculations, so data from following field are remain unchanged:\n${Array.from(warningFields).join(", ")}`,
         );
       }
+      const { month: uploadMonthLabel, year: uploadYearLabel } =
+        getExportPeriodLabel();
       setAlert({
         type: "success",
-        message: "Salary data uploaded successfully!",
+        message: `Salary data uploaded for ${uploadMonthLabel} ${uploadYearLabel}!`,
       });
       loadEmployees();
     } catch (error) {
@@ -2585,6 +2642,45 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
             {managers.map((manager) => (
               <MenuItem key={manager.id} value={manager.id}>
                 {manager.name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <FormControl sx={{ minWidth: 150 }}>
+          <InputLabel id="attendance-period-month-label">Month</InputLabel>
+          <Select
+            labelId="attendance-period-month-label"
+            label="Month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(Number(e.target.value))}
+            sx={{ borderRadius: 2 }}
+          >
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+              <MenuItem key={m} value={m}>
+                {new Date(2000, m - 1, 1).toLocaleString("default", {
+                  month: "long",
+                })}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <FormControl sx={{ minWidth: 110 }}>
+          <InputLabel id="attendance-period-year-label">Year</InputLabel>
+          <Select
+            labelId="attendance-period-year-label"
+            label="Year"
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            sx={{ borderRadius: 2 }}
+          >
+            {Array.from(
+              { length: 6 },
+              (_, i) => new Date().getFullYear() - 3 + i,
+            ).map((y) => (
+              <MenuItem key={y} value={y}>
+                {y}
               </MenuItem>
             ))}
           </Select>

@@ -1005,10 +1005,12 @@ export default function SalarySlips() {
               where("year", "==", selectedYear),
             );
       const payrollsSnapshot = await getDocs(payrollsQuery);
-      const payrollsData = payrollsSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Payroll[];
+      const payrollsData = (
+        payrollsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Payroll[]
+      ).filter((payroll) => payroll.status === "paid"); // Only show slips once payroll is marked as paid
       // Sort by processedAt in JavaScript
       payrollsData.sort((a, b) => {
         const dateA =
@@ -1173,10 +1175,24 @@ export default function SalarySlips() {
 
   // ── Slip template (canvas) resolver ──────────────────────────────────────────
   // Picks the right SlipTemplate (from slipTemplates collection) for an employee:
+  //   0. The snapshot captured on the payroll record when it was proceeded
+  //      (keeps the original format even if the live template is later deleted)
   //   1. Manager-specific template if the employee's manager has one
   //   2. Global template (scope === "global")
   //   3. null → fall back to hardcoded layout
-  const getSlipTemplateForEmployee = (employee: Employee): SlipTemplate | null => {
+  const getSlipTemplateForEmployee = (
+    employee: Employee,
+    payroll?: Payroll,
+  ): SlipTemplate | null => {
+    // Prefer the template snapshot stored on the payroll record at proceed time.
+    const snapshot = (payroll as any)?.slipTemplateSnapshot as
+      | SlipTemplate
+      | null
+      | undefined;
+    if (snapshot && Array.isArray(snapshot.elements)) {
+      return snapshot;
+    }
+
     const managerId =
       (Array.isArray(employee.assignedManagers)
         ? employee.assignedManagers[0]
@@ -1541,7 +1557,7 @@ export default function SalarySlips() {
       // ── Choose rendering path ─────────────────────────────────────────────────
       // If there is a canvas slip template, render from it.
       // Otherwise fall back to the hardcoded layout.
-      const canvasSlipTmpl = getSlipTemplateForEmployee(employee);
+      const canvasSlipTmpl = getSlipTemplateForEmployee(employee, payroll);
 
       const fileName =
         options?.fileNameOverride ||
@@ -2112,7 +2128,7 @@ export default function SalarySlips() {
                     {payrolls.length - salarySlips.length}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Pending Slips
+                    Paid Slips
                   </Typography>
                 </Box>
               </Box>
@@ -2149,7 +2165,7 @@ export default function SalarySlips() {
           </FormControl>
 
           <TextField
-            placeholder="Search Pending Slips"
+            placeholder="Search Paid Slips"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             InputProps={{
@@ -2188,8 +2204,8 @@ export default function SalarySlips() {
         </Box>
       )}
 
-      {/* Pending Salary Slips Section */}
-      {isAdminOrManager && payrolls.length > salarySlips.length && (
+      {/* Paid Salary Slips Section */}
+      {isAdminOrManager && payrolls.length > 0 && (
         <Card
           sx={{
             mb: 3,
@@ -2199,7 +2215,7 @@ export default function SalarySlips() {
         >
           <CardContent>
             <Typography variant="h6" sx={{ color: "#ff9800", mb: 2 }}>
-              Pending Salary Slips ({payrolls.length - salarySlips.length})
+              Paid Salary Slips ({payrolls.length})
             </Typography>
             <Box sx={{ overflowX: "auto" }}>
               <TableContainer
@@ -2250,14 +2266,6 @@ export default function SalarySlips() {
                   <TableBody>
                     {payrolls
                       .filter((payroll) => {
-                        // Filter out existing slips
-                        if (
-                          salarySlips.some(
-                            (slip) => slip.employeeId === payroll.employeeId,
-                          )
-                        ) {
-                          return false;
-                        }
                         const employee = employees.find(
                           (emp) => emp.employeeId === payroll.employeeId,
                         );
@@ -2355,6 +2363,9 @@ export default function SalarySlips() {
         </Card>
       )}
 
+      {/* Generated Slips section — employees only (admins/managers use the Paid Salary Slips table above) */}
+      {isEmployee && (
+      <>
       {/* Search for Generated Slips */}
       <Box sx={{ mb: 2 }}>
         <TextField
@@ -2540,21 +2551,6 @@ export default function SalarySlips() {
                         }}
                       >
                         <Box sx={{ display: "flex", gap: 1 }}>
-                          {isAdminOrManager && (
-                            <Tooltip title="Preview">
-                              <IconButton
-                                size="small"
-                                sx={{ color: "#2196f3" }}
-                                onClick={() =>
-                                  employee &&
-                                  payroll &&
-                                  previewSalarySlip(employee, payroll, slip)
-                                }
-                              >
-                                <Visibility />
-                              </IconButton>
-                            </Tooltip>
-                          )}
                           <Tooltip title="Download">
                             <IconButton
                               size="small"
@@ -2594,6 +2590,8 @@ export default function SalarySlips() {
           },
         }}
       />
+      </>
+      )}
 
       {/* Preview Dialog */}
       <Dialog
@@ -2609,7 +2607,7 @@ export default function SalarySlips() {
         </DialogTitle>
         <DialogContent>
           {previewData && (() => {
-            const canvasTmpl = getSlipTemplateForEmployee(previewData.employee);
+            const canvasTmpl = getSlipTemplateForEmployee(previewData.employee, previewData.payroll);
 
             // ── Canvas-template preview ──────────────────────────────────────
             if (canvasTmpl && canvasTmpl.elements.length > 0) {

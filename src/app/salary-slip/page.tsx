@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Layout from "@/components/layout/Layout";
 import RouteGuard from "@/components/auth/RouteGuard";
 import SalarySlips from "@/components/salary/SalarySlips";
+import PayrollProcessing from "@/components/payroll/PayrollProcessing";
 import { Box, CircularProgress, Tabs, Tab, Paper } from "@mui/material";
 import dynamic from "next/dynamic";
 
@@ -69,12 +70,14 @@ export default function SalarySlipPage() {
               }}
             >
               <Tab label="Payroll" />
+              <Tab label="Slip" />
               <Tab label="Slip Templates" />
             </Tabs>
           </Paper>
 
-          {tab === 0 && <SalarySlips />}
-          {tab === 1 && <SlipTemplateDesigner />}
+          {tab === 0 && <PayrollProcessing />}
+          {tab === 1 && <SalarySlips />}
+          {tab === 2 && <SlipTemplateDesigner />}
         </Box>
       </Layout>
     </RouteGuard>

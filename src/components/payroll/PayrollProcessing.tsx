@@ -33,11 +33,14 @@ import {
   query,
   where,
   updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Employee, Payroll } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { computeAttendanceVariables } from "@/lib/attendanceDeductionUtils";
+import { slipTemplateService } from "@/lib/slipTemplateService";
+import type { SlipTemplate } from "@/lib/slipTemplateService";
 
 const months = [
   { value: 1, label: "January" },
@@ -67,11 +70,13 @@ export default function PayrollProcessing() {
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [reverting, setReverting] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState("");
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [existingPayroll, setExistingPayroll] = useState<Payroll[]>([]);
+  const [slipTemplates, setSlipTemplates] = useState<SlipTemplate[]>([]);
   // live attendance statuses per employee.id for the selected month/year
   const [liveAttendanceByEmp, setLiveAttendanceByEmp] = useState<Record<string, string[]>>({});
   const { currentUser } = useAuth();
@@ -145,6 +150,24 @@ export default function PayrollProcessing() {
     fetchEmployees();
   }, []);
 
+  // Load slip templates (canvas designs) for the current company. These drive
+  // the downloaded slip format and are required (per manager) to proceed payroll.
+  useEffect(() => {
+    const loadSlipTemplates = async () => {
+      if (!currentUser) return;
+      const companyId =
+        currentUser.role === "admin" ? currentUser.uid : currentUser.companyId;
+      if (!companyId) return;
+      try {
+        const templates = await slipTemplateService.getAll(companyId);
+        setSlipTemplates(templates);
+      } catch (e) {
+        console.error("Failed to load slip templates", e);
+      }
+    };
+    void loadSlipTemplates();
+  }, [currentUser]);
+
   useEffect(() => {
     if (employees.length > 0) {
       checkExistingPayroll();
@@ -176,6 +199,14 @@ export default function PayrollProcessing() {
       }
 
       setManagersById(managerMap);
+
+      // There is no "All Managers" option anymore, so default to the first
+      // available manager whenever none is selected (or the selected one is gone).
+      setSelectedManager((prev) =>
+        prev && uniqueManagerIds.includes(prev)
+          ? prev
+          : uniqueManagerIds[0] ?? "",
+      );
     };
 
     if (employees.length > 0) {
@@ -331,6 +362,35 @@ export default function PayrollProcessing() {
     mlwfAmount: number = 1,
   ): number => mlwfAmount;
 
+  // Resolve the primary assigned manager id for an employee.
+  const getManagerIdForEmployee = (employee: Employee): string => {
+    const ids = normalizeManagerIds(
+      employee.assignedManagers,
+      (employee as unknown as { assignedManager?: unknown }).assignedManager,
+    );
+    return ids[0] ?? "";
+  };
+
+  // Human-readable manager name for error messages.
+  const getManagerName = (managerId: string): string => {
+    const mgr = managersById[managerId];
+    const name =
+      (mgr?.fullName as string) || (mgr?.name as string) || "";
+    return name || managerId || "Unassigned";
+  };
+
+  // The manager-scoped slip template for a manager (per-manager templates only).
+  const getSlipTemplateForManager = (
+    managerId: string,
+  ): SlipTemplate | null => {
+    if (!managerId) return null;
+    return (
+      slipTemplates.find(
+        (t) => t.scope === "manager" && t.managerId === managerId,
+      ) ?? null
+    );
+  };
+
   const processPayroll = async () => {
     try {
       setProcessing(true);
@@ -352,14 +412,68 @@ export default function PayrollProcessing() {
       const alreadyProcessedIds = new Set(
         existingPayroll.map((p) => p.employeeId)
       );
-      const employeesToProcess = employees.filter(
-        (emp) =>
-          !alreadyProcessedIds.has(emp.employeeId) &&
-          !alreadyProcessedIds.has(emp.id)
-      );
+      const employeesToProcess = employees.filter((emp) => {
+        if (
+          alreadyProcessedIds.has(emp.employeeId) ||
+          alreadyProcessedIds.has(emp.id)
+        ) {
+          return false;
+        }
+        // When a specific manager is selected, only process that manager's
+        // employees so payroll can be proceeded manager-wise.
+        if (selectedManager) {
+          return normalizeManagerIds(
+            emp.assignedManagers,
+            (emp as unknown as { assignedManager?: unknown }).assignedManager,
+          ).includes(selectedManager);
+        }
+        return true;
+      });
 
       if (employeesToProcess.length === 0) {
-        setError("All employees already have payroll processed for this month.");
+        setError(
+          selectedManager
+            ? "All of this manager's employees already have payroll processed for this month."
+            : "All employees already have payroll processed for this month.",
+        );
+        setProcessing(false);
+        return;
+      }
+
+      // ── Require a per-manager slip template before proceeding ─────────────
+      // Every employee being processed must have an assigned manager, and that
+      // manager must have their own (manager-scoped) slip template. Otherwise the
+      // downloaded slip would fall back to a generic layout, so we block here.
+      const missingTemplateManagers = new Set<string>();
+      const employeesWithoutManager: string[] = [];
+      for (const employee of employeesToProcess) {
+        const managerId = getManagerIdForEmployee(employee);
+        if (!managerId) {
+          employeesWithoutManager.push(
+            employee.fullName || employee.employeeId || employee.id || "Unknown",
+          );
+          continue;
+        }
+        if (!getSlipTemplateForManager(managerId)) {
+          missingTemplateManagers.add(getManagerName(managerId));
+        }
+      }
+
+      if (missingTemplateManagers.size > 0 || employeesWithoutManager.length > 0) {
+        const messages: string[] = [];
+        if (missingTemplateManagers.size > 0) {
+          messages.push(
+            `No slip template for manager(s): ${Array.from(
+              missingTemplateManagers,
+            ).join(", ")}. Please create a slip template for them before proceeding.`,
+          );
+        }
+        if (employeesWithoutManager.length > 0) {
+          messages.push(
+            `No manager assigned for: ${employeesWithoutManager.join(", ")}.`,
+          );
+        }
+        setError(messages.join(" "));
         setProcessing(false);
         return;
       }
@@ -393,8 +507,28 @@ export default function PayrollProcessing() {
         attendanceStatusesByEmp[att.employeeId].push(att.status);
       }
 
+      // Key used to look up the per-month salary data (e.g. "2025-7").
+      // SalaryStructures stores each month's uploaded data under
+      // employee.salaryByMonth["<year>-<month>"] (month is 1-12), so payroll
+      // should use the SELECTED month's values (basic, DA, OT hours, %, etc.)
+      // rather than the single global salary record. Fall back to the global
+      // salary when a month has no saved data yet.
+      const monthlyKey = `${selectedYear}-${selectedMonth}`;
+
       const payrollRecords = employeesToProcess.map((employee) => {
-        const salary = employee.salary || {};
+        const byMonth = (employee as unknown as {
+          salaryByMonth?: Record<string, Record<string, unknown>>;
+        }).salaryByMonth;
+        const monthlySalary = byMonth?.[monthlyKey];
+        const salary =
+          monthlySalary && Object.keys(monthlySalary).length > 0
+            ? (monthlySalary as typeof employee.salary)
+            : employee.salary || {};
+        // Snapshot the manager's slip template so the downloaded slip keeps this
+        // exact format even if the template is edited/deleted later — until the
+        // payroll is reverted (which removes the record and its snapshot).
+        const managerId = getManagerIdForEmployee(employee);
+        const slipTemplateSnapshot = getSlipTemplateForManager(managerId);
         const basic = Number(salary.basic ?? salary.base ?? 0);
         const da = Number(salary.da ?? 0);
 
@@ -529,6 +663,9 @@ export default function PayrollProcessing() {
           leaveDays: attVars.leave_days,
           paidLeaveDays: attVars.paid_leave_days,
           unmarkedDays: attVars.unmarked_days,
+          // Manager + slip-template snapshot (kept until the payroll is reverted)
+          managerId,
+          slipTemplateSnapshot: slipTemplateSnapshot ?? null,
         };
       });
 
@@ -544,6 +681,40 @@ export default function PayrollProcessing() {
       setError("Failed to process payroll");
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const revertPayroll = async () => {
+    try {
+      setReverting(true);
+      setError("");
+      setSuccess("");
+
+      // Only revert records that belong to an employee of the current company
+      // (existingPayroll is fetched by month/year only, so guard against other companies).
+      const recordsToRevert = existingPayroll.filter((payroll) =>
+        Boolean(getEmployeeForPayroll(payroll)),
+      );
+
+      if (recordsToRevert.length === 0) {
+        setError("No processed payroll found to revert for this month.");
+        setReverting(false);
+        return;
+      }
+
+      for (const payroll of recordsToRevert) {
+        await deleteDoc(doc(db, "payroll", payroll.id));
+      }
+
+      setSuccess(
+        `Reverted payroll for ${months[selectedMonth - 1].label} ${selectedYear} (${recordsToRevert.length} record(s) removed).`,
+      );
+      await checkExistingPayroll();
+    } catch (err) {
+      console.error("Error reverting payroll:", err);
+      setError("Failed to revert payroll");
+    } finally {
+      setReverting(false);
     }
   };
 
@@ -745,7 +916,7 @@ export default function PayrollProcessing() {
         sx={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 3, mb: 3 }}
       >
         <Box>
-          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 2 }}>
             <Box>
               <FormControl fullWidth>
                 <InputLabel>Month</InputLabel>
@@ -786,7 +957,6 @@ export default function PayrollProcessing() {
                   label="Manager"
                   onChange={(e) => setSelectedManager(e.target.value)}
                 >
-                  <MenuItem value="">All Managers</MenuItem>
                   {Array.from(
                     new Set(
                       employees.flatMap((emp) =>
@@ -873,7 +1043,7 @@ export default function PayrollProcessing() {
         <Button
           variant="contained"
           onClick={processPayroll}
-          disabled={processing || stats.allProcessed}
+          disabled={processing || reverting || stats.allProcessed}
           size="large"
           color={stats.allProcessed ? "inherit" : "primary"}
         >
@@ -884,6 +1054,15 @@ export default function PayrollProcessing() {
           ) : (
             `Process Payroll (${stats.unprocessedCount} remaining)`
           )}
+        </Button>
+        <Button
+          variant="outlined"
+          color="error"
+          onClick={revertPayroll}
+          disabled={reverting || processing || existingPayroll.length === 0}
+          size="large"
+        >
+          {reverting ? <CircularProgress size={24} /> : "Revert Payroll"}
         </Button>
       </Box>
 
