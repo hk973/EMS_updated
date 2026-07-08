@@ -120,16 +120,6 @@ const defaultColumns: TableColumn[] = [
     order: 4,
   },
   {
-    id: "5",
-    field: "salary.basic",
-    headerName: "Basic Salary",
-    width: 120,
-    sortable: true,
-    filterable: true,
-    visible: true,
-    order: 5,
-  },
-  {
     id: "6",
     field: "department",
     headerName: "Department",
@@ -137,7 +127,7 @@ const defaultColumns: TableColumn[] = [
     sortable: true,
     filterable: true,
     visible: true,
-    order: 6,
+    order: 5,
   },
   {
     id: "7",
@@ -147,7 +137,7 @@ const defaultColumns: TableColumn[] = [
     sortable: true,
     filterable: true,
     visible: true,
-    order: 7,
+    order: 6,
   },
   {
     id: "8",
@@ -157,7 +147,7 @@ const defaultColumns: TableColumn[] = [
     sortable: true,
     filterable: true,
     visible: true,
-    order: 8,
+    order: 7,
   },
   {
     id: "9",
@@ -167,7 +157,7 @@ const defaultColumns: TableColumn[] = [
     sortable: true,
     filterable: true,
     visible: true,
-    order: 9,
+    order: 8,
   },
 ];
 
@@ -1068,7 +1058,6 @@ export default function EmployeeTable() {
         employeeId: "EMP001",
         email: "john.doe@company.com",
         mobile: "1234567890",
-        "salary.basic": "50000",
         fatherName: "Raj Doe",
         designation: "Developer",
         "D.O.B": "1997-05-10",
@@ -1084,7 +1073,6 @@ export default function EmployeeTable() {
         employeeId: "EMP002",
         email: "jane.smith@company.com",
         mobile: "0987654321",
-        "salary.basic": "55000",
         fatherName: "Anil Smith",
         designation: "HR Manager",
         "D.O.B": "1995-09-20",

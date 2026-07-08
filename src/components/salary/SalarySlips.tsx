@@ -190,6 +190,16 @@ export default function SalarySlips() {
   const formatEmployeeDate = (value: unknown): string => {
     if (!value) return "-";
 
+    // Excel serial number (e.g. 45678) — convert to JS date
+    if (typeof value === "number") {
+      // Excel epoch: Dec 30, 1899
+      const excelEpoch = new Date(1899, 11, 30);
+      const ms = excelEpoch.getTime() + value * 86400000;
+      const d = new Date(ms);
+      if (!Number.isNaN(d.getTime())) return d.toLocaleDateString();
+      return String(value);
+    }
+
     if (value instanceof Date) {
       return value.toLocaleDateString();
     }
@@ -468,8 +478,17 @@ export default function SalarySlips() {
       // identity
       name: employee.fullName ?? "",
       employee_id: employee.employeeId ?? "",
+      designation: (employee as any).designation ?? "",
+      department: (employee as any).department ?? "",
+      father_name: (employee as any).fatherName ?? "",
+      dob:            formatEmployeeDate((employee as any).dob),
+      joining_date:   formatEmployeeDate((employee as any).joinDate),
       esic_no: employee.esicNo ?? "",
       uan: employee.uan ?? "",
+      epf_no: (employee as any).epfNo ?? "",
+      hq_location: (employee as any).hqLocation ?? "",
+      bank_account: (employee as any).bankAccount ?? "",
+      ifsc_code: (employee as any).ifscCode ?? "",
       employee_type: (employee as Record<string, unknown>).employeeType ?? "",
       // raw inputs
       basic: toAmount(s.basic ?? s.base ?? payroll.baseSalary),
@@ -565,7 +584,7 @@ export default function SalarySlips() {
 
       for (const col of sec.columns) {
         // Skip pure identity/info columns that have no numeric meaning
-        const infoKeys = new Set(["name", "employee_id", "esic_no", "uan", "employee_type"]);
+        const infoKeys = new Set(["name", "employee_id", "esic_no", "uan", "epf_no", "father_name", "designation", "department", "dob", "joining_date", "hq_location", "bank_account", "ifsc_code", "employee_type"]);
         if (infoKeys.has(col.key)) continue;
 
         // Skip attendance count columns (they appear in the attendance table already)

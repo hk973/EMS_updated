@@ -226,7 +226,8 @@ function conditionToExpr(row: ConditionRow): string {
 interface FormulaDialogProps {
   open: boolean;
   column: TemplateColumn | null;
-  allKeys: string[];
+  allKeys: string[];           // keys available for formula (before this column)
+  allKeysForConverter: string[]; // ALL keys in template — for converter mapping dropdown
   onSave: (col: TemplateColumn) => void;
   onClose: () => void;
 }
@@ -279,6 +280,13 @@ function convertExcelFormula(raw: string): { result: string; warnings: string[];
 
   // Strip leading = (Excel formula bar prefix)
   if (s.startsWith("=")) s = s.slice(1).trim();
+
+  // ── Handle SUM(ref1:ref2) range syntax FIRST ──
+  // e.g. SUM(M7:AA7) → __RANGE_SUM__(M7,AA7)
+  // Captures both cell refs and replaces with a placeholder for mapping step
+  s = s.replace(/\bSUM\s*\(\s*([A-Z]{1,3}\d+)\s*:\s*([A-Z]{1,3}\d+)\s*\)/gi, (_, r1, r2) => {
+    return `__RANGE_SUM__(${r1.toUpperCase()},${r2.toUpperCase()})`;
+  });
 
   // Recursively process function calls from innermost outward
   // We replace: IF(, AND(, OR(, NOT(  (case-insensitive)
@@ -333,12 +341,12 @@ function convertExcelFormula(raw: string): { result: string; warnings: string[];
   s = s.replace(/([^&])&([^&])/g, "$1+$2");
   s = s.replace(/^&/, "+").replace(/&$/, "+");
 
-  // Detect Excel cell refs like A1, B12, AA3
+  // Detect Excel cell refs like A1, B12, AA3 — including those inside __RANGE_SUM__
   const cellRefMatches = s.match(/\b[A-Z]{1,3}\d+\b/g);
   const cellRefs = cellRefMatches ? [...new Set(cellRefMatches)] : [];
 
-  // Excel functions we don't handle — warn
-  const unknownFns = s.match(/\b([A-Z][A-Z0-9_]+)\s*\(/g);
+  // Excel functions we don't handle — warn (exclude __RANGE_SUM__ which we do handle)
+  const unknownFns = s.replace(/__RANGE_SUM__/g, "").match(/\b([A-Z][A-Z0-9_]+)\s*\(/g);
   if (unknownFns) {
     const names = unknownFns.map((f) => f.replace(/\s*\($/, ""));
     warnings.push(`Unsupported Excel functions: ${names.join(", ")} — convert manually`);
@@ -347,15 +355,37 @@ function convertExcelFormula(raw: string): { result: string; warnings: string[];
   return { result: s.trim(), warnings, cellRefs };
 }
 
-/** Apply cell ref → variable name mappings to a converted formula string */
-function applyCellMappings(formula: string, mappings: Record<string, string>): string {
+/** Apply cell ref → variable name mappings to a converted formula string.
+ *  allKeys: ordered list of all variable keys in the template — used to
+ *  expand __RANGE_SUM__(ref1,ref2) into var1 + var2 + var3 + ... */
+function applyCellMappings(formula: string, mappings: Record<string, string>, allKeys: string[] = []): string {
   let result = formula;
   // Sort longest refs first to avoid partial replacement (e.g. AA1 before A1)
   const sorted = Object.keys(mappings).sort((a, b) => b.length - a.length);
+
+  // Expand __RANGE_SUM__(REF1,REF2) → mapped1 + mapped2 + ... (all keys between inclusive)
+  result = result.replace(/__RANGE_SUM__\(([A-Z]{1,3}\d+),([A-Z]{1,3}\d+)\)/g, (_, r1, r2) => {
+    const v1 = mappings[r1]?.trim() || r1;
+    const v2 = mappings[r2]?.trim() || r2;
+
+    if (allKeys.length > 0) {
+      const i1 = allKeys.indexOf(v1);
+      const i2 = allKeys.indexOf(v2);
+      if (i1 !== -1 && i2 !== -1) {
+        const from = Math.min(i1, i2);
+        const to   = Math.max(i1, i2);
+        const rangeKeys = allKeys.slice(from, to + 1);
+        return rangeKeys.join(" + ");
+      }
+    }
+    // Fallback: just the two endpoints if keys not found in template
+    return `${v1} + ${v2}`;
+  });
+
+  // Then: replace remaining standalone cell refs
   for (const ref of sorted) {
     const varName = mappings[ref]?.trim();
     if (!varName) continue;
-    // Replace whole-word occurrences only
     result = result.replace(new RegExp(`\\b${ref}\\b`, "g"), varName);
   }
   return result;
@@ -389,7 +419,7 @@ function splitExcelArgs(s: string): string[] {
   return parts;
 }
 
-function FormulaDialog({ open, column, allKeys, onSave, onClose }: FormulaDialogProps) {
+function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onClose }: FormulaDialogProps) {
   const [mode, setMode] = useState<"simple" | "conditional">("simple");
   const [expr, setExpr] = useState(column?.formula?.expression ?? "");
   const [desc, setDesc] = useState(column?.formula?.description ?? "");
@@ -760,6 +790,11 @@ function FormulaDialog({ open, column, allKeys, onSave, onClose }: FormulaDialog
                 </Typography>
                 <Typography variant="caption" sx={{ color: "#888", display: "block", mb: 2 }}>
                   Each cell reference found in your formula needs to be replaced with an EMS variable (e.g. <code style={{ color: "#4caf50" }}>basic</code>, <code style={{ color: "#4caf50" }}>da</code>, <code style={{ color: "#4caf50" }}>paid_days</code>). Leave blank to keep as-is.
+                  {convertResult.result.includes("__RANGE_SUM__") && (
+                    <span style={{ color: "#f59e0b", display: "block", marginTop: 4 }}>
+                      ⚠ SUM range detected — map the start and end cell refs to variable names. All ctx variables between them (inclusive, by template order) will be summed.
+                    </span>
+                  )}
                 </Typography>
 
                 {/* Show partially converted formula for reference */}
@@ -785,17 +820,12 @@ function FormulaDialog({ open, column, allKeys, onSave, onClose }: FormulaDialog
                       onChange={(e) => setCellMappings((prev) => ({ ...prev, [ref]: e.target.value }))}
                       placeholder="e.g. basic"
                       sx={{ flex: 1, "& input": { fontFamily: "monospace", fontSize: 12 } }}
-                      select={allKeys.length > 0}
-                      SelectProps={allKeys.length > 0 ? { displayEmpty: true } : undefined}
+                      select={allKeysForConverter.length > 0}
+                      SelectProps={allKeysForConverter.length > 0 ? { displayEmpty: true } : undefined}
                     >
-                      {allKeys.length > 0 && [
-                        <MenuItem key="" value=""><em style={{ color: "#666" }}>— type custom or pick —</em></MenuItem>,
-                        ...[ ...new Set([...allKeys, "basic","da","hra","paid_days","total_days","gross_rate_pm",
-                          "gross_earning","ot_amount","professional_tax","esic_employee","pf_base","pf_employee",
-                          "advance","total_deduction","net_salary","esic_employer","pf_employer","mlwf_employer",
-                          "ctc_per_month","total_gross","present_days","absent_days","half_days","leave_days",
-                          "paid_leave_days","unmarked_days","employee_type"])
-                        ].map((k) => (
+                      {allKeysForConverter.length > 0 && [
+                        <MenuItem key="" value=""><em style={{ color: "#666" }}>— pick a variable —</em></MenuItem>,
+                        ...[...new Set(allKeysForConverter)].map((k) => (
                           <MenuItem key={k} value={k} sx={{ fontFamily: "monospace", fontSize: 12 }}>{k}</MenuItem>
                         )),
                       ]}
@@ -827,7 +857,7 @@ function FormulaDialog({ open, column, allKeys, onSave, onClose }: FormulaDialog
 
             {/* ── Step 3: Final result ── */}
             {converterStep === "done" && convertResult && (() => {
-              const finalFormula = applyCellMappings(convertResult.result, cellMappings);
+              const finalFormula = applyCellMappings(convertResult.result, cellMappings, allKeysForConverter);
               return (
                 <Box>
                   <Typography variant="body2" sx={{ color: "#fff", mb: 1, fontWeight: 600 }}>
@@ -998,11 +1028,12 @@ function FormulaDialog({ open, column, allKeys, onSave, onClose }: FormulaDialog
 interface ColumnRowProps {
   column: TemplateColumn;
   availableKeys: string[]; // keys declared before this column
+  allTemplateKeys: string[]; // ALL keys in template — for converter mapping dropdown
   onUpdate: (col: TemplateColumn) => void;
   onDelete: (id: string) => void;
 }
 
-function ColumnRow({ column, availableKeys, onUpdate, onDelete }: ColumnRowProps) {
+function ColumnRow({ column, availableKeys, allTemplateKeys, onUpdate, onDelete }: ColumnRowProps) {
   const [formulaOpen, setFormulaOpen] = useState(false);
 
   return (
@@ -1082,6 +1113,7 @@ function ColumnRow({ column, availableKeys, onUpdate, onDelete }: ColumnRowProps
         open={formulaOpen}
         column={column}
         allKeys={availableKeys}
+        allKeysForConverter={allTemplateKeys}
         onSave={(updated) => onUpdate(updated)}
         onClose={() => setFormulaOpen(false)}
       />
@@ -1094,11 +1126,12 @@ function ColumnRow({ column, availableKeys, onUpdate, onDelete }: ColumnRowProps
 interface SectionCardProps {
   section: TemplateSection;
   getAvailableKeys: (sectionId: string, colId: string) => string[];
+  allTemplateKeys: string[];
   onUpdate: (sec: TemplateSection) => void;
   onDelete: (id: string) => void;
 }
 
-function SectionCard({ section, getAvailableKeys, onUpdate, onDelete }: SectionCardProps) {
+function SectionCard({ section, getAvailableKeys, allTemplateKeys, onUpdate, onDelete }: SectionCardProps) {
   const addColumn = () => {
     const label = `Column ${section.columns.length + 1}`;
     const newCol: TemplateColumn = {
@@ -1179,6 +1212,7 @@ function SectionCard({ section, getAvailableKeys, onUpdate, onDelete }: SectionC
             key={col.id}
             column={col}
             availableKeys={getAvailableKeys(section.id, col.id)}
+            allTemplateKeys={allTemplateKeys}
             onUpdate={updateColumn}
             onDelete={deleteColumn}
           />
@@ -1507,6 +1541,7 @@ export default function SalaryTemplateBuilder() {
                 key={sec.id}
                 section={sec}
                 getAvailableKeys={getAvailableKeys}
+                allTemplateKeys={allKeys}
                 onUpdate={updateSection}
                 onDelete={deleteSection}
               />

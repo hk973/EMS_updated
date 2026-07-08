@@ -224,6 +224,127 @@ export default function EmployeeProfile() {
           </CardContent>
         </Card>
 
+        {/* Employee Info & Personal Details */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              md: "repeat(2, 1fr)",
+            },
+            gap: 3,
+          }}
+        >
+          {/* Employee Info */}
+          <Card
+            sx={{
+              backgroundColor: "#2d2d2d",
+              border: "1px solid #333",
+              height: "100%",
+            }}
+          >
+            <CardContent>
+              <Typography
+                variant="h6"
+                sx={{
+                  color: "#ffffff",
+                  mb: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                }}
+              >
+                <Person />
+                Employee Info
+              </Typography>
+              <Divider sx={{ mb: 2, borderColor: "#444" }} />
+
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {[
+                  { label: "Father Name", value: (employeeData as any).fatherName },
+                  { label: "Designation", value: (employeeData as any).designation },
+                  { label: "Department", value: employeeData.department },
+                  { label: "HQ Location", value: (employeeData as any).hqLocation },
+                  { label: "Date of Birth", value: (employeeData as any).dob },
+                  { label: "Date of Joining", value: (employeeData as any).joinDate || (employeeData as any).joiningDate },
+                ].map(({ label, value }) =>
+                  value ? (
+                    <Box key={label} display="flex" justifyContent="space-between" alignItems="flex-start">
+                      <Typography variant="body2" sx={{ color: "#b0b0b0", minWidth: 130 }}>
+                        {label}:
+                      </Typography>
+                      <Typography variant="body1" sx={{ color: "#ffffff", textAlign: "right" }}>
+                        {(() => {
+                          if (typeof value === "object" && value !== null) {
+                            if ((value as any).seconds) {
+                              return new Date((value as any).seconds * 1000).toLocaleDateString();
+                            }
+                            if (typeof (value as any).toDate === "function") {
+                              return (value as any).toDate().toLocaleDateString();
+                            }
+                          }
+                          return String(value);
+                        })()}
+                      </Typography>
+                    </Box>
+                  ) : null
+                )}
+              </Box>
+            </CardContent>
+          </Card>
+
+          {/* Basic Details */}
+          <Card
+            sx={{
+              backgroundColor: "#2d2d2d",
+              border: "1px solid #333",
+              height: "100%",
+            }}
+          >
+            <CardContent>
+              <Typography
+                variant="h6"
+                sx={{
+                  color: "#ffffff",
+                  mb: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                }}
+              >
+                <Work />
+                Basic
+              </Typography>
+              <Divider sx={{ mb: 2, borderColor: "#444" }} />
+
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {[
+                  { label: "Employee ID", value: employeeData.employeeId },
+                  { label: "Email", value: employeeData.email },
+                  { label: "Mobile", value: employeeData.mobile },
+                  { label: "EPF No", value: (employeeData as any).epfNo },
+                  { label: "UAN No", value: (employeeData as any).uan },
+                  { label: "ESIC No", value: (employeeData as any).esicNo },
+                  { label: "Status", value: (employeeData as any).status },
+                  { label: "Company", value: companyName || employeeData.companyName },
+                  { label: "Manager(s)", value: managerNames.length > 0 ? managerNames.join(", ") : undefined },
+                ].map(({ label, value }) =>
+                  value ? (
+                    <Box key={label} display="flex" justifyContent="space-between" alignItems="flex-start">
+                      <Typography variant="body2" sx={{ color: "#b0b0b0", minWidth: 110 }}>
+                        {label}:
+                      </Typography>
+                      <Typography variant="body1" sx={{ color: "#ffffff", textAlign: "right" }}>
+                        {String(value)}
+                      </Typography>
+                    </Box>
+                  ) : null
+                )}
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+
         {/* Personal and Salary Information */}
         <Box
           sx={{
@@ -555,6 +676,21 @@ export default function EmployeeProfile() {
                     "joinDate",
                     "createdAt",
                     "updatedAt",
+                    // Employee Info section fields
+                    "fatherName",
+                    "designation",
+                    "hqLocation",
+                    "dob",
+                    // Basic section fields
+                    "epfNo",
+                    "uan",
+                    "esicNo",
+                    "status",
+                    "companyName",
+                    "companyId",
+                    "assignedManagers",
+                    "assignedManager",
+                    "managerNames",
                   ];
 
                   // Exclude salary-related fields (already shown in salary section)
@@ -580,15 +716,13 @@ export default function EmployeeProfile() {
 
                   // Exclude system/internal fields
                   const systemFields = [
-                    "companyId",
-                    "assignedManagers",
-                    "status",
                     "role",
                     "permissions",
                     "lastLoginAt",
                     "isActive",
                     "isDeleted",
                     "version",
+                    "externalEmployeeId",
                   ];
 
                   // Exclude timestamp objects and empty values

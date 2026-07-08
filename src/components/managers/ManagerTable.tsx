@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -26,7 +26,6 @@ import {
   CircularProgress,
   Tooltip,
   Chip,
-  Checkbox,
 } from "@mui/material";
 import {
   Add,
@@ -35,7 +34,6 @@ import {
   Search,
   FileUpload,
   FileDownload,
-  AddBox,
 } from "@mui/icons-material";
 import {
   collection,
@@ -47,11 +45,10 @@ import {
   where,
   updateDoc,
   addDoc,
-  deleteField,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Manager, CustomField, TableColumn } from "@/types";
+import { Manager, TableColumn } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 import DeletePasswordDialog from "@/components/shared/DeletePasswordDialog";
 import ManagerForm from "./ManagerForm";
@@ -111,28 +108,11 @@ export default function ManagerTable() {
   const [showForm, setShowForm] = useState(false);
   const [editingManager, setEditingManager] = useState<Manager | null>(null);
   const [columns, setColumns] = useState<TableColumn[]>(defaultColumns);
-  const [customFields, setCustomFields] = useState<CustomField[]>([]);
-  const [showAddColumnDialog, setShowAddColumnDialog] = useState(false);
-  const [newColumn, setNewColumn] = useState({
-    name: "",
-    type: "text" as const,
-    defaultValue: "",
-  });
-  const [showEditColumnDialog, setShowEditColumnDialog] = useState(false);
-  const [editingColumn, setEditingColumn] = useState<string>("");
-  const [columnValues, setColumnValues] = useState<{ [key: string]: string }>(
-    {},
-  );
-  const [editColumnLoading, setEditColumnLoading] = useState(false);
-  const [showBulkEditDialog, setShowBulkEditDialog] = useState(false);
-  const [bulkEditValue, setBulkEditValue] = useState("");
-  const [selectedManagers, setSelectedManagers] = useState<string[]>([]);
-  const [showDeleteColumnDialog, setShowDeleteColumnDialog] = useState(false);
-  const [columnToDelete, setColumnToDelete] = useState<string>("");
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [selectedManager, setSelectedManager] = useState<string>("");
   const [assignmentFile, setAssignmentFile] = useState<File | null>(null);
   const [assignLoading, setAssignLoading] = useState(false);
+  const isAssigningRef = useRef(false);
   const [assignMode, setAssignMode] = useState<"bulk" | "single">("bulk");
   const [employees, setEmployees] = useState<{ id: string; employeeId: string; fullName: string }[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<string>("");
@@ -143,7 +123,6 @@ export default function ManagerTable() {
   useEffect(() => {
     if (currentUser?.uid) {
       loadManagers();
-      loadCustomFields();
     }
   }, [currentUser?.uid]);
 
@@ -214,24 +193,6 @@ export default function ManagerTable() {
       console.error("Error loading managers:", error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadCustomFields = async () => {
-    try {
-      const customFieldsSnapshot = await getDocs(
-        collection(db, "customFields"),
-      );
-      const fields: CustomField[] = [];
-      customFieldsSnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.entityType === "manager" || !data.entityType) {
-          fields.push({ id: doc.id, ...data } as CustomField);
-        }
-      });
-      setCustomFields(fields.sort((a, b) => a.order - b.order));
-    } catch (error) {
-      console.error("Error loading custom fields:", error);
     }
   };
 
@@ -345,195 +306,6 @@ export default function ManagerTable() {
     return value || "";
   };
 
-  const handleAddColumn = async () => {
-    try {
-      const newCustomField: CustomField = {
-        id: Date.now().toString(),
-        name: newColumn.name,
-        type: newColumn.type,
-        required: false,
-        order: customFields.length + 1,
-        createdAt: new Date(),
-        defaultValue: newColumn.defaultValue || undefined,
-      };
-      setCustomFields([...customFields, newCustomField]);
-      const currentColumns = [...columns];
-      const actionsColumn = currentColumns.pop();
-      const newColumnConfig: TableColumn = {
-        id: `custom-${newCustomField.id}`,
-        field: newColumn.name,
-        headerName: newColumn.name,
-        width: 150,
-        sortable: true,
-        filterable: true,
-        visible: true,
-        order: currentColumns.length + 1,
-        isCustom: true,
-      };
-      setColumns([...currentColumns, newColumnConfig, actionsColumn!]);
-      setShowAddColumnDialog(false);
-      setNewColumn({ name: "", type: "text", defaultValue: "" });
-    } catch (error) {
-      console.error("Error adding column:", error);
-    }
-  };
-
-  const openEditColumnDialog = (columnField: string) => {
-    setEditingColumn(columnField);
-    const values: { [key: string]: string } = {};
-    managers.forEach((manager) => {
-      values[manager.id] = getFieldValue(manager, columnField) || "";
-    });
-    setColumnValues(values);
-    setShowEditColumnDialog(true);
-    setSelectedManagers([]);
-    setBulkEditValue("");
-  };
-
-  const handleEditColumn = async () => {
-    try {
-      setEditColumnLoading(true);
-      const updates = Object.entries(columnValues).map(([managerId, value]) =>
-        updateDoc(doc(db, "managers", managerId), {
-          [editingColumn]: value,
-          updatedAt: new Date(),
-        }),
-      );
-      await Promise.all(updates);
-      setShowEditColumnDialog(false);
-      setEditingColumn("");
-      setColumnValues({});
-      loadManagers();
-    } catch (error) {
-      console.error("Error updating column:", error);
-    } finally {
-      setEditColumnLoading(false);
-    }
-  };
-
-  const updateColumnValues = (managerId: string, value: string) => {
-    setColumnValues((prev) => ({ ...prev, [managerId]: value }));
-  };
-
-  const handleBulkEdit = () => {
-    const updatedValues = { ...columnValues };
-    selectedManagers.forEach((managerId) => {
-      updatedValues[managerId] = bulkEditValue;
-    });
-    setColumnValues(updatedValues);
-    setShowBulkEditDialog(false);
-    setBulkEditValue("");
-  };
-
-  const toggleManagerSelection = (managerId: string) => {
-    setSelectedManagers((prev) =>
-      prev.includes(managerId)
-        ? prev.filter((id) => id !== managerId)
-        : [...prev, managerId],
-    );
-  };
-
-  const handleDeleteColumn = async () => {
-    try {
-      console.log("Starting column deletion for:", columnToDelete);
-
-      // Find the column to delete
-      const columnToDeleteObj = columns.find(
-        (col) => col.field === columnToDelete,
-      );
-      if (!columnToDeleteObj) {
-        console.error("Column not found:", columnToDelete);
-        alert("Column not found");
-        return;
-      }
-
-      // Don't allow deletion of required default columns and actions column
-      if (
-        defaultColumns.some((col) => col.field === columnToDelete) ||
-        columnToDelete === "actions"
-      ) {
-        alert(
-          "Cannot delete system columns (Full Name, Manager ID, Email, Status, Actions)",
-        );
-        return;
-      }
-
-      // First, remove the field from all managers in Firestore
-      console.log("Removing field from managers...");
-      const batch = [];
-      for (const manager of managers) {
-        const updateData = {
-          updatedAt: new Date(),
-        } as Record<string, any>;
-
-        // Handle both normal fields and fields with spaces
-        updateData[columnToDelete] = deleteField();
-
-        // If the field contains spaces, also try to delete its alternative formats
-        if (columnToDelete.includes(" ")) {
-          const noSpaceVersion = columnToDelete.replace(/\s+/g, "");
-          updateData[noSpaceVersion] = deleteField();
-          const underscoreVersion = columnToDelete.replace(/\s+/g, "_");
-          updateData[underscoreVersion] = deleteField();
-        }
-
-        batch.push(updateDoc(doc(db, "managers", manager.id), updateData));
-      }
-      await Promise.all(batch);
-      console.log("Field removed from all managers");
-
-      // If it's a custom field, remove it from the customFields collection
-      const customField = customFields.find(
-        (field) =>
-          field.name === columnToDelete ||
-          field.name.replace(/\s+/g, "") === columnToDelete ||
-          field.name.replace(/\s+/g, "_") === columnToDelete,
-      );
-
-      if (customField?.id) {
-        console.log("Removing custom field definition...");
-        await deleteDoc(doc(collection(db, "customFields"), customField.id));
-        console.log("Custom field definition removed");
-
-        // Update custom fields state
-        setCustomFields((prev) =>
-          prev.filter((field) => field.id !== customField.id),
-        );
-      }
-
-      // Update the columns state
-      console.log("Updating columns state...");
-      const actionsColumn = columns.find((col) => col.field === "actions");
-      const filteredColumns = columns.filter(
-        (col) =>
-          col.field !== columnToDelete &&
-          col.field !== columnToDelete.replace(/\s+/g, "") &&
-          col.field !== columnToDelete.replace(/\s+/g, "_") &&
-          col.field !== "actions",
-      );
-
-      const newColumns = actionsColumn
-        ? [...filteredColumns, actionsColumn]
-        : filteredColumns;
-
-      console.log("New columns:", newColumns);
-      setColumns(newColumns);
-
-      // Close dialog and clear selection
-      setShowDeleteColumnDialog(false);
-      setColumnToDelete("");
-
-      // Force a reload of data to ensure UI is in sync with database
-      await loadManagers();
-
-      // Show success message
-      alert(`Column "${columnToDelete}" has been deleted successfully`);
-    } catch (error) {
-      console.error("Error deleting column:", error);
-      alert("Error deleting column: " + (error as Error).message);
-    }
-  };
-
   const handleDelete = (managerId: string) => {
     const mgr = managers.find((m) => m.id === managerId);
     if (!mgr) return;
@@ -629,100 +401,12 @@ export default function ManagerTable() {
     }
   };
 
-  const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: "array" });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-        for (const row of jsonData as any[]) {
-          const managerData = {
-            managerId: row.managerId || row["Manager ID"] || "",
-            fullName: row.fullName || row["Full Name"] || "",
-            email: row.email || row["Email"] || "",
-            status: (row.status || row["Status"] || "active").toLowerCase(),
-            companyId: currentUser?.uid,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            ...Object.keys(row).reduce(
-              (acc, key) => {
-                if (
-                  ![
-                    "managerId",
-                    "Manager ID",
-                    "fullName",
-                    "Full Name",
-                    "email",
-                    "Email",
-                    "status",
-                    "Status",
-                  ].includes(key)
-                ) {
-                  acc[key] = row[key];
-                }
-                return acc;
-              },
-              {} as Record<string, any>,
-            ),
-          };
-
-          if (
-            managerData.managerId &&
-            managerData.fullName &&
-            managerData.email
-          ) {
-            await addDoc(collection(db, "managers"), managerData);
-          }
-        }
-
-        loadManagers();
-      } catch (error) {
-        console.error("Error uploading managers:", error);
-        alert("Error uploading file. Please check the format and try again.");
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const downloadSampleFile = () => {
-    const sampleData = [
-      {
-        "Manager ID": "MGR001",
-        "Full Name": "John Doe",
-        Email: "john.doe@company.com",
-        Status: "active",
-        Department: "Sales",
-        Phone: "1234567890",
-      },
-      {
-        "Manager ID": "MGR002",
-        "Full Name": "Jane Smith",
-        Email: "jane.smith@company.com",
-        Status: "active",
-        Department: "Marketing",
-        Phone: "0987654321",
-      },
-    ];
-
-    const worksheet = XLSX.utils.json_to_sheet(sampleData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Managers");
-    XLSX.writeFile(workbook, "manager_sample.xlsx");
-  };
-
   const downloadAssignmentSample = () => {
     const sampleData = [
       {
         "Full Name": "John Doe",
         Email: "john.doe@company.com",
         Mobile: "1234567890",
-        "salary.basic": "50000",
         "Father Name": "Raj Doe",
         Designation: "Developer",
         "D.O.B": "1997-05-10",
@@ -737,7 +421,6 @@ export default function ManagerTable() {
         "Full Name": "Jane Smith",
         Email: "jane.smith@company.com",
         Mobile: "0987654321",
-        "salary.basic": "55000",
         "Father Name": "Anil Smith",
         Designation: "HR Manager",
         "D.O.B": "1995-09-20",
@@ -757,14 +440,18 @@ export default function ManagerTable() {
   };
 
   const handleAssignEmployees = async () => {
+    // Prevent concurrent submissions (e.g. rapid double-clicks)
+    if (isAssigningRef.current) return;
+
     if (!assignmentFile || !selectedManager) {
       alert("Please select both a file and a manager");
       return;
     }
 
-    try {
-      setAssignLoading(true);
+    isAssigningRef.current = true;
+    setAssignLoading(true);
 
+    try {
       if (!currentUser?.uid) {
         alert("Current company information is unavailable. Please try again.");
         return;
@@ -784,6 +471,7 @@ export default function ManagerTable() {
         selectedManagerData?.fullName || "Unknown Manager";
 
       const reader = new FileReader();
+
       reader.onload = async (e) => {
         try {
           const data = e.target?.result;
@@ -792,61 +480,46 @@ export default function ManagerTable() {
           const sheet = workbook.Sheets[sheetName];
           const rows: any[] = XLSX.utils.sheet_to_json(sheet);
 
-          console.log("Processing rows:", rows);
-
           if (rows.length === 0) {
             alert("No data found in the uploaded file");
             return;
           }
 
-          // Get reference to employees collection
           const employeesRef = collection(db, "employees");
-          const batch = [];
-          const successfulAssignments = [];
-          const failedAssignments = [];
-          const createdEmployees = [];
+          const updateBatch: Promise<void>[] = [];
+          const createdEmployees: string[] = [];
+          const skippedDuplicates: string[] = [];
+          const failedAssignments: string[] = [];
 
           for (const row of rows) {
-            console.log("Processing row:", row);
-
             if (!row["Full Name"] || !row["Email"]) {
               failedAssignments.push(
-                `Missing required fields in row: ${JSON.stringify(row)}`,
+                `Row skipped — missing Full Name or Email: ${JSON.stringify(row)}`,
               );
               continue;
             }
 
+            const emailNormalized = String(row["Email"]).trim().toLowerCase();
+
             try {
-              // Query for existing employee by email + companyId (unique per company)
+              // Check if employee already exists in this company
               const employeeQuery = query(
                 employeesRef,
-                where("email", "==", row["Email"].toLowerCase()),
+                where("email", "==", emailNormalized),
                 where("companyId", "==", currentUser?.uid),
-              );
-
-              console.log(
-                "Checking for existing employee:",
-                row["Employee ID"],
               );
               const employeeSnapshot = await getDocs(employeeQuery);
 
               if (employeeSnapshot.empty) {
-                // Create new employee
-                console.log("Creating new employee:", row["Employee ID"]);
-
-                const basicSalary = Number(
-                  row["salary.basic"] || row["Basic Salary"] || 0,
-                );
-
-                // Create new employee document
+                // New employee — create and assign
                 const employeeData = {
-                  employeeId: generateUserId("EMP"), // auto-generated unique ID
-                  externalEmployeeId: row["Employee ID"] || "", // preserve original reference
-                  fullName: row["Full Name"],
-                  email: row["Email"].toLowerCase(),
+                  employeeId: generateUserId("EMP"),
+                  externalEmployeeId: row["Employee ID"] || "",
+                  fullName: String(row["Full Name"]).trim(),
+                  email: emailNormalized,
                   mobile: row["Mobile"] || "",
                   salary: {
-                    basic: Number.isFinite(basicSalary) ? basicSalary : 0,
+                    basic: 0,
                     da: 0,
                     customAllowances: [],
                     customBonuses: [],
@@ -862,8 +535,7 @@ export default function ManagerTable() {
                   esicNo: row["ESIC"] || row["ESIC No"] || "",
                   hqLocation: row["HQ Location"] || "",
                   department: row["Department"] || "",
-                  joinDate:
-                    row["D.O.J"] || row["DOJ"] || row["Join Date"] || "",
+                  joinDate: row["D.O.J"] || row["DOJ"] || row["Join Date"] || "",
                   companyId: currentUser?.uid,
                   companyName,
                   status: "active",
@@ -874,86 +546,90 @@ export default function ManagerTable() {
                   updatedAt: new Date(),
                 };
 
-                // Create the employee document
-                const newEmployeeDoc = await addDoc(employeesRef, employeeData);
-                console.log("Created employee:", newEmployeeDoc.id);
-
-                successfulAssignments.push(row["Employee ID"]);
-                createdEmployees.push(row["Employee ID"]);
+                await addDoc(employeesRef, employeeData);
+                createdEmployees.push(emailNormalized);
               } else {
-                // Update existing employee
+                // Employee already exists — check if already assigned to this manager
                 const employeeDoc = employeeSnapshot.docs[0];
-                const employeeData = employeeDoc.data();
+                const existingData = employeeDoc.data();
+                const currentManagers: string[] = existingData.assignedManagers || [];
 
-                console.log("Found existing employee:", employeeData);
-
-                // Update assignedManagers array
-                batch.push(
-                  updateDoc(doc(employeesRef, employeeDoc.id), {
-                    assignedManagers: [selectedManager],
-                    assignedManager: selectedManager,
-                    managerNames: selectedManagerName,
-                    companyId: currentUser?.uid,
-                    companyName,
-                    updatedAt: new Date(),
-                  }),
-                );
-                successfulAssignments.push(row["Employee ID"]);
+                if (currentManagers.includes(selectedManager)) {
+                  // Already assigned to this exact manager — skip silently
+                  skippedDuplicates.push(
+                    `${row["Full Name"]} (${emailNormalized})`,
+                  );
+                } else {
+                  // Assigned to a different manager — update assignment
+                  updateBatch.push(
+                    updateDoc(doc(employeesRef, employeeDoc.id), {
+                      assignedManagers: [selectedManager],
+                      assignedManager: selectedManager,
+                      managerNames: selectedManagerName,
+                      companyId: currentUser?.uid,
+                      companyName,
+                      updatedAt: new Date(),
+                    }),
+                  );
+                  createdEmployees.push(emailNormalized); // count as processed
+                }
               }
             } catch (err) {
-              console.error(
-                "Error processing employee:",
-                row["Employee ID"],
-                err,
+              console.error("Error processing row:", row["Email"], err);
+              failedAssignments.push(
+                `Error processing: ${row["Full Name"]} (${emailNormalized})`,
               );
-              failedAssignments.push(`Error processing: ${row["Employee ID"]}`);
             }
           }
 
-          if (batch.length > 0) {
-            // Execute all updates
-            await Promise.all(batch);
-            console.log("Updates completed successfully");
+          if (updateBatch.length > 0) {
+            await Promise.all(updateBatch);
           }
 
-          // Show detailed results
-          let message = "";
+          // Build result summary
+          const lines: string[] = [];
           if (createdEmployees.length > 0) {
-            message += `Created ${createdEmployees.length} new employees.\n`;
+            lines.push(`✅ ${createdEmployees.length} employee(s) assigned successfully.`);
           }
-          if (successfulAssignments.length > 0) {
-            message += `Successfully processed ${successfulAssignments.length} employees.\n`;
+          if (skippedDuplicates.length > 0) {
+            lines.push(
+              `⚠️ ${skippedDuplicates.length} employee(s) already assigned to this manager and were skipped:\n  • ${skippedDuplicates.join("\n  • ")}`,
+            );
           }
           if (failedAssignments.length > 0) {
-            message += `\nFailed operations:\n${failedAssignments.join("\n")}`;
+            lines.push(
+              `❌ ${failedAssignments.length} row(s) failed:\n  • ${failedAssignments.join("\n  • ")}`,
+            );
           }
 
-          alert(message || "No employees were processed.");
+          alert(lines.length > 0 ? lines.join("\n\n") : "No employees were processed.");
 
-          if (successfulAssignments.length > 0) {
+          if (createdEmployees.length > 0) {
             setShowAssignDialog(false);
             setSelectedManager("");
             setAssignmentFile(null);
           }
         } catch (err) {
           console.error("Error processing file:", err);
-          alert(
-            "Error processing file. Please make sure the file format is correct.",
-          );
+          alert("Error processing file. Please make sure the file format is correct.");
         } finally {
           setAssignLoading(false);
+          isAssigningRef.current = false;
         }
       };
+
       reader.onerror = () => {
         setAssignLoading(false);
+        isAssigningRef.current = false;
         alert("Error reading the uploaded file. Please try again.");
       };
+
       reader.readAsBinaryString(assignmentFile);
     } catch (error) {
       console.error("Error assigning employees:", error);
       alert("Error assigning employees. Please try again.");
-    } finally {
       setAssignLoading(false);
+      isAssigningRef.current = false;
     }
   };
 
@@ -1013,34 +689,6 @@ export default function ManagerTable() {
         </Button>
         <Button
           variant="contained"
-          startIcon={<FileUpload />}
-          component="label"
-          sx={{
-            backgroundColor: "#9c27b0",
-            "&:hover": { backgroundColor: "#7b1fa2" },
-          }}
-        >
-          UPLOAD XLSX
-          <input
-            type="file"
-            hidden
-            accept=".xlsx,.xls,.csv"
-            onChange={handleBulkUpload}
-          />
-        </Button>
-        <Button
-          variant="contained"
-          startIcon={<FileDownload />}
-          onClick={downloadSampleFile}
-          sx={{
-            backgroundColor: "#2196f3",
-            "&:hover": { backgroundColor: "#1976d2" },
-          }}
-        >
-          DOWNLOAD SAMPLE TEMPLATE
-        </Button>
-        <Button
-          variant="contained"
           startIcon={<FileDownload />}
           onClick={handleExportCSV}
           sx={{
@@ -1071,49 +719,6 @@ export default function ManagerTable() {
           }}
         >
           ASSIGN EMPLOYEES
-        </Button>{" "}
-        <Button
-          variant="contained"
-          startIcon={<AddBox />}
-          onClick={() => setShowAddColumnDialog(true)}
-          sx={{
-            backgroundColor: "#2196f3",
-            "&:hover": { backgroundColor: "#1976d2" },
-          }}
-        >
-          ADD COLUMN
-        </Button>
-        <Button
-          variant="contained"
-          startIcon={<Delete />}
-          onClick={() => setShowDeleteColumnDialog(true)}
-          sx={{
-            backgroundColor: "#f44336",
-            "&:hover": { backgroundColor: "#d32f2f" },
-          }}
-        >
-          DELETE COLUMN
-        </Button>
-        <Button
-          variant="contained"
-          startIcon={<Edit />}
-          onClick={() => {
-            // Show a dropdown or dialog to select which column to edit
-            const columnField = prompt(
-              "Enter column field name to edit (e.g., fullName, email, Employee Id):",
-            );
-            if (columnField) {
-              openEditColumnDialog(columnField);
-            } else {
-              alert("Field not exist check the spelling/keyword");
-            }
-          }}
-          sx={{
-            backgroundColor: "#ff9800",
-            "&:hover": { backgroundColor: "#f57c00" },
-          }}
-        >
-          EDIT COLUMN
         </Button>
       </Box>
 
@@ -1245,226 +850,6 @@ export default function ManagerTable() {
           </Table>
         </TableContainer>
       </Box>
-      {/* Add Column Dialog */}
-      <Dialog
-        open={showAddColumnDialog}
-        onClose={() => setShowAddColumnDialog(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Add Custom Column</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            label="Column Name"
-            value={newColumn.name}
-            onChange={(e) =>
-              setNewColumn({ ...newColumn, name: e.target.value })
-            }
-            sx={{ mt: 2, mb: 2 }}
-          />
-          <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel>Column Type</InputLabel>
-            <Select
-              value={newColumn.type}
-              onChange={(e) =>
-                setNewColumn({ ...newColumn, type: e.target.value as any })
-              }
-              label="Column Type"
-            >
-              <MenuItem value="text">Text</MenuItem>
-              <MenuItem value="number">Number</MenuItem>
-              <MenuItem value="boolean">Boolean</MenuItem>
-              <MenuItem value="date">Date</MenuItem>
-            </Select>
-          </FormControl>
-          <TextField
-            fullWidth
-            label="Default Value (optional)"
-            value={newColumn.defaultValue ?? ""}
-            onChange={(e) =>
-              setNewColumn({ ...newColumn, defaultValue: e.target.value })
-            }
-            sx={{ mb: 2 }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowAddColumnDialog(false)}>Cancel</Button>
-          <Button
-            onClick={handleAddColumn}
-            variant="contained"
-            disabled={!newColumn.name}
-          >
-            Add Column
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Edit Column Dialog */}
-      <Dialog
-        open={showEditColumnDialog}
-        onClose={() => setShowEditColumnDialog(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>Edit Column: {editingColumn}</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 2, mb: 2, display: "flex", gap: 2 }}>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => setShowBulkEditDialog(true)}
-              disabled={selectedManagers.length === 0}
-            >
-              Bulk Edit Selected ({selectedManagers.length})
-            </Button>
-            <Button
-              variant="outlined"
-              color="primary"
-              onClick={() => setSelectedManagers(managers.map((m) => m.id))}
-            >
-              Select All
-            </Button>
-            <Button
-              variant="outlined"
-              color="primary"
-              onClick={() => setSelectedManagers([])}
-            >
-              Clear Selection
-            </Button>
-          </Box>
-          <Box sx={{ mt: 2, maxHeight: 400, overflowY: "auto" }}>
-            {managers.map((manager) => (
-              <Box
-                key={manager.id}
-                sx={{ display: "flex", gap: 2, mb: 2, alignItems: "center" }}
-              >
-                <Checkbox
-                  checked={selectedManagers.includes(manager.id)}
-                  onChange={() => toggleManagerSelection(manager.id)}
-                  sx={{ color: "#ffffff" }}
-                />
-                <Typography sx={{ minWidth: 200, color: "#ffffff" }}>
-                  {manager.fullName} ({manager.managerId})
-                </Typography>
-                <TextField
-                  fullWidth
-                  label="Value"
-                  value={columnValues[manager.id] ?? ""}
-                  onChange={(e) =>
-                    updateColumnValues(manager.id, e.target.value)
-                  }
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: 2,
-                    },
-                  }}
-                />
-              </Box>
-            ))}
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowEditColumnDialog(false)}>Cancel</Button>
-          <Button
-            onClick={handleEditColumn}
-            variant="contained"
-            disabled={editColumnLoading}
-            sx={{
-              backgroundColor: "#ff9800",
-              "&:hover": { backgroundColor: "#f57c00" },
-            }}
-          >
-            {editColumnLoading ? (
-              <CircularProgress size={24} />
-            ) : (
-              "Update Column"
-            )}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Delete Column Dialog */}
-      <Dialog
-        open={showDeleteColumnDialog}
-        onClose={() => setShowDeleteColumnDialog(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Delete Column</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 2 }}>
-            <FormControl fullWidth>
-              <InputLabel>Select Column to Delete</InputLabel>
-              <Select
-                value={columnToDelete}
-                onChange={(e) => setColumnToDelete(e.target.value)}
-                label="Select Column to Delete"
-              >
-                {columns
-                  .filter(
-                    (col) =>
-                      // Filter out default columns and actions column
-                      !defaultColumns.some(
-                        (defCol) => defCol.field === col.field,
-                      ) && col.field !== "actions",
-                  )
-                  .map((column) => (
-                    <MenuItem key={column.id} value={column.field}>
-                      {column.headerName}
-                    </MenuItem>
-                  ))}
-              </Select>
-            </FormControl>
-            {columnToDelete && (
-              <Typography sx={{ mt: 2, color: "error.main" }}>
-                Warning: This action will permanently delete the column "
-                {columnToDelete}" and all its data. This cannot be undone.
-              </Typography>
-            )}
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowDeleteColumnDialog(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleDeleteColumn}
-            variant="contained"
-            color="error"
-            disabled={!columnToDelete}
-          >
-            Delete Column
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Bulk Edit Dialog */}
-      <Dialog
-        open={showBulkEditDialog}
-        onClose={() => setShowBulkEditDialog(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          Bulk Edit {selectedManagers.length} Selected Managers
-        </DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            label="Value"
-            value={bulkEditValue}
-            onChange={(e) => setBulkEditValue(e.target.value)}
-            sx={{ mt: 2 }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowBulkEditDialog(false)}>Cancel</Button>
-          <Button onClick={handleBulkEdit} variant="contained" color="primary">
-            Apply to Selected
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Pagination */}
       <TablePagination

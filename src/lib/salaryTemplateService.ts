@@ -86,10 +86,17 @@ export const FIXED_SECTIONS: TemplateSection[] = [
     isFixed: true,
     order: 0,
     columns: [
-      { id: "col_name", label: "Name", key: "name", isFixed: true, order: 0 },
-      { id: "col_emp_id", label: "Employee ID", key: "employee_id", isFixed: true, order: 1 },
-      { id: "col_esic", label: "ESIC No", key: "esic_no", isFixed: true, order: 2 },
-      { id: "col_uan", label: "UAN", key: "uan", isFixed: true, order: 3 },
+      { id: "col_name",        label: "Name",           key: "name",         isFixed: true, order: 0 },
+      { id: "col_emp_id",      label: "Employee ID",    key: "employee_id",  isFixed: true, order: 1 },
+      { id: "col_esic",        label: "ESIC No",        key: "esic_no",      isFixed: true, order: 2 },
+      { id: "col_uan",         label: "UAN",            key: "uan",          isFixed: true, order: 3 },
+      { id: "col_epf_no",      label: "EPF No",         key: "epf_no",       isFixed: true, order: 4 },
+      { id: "col_father_name", label: "Father Name",    key: "father_name",  isFixed: true, order: 5 },
+      { id: "col_designation", label: "Designation",    key: "designation",  isFixed: true, order: 6 },
+      { id: "col_department",  label: "Department",     key: "department",   isFixed: true, order: 7 },
+      { id: "col_dob",         label: "Date of Birth",  key: "dob",          isFixed: true, order: 8 },
+      { id: "col_joining_date",label: "Date of Joining",key: "joining_date", isFixed: true, order: 9 },
+      { id: "col_hq_location", label: "HQ Location",    key: "hq_location",  isFixed: true, order: 10 },
     ],
   },
 ];
@@ -103,14 +110,20 @@ export const FIXED_SECTIONS: TemplateSection[] = [
 // templates behave the same as new ones.
 export const REMOVED_FIXED_COLUMN_KEYS = ["basic", "da", "paid_days"];
 
-/** Remove the retired fixed columns (basic/da/paid_days) from template sections. */
+/** Remove the retired fixed columns (basic/da/paid_days) ONLY from the
+ *  employee_info section — user-added columns with the same keys in
+ *  earnings/deductions sections must be preserved. */
 export function stripRemovedFixedColumns(sections: TemplateSection[]): TemplateSection[] {
-  return sections.map((sec) => ({
-    ...sec,
-    columns: sec.columns.filter(
-      (col) => !REMOVED_FIXED_COLUMN_KEYS.includes(col.key),
-    ),
-  }));
+  return sections.map((sec) => {
+    // Only strip from the fixed employee_info section
+    if (sec.id !== "employee_info") return sec;
+    return {
+      ...sec,
+      columns: sec.columns.filter(
+        (col) => !REMOVED_FIXED_COLUMN_KEYS.includes(col.key),
+      ),
+    };
+  });
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
