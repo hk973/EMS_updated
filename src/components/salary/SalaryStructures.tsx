@@ -40,6 +40,7 @@ import {
   Download,
   Calculate,
   FileUpload,
+  DeleteForever,
 } from "@mui/icons-material";
 import {
   collection,
@@ -427,7 +428,28 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     const byMonth = (emp as unknown as {
       salaryByMonth?: Record<string, Record<string, unknown>>;
     }).salaryByMonth;
+    // Return only this month's dedicated data. If none exists, return empty
+    // so all values fall back to 0 — no cross-month bleed.
     return byMonth?.[getMonthlyKey()] ?? {};
+  };
+
+  /** Format a date value (string, number, Date, Firestore timestamp) to a readable string */
+  const formatDate = (value: unknown): string => {
+    if (!value) return "-";
+    // Excel serial number
+    if (typeof value === "number") {
+      const d = new Date(new Date(1899, 11, 30).getTime() + value * 86400000);
+      return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleDateString();
+    }
+    if (value instanceof Date) return value.toLocaleDateString();
+    if (typeof value === "object" && value !== null) {
+      if ("seconds" in (value as any)) return new Date((value as any).seconds * 1000).toLocaleDateString();
+      if (typeof (value as any).toDate === "function") return (value as any).toDate().toLocaleDateString();
+    }
+    const str = String(value).trim();
+    if (!str) return "-";
+    const parsed = new Date(str);
+    return Number.isNaN(parsed.getTime()) ? str : parsed.toLocaleDateString();
   };
 
   /** Evaluate all columns for an employee using their assigned template */
@@ -452,8 +474,17 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     const ctx: Record<string, unknown> = {
       name: emp.fullName ?? "",
       employee_id: emp.employeeId ?? "",
+      designation: (emp as any).designation ?? "",
+      department: (emp as any).department ?? "",
+      father_name: (emp as any).fatherName ?? "",
+      dob: formatDate((emp as any).dob),
+      joining_date: formatDate((emp as any).joinDate),
       esic_no: emp.esicNo ?? "",
       uan: emp.uan ?? "",
+      epf_no: (emp as any).epfNo ?? "",
+      hq_location: (emp as any).hqLocation ?? "",
+      bank_account: (emp as any).bankAccount ?? "",
+      ifsc_code: (emp as any).ifscCode ?? "",
       basic: Number((s as any).basic ?? (s as any).base ?? 0),
       da: Number((s as any).da ?? 0),
       total_days: totalDaysVal,
@@ -506,13 +537,20 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           "employee_id",
           "esic_no",
           "uan",
+          "epf_no",
+          "father_name",
+          "designation",
+          "department",
+          "dob",
+          "joining_date",
+          "hq_location",
           "basic",
           "da",
           "total_days",
           "paid_days",
         ];
         if (directKeys.includes(col.key)) {
-          const textKeys = ["name", "employee_id", "esic_no", "uan"];
+          const textKeys = ["name", "employee_id", "esic_no", "uan", "epf_no", "father_name", "designation", "department", "dob", "joining_date", "hq_location"];
           if (textKeys.includes(col.key)) {
             val = (ctx[col.key] as string | number) ?? "";
           } else {
@@ -606,8 +644,14 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
       setAlert({ type: "error", message: "No data to export" });
       return;
     }
-    const ws = XLSX.utils.json_to_sheet(data);
-    const colCount = Object.keys(data[0] || {}).length;
+    // Embed month/year so upload always writes to the correct month
+    const dataWithMeta = data.map((row) => ({
+      __month__: selectedMonth,
+      __year__: selectedYear,
+      ...row,
+    }));
+    const ws = XLSX.utils.json_to_sheet(dataWithMeta);
+    const colCount = Object.keys(dataWithMeta[0] || {}).length;
     ws["!cols"] = Array(colCount).fill({ wch: 16 });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Wages");
@@ -631,7 +675,13 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
       setAlert({ type: "error", message: "No data to export" });
       return;
     }
-    const ws = XLSX.utils.json_to_sheet(data);
+    // Embed month/year so upload always writes to the correct month
+    const dataWithMeta = data.map((row) => ({
+      __month__: selectedMonth,
+      __year__: selectedYear,
+      ...row,
+    }));
+    const ws = XLSX.utils.json_to_sheet(dataWithMeta);
     const csv = XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = window.URL.createObjectURL(blob);
@@ -828,6 +878,8 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
   // Loading states
   const [editLoading, setEditLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
+  const [showDeleteMonthDialog, setShowDeleteMonthDialog] = useState(false);
+  const [deleteMonthLoading, setDeleteMonthLoading] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
   const [alert, setAlert] = useState<{
     type: "success" | "error";
@@ -1028,7 +1080,9 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
 
   const buildEmployeeContext = (employee: Employee) => {
     const s = getEmployeeSalaryWithCustomParams(employee);
-    const base = employee.salary || {};
+    // Use the selected month's data so the table reflects the correct period.
+    // Falls back to employee.salary inside getMonthlySalary when no month-specific data exists.
+    const base = getMonthlySalary(employee) as Record<string, any>;
     const totalDaysVal = Number((base as any).totalDays || 30);
     const paidDaysVal = Number((base as any).paidDays || totalDaysVal);
     const presentDays = Number((base as any).presentDays ?? paidDaysVal);
@@ -1081,7 +1135,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     // Treat missing/empty values as 0 so formulas referencing them still compute correctly
     customColumns.forEach((c) => {
       const key = normalizeColumnKey(c.name);
-      const value = (employee as any).salary?.[key];
+      const value = (base as any)[key] ?? (employee as any).salary?.[key];
       ctx[key] = typeof value === "number" ? value : 0;
     });
     // merge overrides if present (take precedence when not '-')
@@ -1710,23 +1764,25 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
 
   // Calculate salary with current custom parameters for display
   const getEmployeeSalaryWithCustomParams = (employee: Employee) => {
+    // Use the selected month's data so calculations reflect the correct period.
+    const m = getMonthlySalary(employee) as any;
     const salaryData: SalaryCalculationData = {
       esicNo: employee.esicNo || "",
       uan: employee.uan || "",
-      basic: getEmployeeBasicSalary(employee),
-      da: employee.salary?.da || 0,
-      totalDays: employee.salary?.totalDays || 30,
-      paidDays: employee.salary?.paidDays || 30,
-      singleOTHours: employee.salary?.singleOTHours || 0,
-      doubleOTHours: employee.salary?.doubleOTHours || 0,
-      difference: employee.salary?.difference || 0,
-      advance: employee.salary?.advance || 0,
-      isSkillBased: employee.salary?.isSkillBased || false,
-      skillCategory: employee.salary?.skillCategory || "",
-      skillAmount: employee.salary?.skillAmount || 0,
-      customAllowances: employee.salary?.customAllowances || [],
-      customBonuses: employee.salary?.customBonuses || [],
-      customDeductions: employee.salary?.customDeductions || [],
+      basic: Number(m.basic ?? m.base ?? 0),
+      da: Number(m.da ?? 0),
+      totalDays: Number(m.totalDays ?? 30),
+      paidDays: Number(m.paidDays ?? 30),
+      singleOTHours: Number(m.singleOTHours ?? 0),
+      doubleOTHours: Number(m.doubleOTHours ?? 0),
+      difference: Number(m.difference ?? 0),
+      advance: Number(m.advance ?? 0),
+      isSkillBased: m.isSkillBased ?? false,
+      skillCategory: m.skillCategory ?? "",
+      skillAmount: Number(m.skillAmount ?? 0),
+      customAllowances: m.customAllowances ?? [],
+      customBonuses: m.customBonuses ?? [],
+      customDeductions: m.customDeductions ?? [],
       hraPercentage: editData.hraPercentage,
       esicEmployeePercentage: editData.esicEmployeePercentage,
       esicEmployerPercentage: editData.esicEmployerPercentage,
@@ -2108,7 +2164,19 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
         "paid_days",
       ]);
 
-      const updates = jsonData.map(async (row) => {
+      // Read embedded month/year from the file (written at export time).
+      // Falls back to the UI-selected month if the file has no metadata
+      // (e.g. manually created files).
+      const firstRow = jsonData[0] ?? {};
+      const fileMonth = Number(firstRow.__month__);
+      const fileYear  = Number(firstRow.__year__);
+      const uploadMonth = Number.isFinite(fileMonth) && fileMonth >= 1 && fileMonth <= 12
+        ? fileMonth : selectedMonth;
+      const uploadYear  = Number.isFinite(fileYear)  && fileYear  > 2000
+        ? fileYear  : selectedYear;
+      const uploadMonthlyKey = `${uploadYear}-${uploadMonth}`;
+
+      const uploads = jsonData.map(async (row) => {
         const employee = employees.find(
           (emp) =>
             emp.employeeId === row["Employee ID"] ||
@@ -2306,28 +2374,29 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
         return updateDoc(doc(db, "employees", employee.id), {
           esicNo: salaryData.esicNo,
           uan: salaryData.uan,
-          // Save this upload against the selected month only, so each month
-          // keeps its own salary data (download May → upload as July keeps a
-          // separate July copy).
-          [`salaryByMonth.${getMonthlyKey()}`]: mergedSalary,
-          // Keep the global salary in sync for the rest of the app (payroll,
-          // edit dialog, slips) which still read employee.salary.
+          // Save against the month embedded in the file, not the UI selection.
+          // This ensures uploading a July file always writes to July regardless
+          // of which month is currently selected in the UI.
+          [`salaryByMonth.${uploadMonthlyKey}`]: mergedSalary,
+          // Keep global salary in sync for payroll, edit dialog, slips.
           salary: mergedSalary,
           updatedAt: new Date(),
         });
       });
 
-      await Promise.all(updates.filter(Boolean));
+      await Promise.all(uploads.filter(Boolean));
       if (warningFields.size > 0) {
         window.alert(
           `You are trying to update is auto-calculated from calculations, so data from following field are remain unchanged:\n${Array.from(warningFields).join(", ")}`,
         );
       }
-      const { month: uploadMonthLabel, year: uploadYearLabel } =
-        getExportPeriodLabel();
+      // Build a human-readable label from the month/year embedded in the file.
+      const uploadMonthLabel = new Date(uploadYear, uploadMonth - 1, 1)
+        .toLocaleString("default", { month: "long" })
+        .toUpperCase();
       setAlert({
         type: "success",
-        message: `Salary data uploaded for ${uploadMonthLabel} ${uploadYearLabel}!`,
+        message: `Salary data uploaded for ${uploadMonthLabel} ${uploadYear}!`,
       });
       loadEmployees();
     } catch (error) {
@@ -2344,32 +2413,68 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
   // Download sample file
   // downloadSampleFile is now defined above with the other export helpers
 
+  // Delete all salary data for the selected month across every employee in the company
+  const handleDeleteMonth = async () => {
+    if (!currentUser?.uid) return;
+    try {
+      setDeleteMonthLoading(true);
+      const key = getMonthlyKey(); // e.g. "2026-7"
+      const ops = employees.map((emp) =>
+        updateDoc(doc(db, "employees", emp.id), {
+          [`salaryByMonth.${key}`]: deleteField(),
+        })
+      );
+      await Promise.all(ops);
+      // Update local state so the table re-renders immediately
+      setEmployees((prev) =>
+        prev.map((emp) => {
+          const byMonth = { ...((emp as any).salaryByMonth ?? {}) };
+          delete byMonth[key];
+          return { ...emp, salaryByMonth: byMonth } as any;
+        })
+      );
+      const { month, year } = getExportPeriodLabel();
+      setAlert({
+        type: "success",
+        message: `Salary data for ${month} ${year} deleted successfully.`,
+      });
+    } catch (err) {
+      console.error("Error deleting month data:", err);
+      setAlert({ type: "error", message: "Failed to delete month data." });
+    } finally {
+      setDeleteMonthLoading(false);
+      setShowDeleteMonthDialog(false);
+    }
+  };
+
   // Edit individual employee
   const handleIndividualEdit = (employee: Employee) => {
     setEditingEmployee(employee);
+    // Pre-populate from the selected month's data so edits are month-specific.
+    const m = getMonthlySalary(employee) as any;
     setEditData({
       esicNo: employee.esicNo || "",
       uan: employee.uan || "",
-      basic: getEmployeeBasicSalary(employee),
-      da: employee.salary?.da || 0,
-      totalDays: employee.salary?.totalDays || 30,
-      paidDays: employee.salary?.paidDays || 30,
-      singleOTHours: employee.salary?.singleOTHours || 0,
-      doubleOTHours: employee.salary?.doubleOTHours || 0,
-      difference: employee.salary?.difference || 0,
-      advance: employee.salary?.advance || 0,
-      isSkillBased: employee.salary?.isSkillBased || false,
-      skillCategory: employee.salary?.skillCategory || "",
-      skillAmount: employee.salary?.skillAmount || 0,
-      customAllowances: employee.salary?.customAllowances || [],
-      customBonuses: employee.salary?.customBonuses || [],
-      customDeductions: employee.salary?.customDeductions || [],
-      hraPercentage: employee.salary?.hraPercentage || 5,
-      esicEmployeePercentage: employee.salary?.esicEmployeePercentage || 0.75,
-      esicEmployerPercentage: employee.salary?.esicEmployerPercentage || 3.25,
-      pfEmployeePercentage: employee.salary?.pfEmployeePercentage || 12,
-      pfEmployerPercentage: employee.salary?.pfEmployerPercentage || 13,
-      mlwfEmployerAmount: employee.salary?.mlwfEmployerAmount ?? 1,
+      basic: Number(m.basic ?? m.base ?? 0),
+      da: Number(m.da ?? 0),
+      totalDays: Number(m.totalDays ?? 30),
+      paidDays: Number(m.paidDays ?? 30),
+      singleOTHours: Number(m.singleOTHours ?? 0),
+      doubleOTHours: Number(m.doubleOTHours ?? 0),
+      difference: Number(m.difference ?? 0),
+      advance: Number(m.advance ?? 0),
+      isSkillBased: m.isSkillBased ?? false,
+      skillCategory: m.skillCategory ?? "",
+      skillAmount: Number(m.skillAmount ?? 0),
+      customAllowances: m.customAllowances ?? [],
+      customBonuses: m.customBonuses ?? [],
+      customDeductions: m.customDeductions ?? [],
+      hraPercentage: Number(m.hraPercentage ?? 5),
+      esicEmployeePercentage: Number(m.esicEmployeePercentage ?? 0.75),
+      esicEmployerPercentage: Number(m.esicEmployerPercentage ?? 3.25),
+      pfEmployeePercentage: Number(m.pfEmployeePercentage ?? 12),
+      pfEmployerPercentage: Number(m.pfEmployerPercentage ?? 13),
+      mlwfEmployerAmount: Number(m.mlwfEmployerAmount ?? 1),
     });
 
     // Load custom template column values (no-formula columns from the assigned template)
@@ -2384,7 +2489,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
       for (const sec of tmpl.sections) {
         for (const col of sec.columns) {
           if (!col.formula?.expression && !directKeys.has(col.key) && !col.isFixed) {
-            colVals[col.key] = Number((employee.salary as any)?.[col.key] ?? 0);
+            colVals[col.key] = Number((m as any)?.[col.key] ?? (employee.salary as any)?.[col.key] ?? 0);
           }
         }
       }
@@ -2425,14 +2530,18 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
       };
       const taxAmount = calculateTax(totalGross, taxRegime);
 
+      const mergedSalary = {
+        ...calculatedSalary,
+        // Persist custom template column values (e.g. conv_allowance, washing_allowance)
+        ...templateColumnValues,
+      };
       await updateDoc(doc(db, "employees", editingEmployee.id), {
         esicNo: editData.esicNo,
         uan: editData.uan,
-        salary: {
-          ...calculatedSalary,
-          // Persist custom template column values (e.g. conv_allowance, washing_allowance)
-          ...templateColumnValues,
-        },
+        // Write to the selected month's bucket so each month is independent.
+        [`salaryByMonth.${getMonthlyKey()}`]: mergedSalary,
+        // Keep global salary in sync for payroll, salary slips, etc.
+        salary: mergedSalary,
         // Save pre-calculated values for easy access in payroll
         grossSalary: totalGross,
         taxAmount: taxAmount,
@@ -2447,9 +2556,10 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
                 ...emp,
                 esicNo: editData.esicNo,
                 uan: editData.uan,
-                salary: {
-                  ...calculatedSalary,
-                  ...templateColumnValues,
+                salary: mergedSalary,
+                salaryByMonth: {
+                  ...(emp as any).salaryByMonth,
+                  [getMonthlyKey()]: mergedSalary,
                 },
                 grossSalary: totalGross,
                 taxAmount: taxAmount,
@@ -2475,7 +2585,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
   };
 
   const formatCurrency = (amount: number | undefined): string => {
-    return amount ? amount.toLocaleString() : "0";
+    return amount ? String(Math.round(amount)) : "0";
   };
 
   if (loading) {
@@ -2738,6 +2848,16 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
         >
           Download CSV
         </Button>
+
+        <Button
+          variant="contained"
+          color="error"
+          startIcon={<DeleteForever />}
+          onClick={() => setShowDeleteMonthDialog(true)}
+          sx={{ borderRadius: 2 }}
+        >
+          Delete Month Data
+        </Button>
       </Box>
 
       {/* Salary Structures Table — Template View only */}
@@ -2746,6 +2866,8 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           employees={filteredEmployees}
           managers={managers}
           selectedManagerId={selectedManagerId}
+          selectedMonth={selectedMonth}
+          selectedYear={selectedYear}
           page={page}
           rowsPerPage={rowsPerPage}
           onPageChange={(p) => setPage(p)}
@@ -2757,6 +2879,47 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           refreshKey={refreshKey}
         />
       </Paper>
+      {/* Delete Month Data Confirmation Dialog */}
+      <Dialog
+        open={showDeleteMonthDialog}
+        onClose={() => !deleteMonthLoading && setShowDeleteMonthDialog(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Delete Month Data</DialogTitle>
+        <DialogContent>
+          <Typography>
+            This will permanently delete all salary data for{" "}
+            <strong>
+              {getExportPeriodLabel().month} {getExportPeriodLabel().year}
+            </strong>{" "}
+            for every employee. This cannot be undone.
+          </Typography>
+          <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+            Are you sure you want to continue?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setShowDeleteMonthDialog(false)}
+            disabled={deleteMonthLoading}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleDeleteMonth}
+            disabled={deleteMonthLoading}
+            startIcon={
+              deleteMonthLoading ? <CircularProgress size={16} /> : <DeleteForever />
+            }
+          >
+            {deleteMonthLoading ? "Deleting…" : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Edit Salary Structure Dialog */}
       <Dialog
         open={showEditDialog}

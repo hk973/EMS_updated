@@ -28,10 +28,6 @@ import {
   Chip,
   Tooltip,
   IconButton,
-  FormControl,
-  Select,
-  MenuItem,
-  InputLabel,
 } from "@mui/material";
 import { Edit } from "@mui/icons-material";
 import {
@@ -70,6 +66,8 @@ interface Props {
   employees: Employee[];
   managers: ManagerInfo[];
   selectedManagerId: string;
+  selectedMonth: number;
+  selectedYear: number;
   page: number;
   rowsPerPage: number;
   onPageChange: (p: number) => void;
@@ -80,9 +78,12 @@ interface Props {
 
 // ─── Formula evaluator ────────────────────────────────────────────────────────
 
-function buildEmployeeCtx(emp: Employee): Record<string, unknown> {
-  const s = emp.salary ?? {};
-  // Spread ALL salary keys first so any custom column values (e.g. conv_allowance) are available
+function buildEmployeeCtx(emp: Employee, monthlyKey: string): Record<string, unknown> {
+  // Use the selected month's data; fall back to empty (all zeros) if not yet set.
+  const byMonth = (emp as any).salaryByMonth as Record<string, any> | undefined;
+  const s: Record<string, any> = byMonth?.[monthlyKey] ?? {};
+
+  // Spread ALL monthly salary keys first so any custom column values are available
   const allSalaryKeys: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(s)) {
     if (v !== null && v !== undefined && v !== "-") {
@@ -98,8 +99,17 @@ function buildEmployeeCtx(emp: Employee): Record<string, unknown> {
     // fixed info
     name: emp.fullName ?? "",
     employee_id: emp.employeeId ?? "",
+    designation: (emp as any).designation ?? "",
+    department: (emp as any).department ?? "",
+    father_name: (emp as any).fatherName ?? "",
+    dob: formatDate((emp as any).dob),
+    joining_date: formatDate((emp as any).joinDate),
     esic_no: emp.esicNo ?? "",
     uan: emp.uan ?? "",
+    epf_no: (emp as any).epfNo ?? "",
+    hq_location: (emp as any).hqLocation ?? "",
+    bank_account: (emp as any).bankAccount ?? "",
+    ifsc_code: (emp as any).ifscCode ?? "",
     basic: Number(s.basic ?? (s as any).base ?? 0),
     da: Number(s.da ?? 0),
     total_days: Number(s.totalDays ?? 30),
@@ -143,8 +153,9 @@ function buildEmployeeCtx(emp: Employee): Record<string, unknown> {
 function evalCol(col: TemplateColumn, ctx: Record<string, unknown>): string {
   // Fixed info columns — read directly from ctx
   const directKeys = [
-    "name", "employee_id", "esic_no", "uan", "basic", "da",
-    "total_days", "paid_days",
+    "name", "employee_id", "esic_no", "uan", "epf_no",
+    "father_name", "designation", "department", "dob", "joining_date", "hq_location",
+    "basic", "da", "total_days", "paid_days",
   ];
   if (directKeys.includes(col.key)) {
     const v = ctx[col.key];
@@ -169,7 +180,25 @@ function evalCol(col: TemplateColumn, ctx: Record<string, unknown>): string {
 }
 
 function formatNum(n: number): string {
-  return Math.round(n).toLocaleString("en-IN");
+  return String(Math.round(n));
+}
+
+function formatDate(value: unknown): string {
+  if (!value) return "-";
+  // Excel serial number
+  if (typeof value === "number") {
+    const d = new Date(new Date(1899, 11, 30).getTime() + value * 86400000);
+    return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleDateString();
+  }
+  if (value instanceof Date) return value.toLocaleDateString();
+  if (typeof value === "object" && value !== null) {
+    if ("seconds" in (value as any)) return new Date((value as any).seconds * 1000).toLocaleDateString();
+    if (typeof (value as any).toDate === "function") return (value as any).toDate().toLocaleDateString();
+  }
+  const str = String(value).trim();
+  if (!str) return "-";
+  const parsed = new Date(str);
+  return Number.isNaN(parsed.getTime()) ? str : parsed.toLocaleDateString();
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -178,6 +207,8 @@ export default function TemplateSalaryView({
   employees,
   managers,
   selectedManagerId,
+  selectedMonth,
+  selectedYear,
   page,
   rowsPerPage,
   onPageChange,
@@ -194,11 +225,7 @@ export default function TemplateSalaryView({
 
   const companyId = currentUser?.uid ?? "";
 
-  // Pay period — user-selectable month/year, defaults to current month
-  const now = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1); // 1-based
-  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
-
+  // Pay period derived from parent-controlled month/year
   const payPeriod = useMemo(() => {
     const totalDays = new Date(selectedYear, selectedMonth, 0).getDate();
     return { month: selectedMonth, year: selectedYear, totalDays };
@@ -209,12 +236,7 @@ export default function TemplateSalaryView({
     setAttendanceVars(new Map());
   }, [selectedMonth, selectedYear]);
 
-  // Year options: 2 years back through next year
-  const yearOptions = [now.getFullYear() - 2, now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
-  const monthNames = [
-    "January","February","March","April","May","June",
-    "July","August","September","October","November","December",
-  ];
+  // Year options and month names kept for any future use
 
   // ── Load all templates ────────────────────────────────────────────────────
 
@@ -365,7 +387,7 @@ export default function TemplateSalaryView({
       if (!empCol) return "-";
 
       // Build context and merge real attendance variables from state
-      const ctx = buildEmployeeCtx(emp);
+      const ctx = buildEmployeeCtx(emp, `${selectedYear}-${selectedMonth}`);
       const vars = attendanceVars.get(emp.id);
       if (vars) {
         ctx.present_days = vars.present_days;
@@ -382,7 +404,7 @@ export default function TemplateSalaryView({
       // Pre-populate no-formula column values from stored salary data so:
       // 1. evalCol can read them from ctx, and
       // 2. formula columns that reference a no-formula column get the correct value
-      const directKeys = ["name", "employee_id", "esic_no", "uan", "basic", "da", "total_days", "paid_days"];
+      const directKeys = ["name", "employee_id", "esic_no", "uan", "epf_no", "father_name", "designation", "department", "dob", "joining_date", "hq_location", "basic", "da", "total_days", "paid_days"];
       // Sort sections AND columns by order so formula dependencies are always resolved correctly
       const allSections = [...tmpl.sections]
         .sort((a, b) => a.order - b.order)
@@ -390,8 +412,10 @@ export default function TemplateSalaryView({
       for (const sec of allSections) {
         for (const c of sec.columns) {
           if (!c.formula?.expression && !directKeys.includes(c.key)) {
+            // Read from the selected month's data only — no cross-month bleed.
+            const monthData = ((emp as any).salaryByMonth as Record<string, any> | undefined)?.[`${selectedYear}-${selectedMonth}`] ?? {};
             const stored =
-              (emp.salary as any)?.[c.key] ??
+              monthData[c.key] ??
               (emp as any).salaryOverrides?.[c.key];
             // Always set the key in ctx; use stored value if valid, otherwise 0
             // so formulas referencing this column treat it as 0 instead of undefined
@@ -459,42 +483,6 @@ export default function TemplateSalaryView({
 
   return (
     <Paper sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}>
-      {/* Month / Year selector */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2, px: 2, pt: 2, pb: 1 }}>
-        <Typography variant="body2" sx={{ color: "#aaa", whiteSpace: "nowrap" }}>
-          Attendance Period:
-        </Typography>
-        <FormControl size="small" sx={{ minWidth: 140 }}>
-          <InputLabel sx={{ color: "#aaa" }}>Month</InputLabel>
-          <Select
-            label="Month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(Number(e.target.value))}
-            sx={{ color: "#fff", "& .MuiOutlinedInput-notchedOutline": { borderColor: "#555" } }}
-          >
-            {monthNames.map((name, i) => (
-              <MenuItem key={i + 1} value={i + 1}>{name}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <FormControl size="small" sx={{ minWidth: 100 }}>
-          <InputLabel sx={{ color: "#aaa" }}>Year</InputLabel>
-          <Select
-            label="Year"
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-            sx={{ color: "#fff", "& .MuiOutlinedInput-notchedOutline": { borderColor: "#555" } }}
-          >
-            {yearOptions.map((y) => (
-              <MenuItem key={y} value={y}>{y}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <Typography variant="caption" sx={{ color: "#666" }}>
-          {payPeriod.totalDays} days
-        </Typography>
-      </Box>
-
       {/* Section tabs */}
       <Tabs
         value={Math.min(tabIndex, displaySections.length - 1)}
