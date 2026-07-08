@@ -30,6 +30,7 @@ import {
   FolderOpen,
   TrendingUp,
   SupervisorAccount,
+  Backup,
 } from "@mui/icons-material";
 // import { TrendingUp, FolderOpen, History } from '@mui/icons-material';
 import { useAuth } from "@/contexts/AuthContext";
@@ -57,6 +58,7 @@ const menuItems = {
     { text: "Salary Structures", icon: <AttachMoney />, path: "/salary" },
     { text: "Salary Slip", icon: <Receipt />, path: "/salary-slip" },
     { text: "Reports", icon: <Business />, path: "/reports" },
+    { text: "Backup", icon: <Backup />, path: "/backup" },
     { text: "Settings", icon: <Settings />, path: "/settings" },
   ],
   manager: [

@@ -146,6 +146,10 @@ export interface Employee {
     deductions?: Record<string, any>;
     taxRegime?: 'old' | 'new';
   };
+  // Per-month salary data keyed by `${year}-${month}` (e.g. "2025-7").
+  // Written by SalaryStructures and read by payroll/salary-slip generation so
+  // that every month keeps its own salary values.
+  salaryByMonth?: Record<string, Record<string, unknown>>;
   // Dynamic fields - can be added by users
   [key: string]: any;
 }

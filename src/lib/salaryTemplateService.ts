@@ -382,6 +382,9 @@ export function evaluateTemplateFormula(
     // ROUND(x, n) → Math.round(x * 10^n) / 10^n  — handled inline via __ROUND__
     // We inject Math helpers directly into the function scope instead
     const transformed = transformIf(expr.trim())
+      // Excel-style percent literals: N% → (N/100). Prevents "%" from being
+      // treated as the JS modulo operator (e.g. pf_base*12% → pf_base*(12/100)).
+      .replace(/(\d+(?:\.\d+)?)\s*%/g, "($1/100)")
       // Excel-style math functions → JS Math equivalents (case-insensitive)
       .replace(/\bROUND\s*\(/gi, "Math.round(")
       .replace(/\bROUNDUP\s*\(/gi, "Math.ceil(")

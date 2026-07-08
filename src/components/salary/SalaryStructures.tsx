@@ -2164,6 +2164,31 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
         "paid_days",
       ]);
 
+      // Direct fields (basic/da/total_days/paid_days/esic_no/uan) are exported
+      // under the *template column label*, which the admin is free to rename
+      // (e.g. "BASIC", "Basic Pay"). The upload previously read them by fixed
+      // English labels only, so a renamed column (very commonly "basic") was
+      // never matched and silently fell back to 0. Build a key -> labels map
+      // from the active template so we can match by the real header first.
+      const directFieldLabelMap: Record<string, string[]> = {};
+      for (const section of activeSections) {
+        for (const column of section.columns) {
+          if (directFieldKeys.has(column.key)) {
+            (directFieldLabelMap[column.key] ??= []).push(column.label);
+          }
+        }
+      }
+      const getDirectFieldValue = (
+        row: Record<string, any>,
+        key: string,
+        fallbackLabels: string[],
+      ) =>
+        getRowValue(row, [
+          ...(directFieldLabelMap[key] ?? []),
+          ...fallbackLabels,
+          key,
+        ]);
+
       // Read embedded month/year from the file (written at export time).
       // Falls back to the UI-selected month if the file has no metadata
       // (e.g. manually created files).
@@ -2233,21 +2258,37 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
         }
 
         const salaryData: SalaryCalculationData = {
-          esicNo: resolveStringValue(row["ESIC No"], employee.esicNo, ""),
-          uan: resolveStringValue(row["UAN"], employee.uan, ""),
+          esicNo: resolveStringValue(
+            getDirectFieldValue(row, "esic_no", ["ESIC No"]),
+            employee.esicNo,
+            "",
+          ),
+          uan: resolveStringValue(
+            getDirectFieldValue(row, "uan", ["UAN"]),
+            employee.uan,
+            "",
+          ),
           basic: resolveNumberValue(
-            row["Basic Salary"],
+            getDirectFieldValue(row, "basic", [
+              "Basic Salary",
+              "BASIC",
+              "Basic",
+            ]),
             existingSalary.basic ?? existingSalary.base,
             0,
           ),
-          da: resolveNumberValue(row["DA"], existingSalary.da, 0),
+          da: resolveNumberValue(
+            getDirectFieldValue(row, "da", ["DA", "D.A.", "D.A"]),
+            existingSalary.da,
+            0,
+          ),
           totalDays: resolveNumberValue(
-            row["Total Days"],
+            getDirectFieldValue(row, "total_days", ["Total Days"]),
             existingSalary.totalDays,
             30,
           ),
           paidDays: resolveNumberValue(
-            row["Paid Days"],
+            getDirectFieldValue(row, "paid_days", ["Paid Days"]),
             existingSalary.paidDays ?? existingSalary.totalDays,
             30,
           ),

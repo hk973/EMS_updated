@@ -191,7 +191,7 @@ function defaultTable(x: number, y: number): TableElement {
     id: genId(), type: "table",
     x, y, width: 420, height: 100, zIndex: 1,
     cols,
-    rows: [headerRow, { ...dataRow } as TableCell[], { ...dataRow } as TableCell[]],
+    rows: [headerRow, [...dataRow], [...dataRow]],
     hasHeaderRow: true,
     alternateRowColor: true,
     borderColor: "#cccccc",
@@ -879,7 +879,10 @@ function renderElementContent(el: SlipElement) {
       const colW = el.width / el.cols;
       return (
         <Box sx={{ width: "100%", height: "100%", overflow: "hidden", pointerEvents: "none", border: `${el.borderWidth}px solid ${el.borderColor}`, boxSizing: "border-box" }}>
-          {el.rows.map((row, ri) => {
+          {el.rows.map((rawRow, ri) => {
+            // Guard against legacy/malformed rows that were persisted as objects
+            // (e.g. `{ ...cells }`) instead of arrays — normalise to an array.
+            const row: TableCell[] = Array.isArray(rawRow) ? rawRow : (Object.values(rawRow ?? {}) as TableCell[]);
             const isHeader = el.hasHeaderRow && ri === 0;
             const isAlt = el.alternateRowColor && !isHeader && ri % 2 === 0;
             return (
@@ -937,6 +940,12 @@ export default function SlipTemplateCanvas({ template, managers, onSave, onBack 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(0.75);
   const [saving, setSaving] = useState(false);
+
+  // Width of the right-hand properties panel (px). User-resizable via the
+  // draggable divider on its left edge — like the inspector panel in other
+  // design software.
+  const [panelWidth, setPanelWidth] = useState(240);
+  const panelResizeRef = useRef<{ startX: number; startW: number } | null>(null);
 
   // Internal template id tracking for saves
   const [savedId, setSavedId] = useState(template.id);
@@ -1132,6 +1141,31 @@ export default function SlipTemplateCanvas({ template, managers, onSave, onBack 
     };
   }, [zoom]);
 
+  // ── Properties panel resize ─────────────────────────────────────────────────
+
+  const handlePanelResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    panelResizeRef.current = { startX: e.clientX, startW: panelWidth };
+  }, [panelWidth]);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!panelResizeRef.current) return;
+      const { startX, startW } = panelResizeRef.current;
+      // Dragging left (negative dx) widens the panel, dragging right narrows it.
+      const next = startW - (e.clientX - startX);
+      setPanelWidth(Math.max(200, Math.min(640, next)));
+    };
+    const onUp = () => { panelResizeRef.current = null; };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
   // ── Keyboard delete ────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -1273,8 +1307,21 @@ export default function SlipTemplateCanvas({ template, managers, onSave, onBack 
           </Box>
         </Box>
 
+        {/* Draggable divider to resize the properties panel */}
+        <Box
+          onMouseDown={handlePanelResizeMouseDown}
+          sx={{
+            width: 6,
+            flexShrink: 0,
+            cursor: "col-resize",
+            backgroundColor: "#333",
+            "&:hover": { backgroundColor: "#2196f3" },
+            "&:active": { backgroundColor: "#2196f3" },
+          }}
+        />
+
         {/* Right: properties panel */}
-        <Box sx={{ width: 240, flexShrink: 0, p: 1.5, overflowY: "auto", borderLeft: "1px solid #333", backgroundColor: "#1a1a1a", display: "flex", flexDirection: "column" }}>
+        <Box sx={{ width: panelWidth, flexShrink: 0, p: 1.5, overflowY: "auto", borderLeft: "1px solid #333", backgroundColor: "#1a1a1a", display: "flex", flexDirection: "column" }}>
           {selectedElement ? (
             <PropertiesPanel
               element={selectedElement}

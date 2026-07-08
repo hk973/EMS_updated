@@ -39,7 +39,11 @@ import { db } from "@/lib/firebase";
 import { Employee, Payroll } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { computeAttendanceVariables } from "@/lib/attendanceDeductionUtils";
-import { slipTemplateService } from "@/lib/slipTemplateService";
+import {
+  slipTemplateService,
+  serializeElements,
+  stripUndefined,
+} from "@/lib/slipTemplateService";
 import type { SlipTemplate } from "@/lib/slipTemplateService";
 
 const months = [
@@ -528,7 +532,17 @@ export default function PayrollProcessing() {
         // exact format even if the template is edited/deleted later — until the
         // payroll is reverted (which removes the record and its snapshot).
         const managerId = getManagerIdForEmployee(employee);
-        const slipTemplateSnapshot = getSlipTemplateForManager(managerId);
+        const rawSlipTemplate = getSlipTemplateForManager(managerId);
+        // Firestore rejects nested arrays (table rows are TableCell[][]) and
+        // undefined values, so serialize the embedded template snapshot the
+        // same way the slipTemplates collection is stored. SalarySlips unwraps
+        // it back via slipTemplateService.deserialize when reading.
+        const slipTemplateSnapshot = rawSlipTemplate
+          ? {
+              ...rawSlipTemplate,
+              elements: serializeElements(rawSlipTemplate.elements ?? []),
+            }
+          : null;
         const basic = Number(salary.basic ?? salary.base ?? 0);
         const da = Number(salary.da ?? 0);
 
@@ -669,16 +683,17 @@ export default function PayrollProcessing() {
         };
       });
 
-      // Save payroll records
+      // Save payroll records (strip any nested undefined values Firestore rejects)
       for (const record of payrollRecords) {
-        await addDoc(collection(db, "payroll"), record);
+        await addDoc(collection(db, "payroll"), stripUndefined(record));
       }
 
       setSuccess("Payroll processed successfully!");
       await checkExistingPayroll();
     } catch (err) {
       console.error("Error processing payroll:", err);
-      setError("Failed to process payroll");
+      const detail = err instanceof Error ? `: ${err.message}` : "";
+      setError(`Failed to process payroll${detail}`);
     } finally {
       setProcessing(false);
     }

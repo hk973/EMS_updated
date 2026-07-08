@@ -104,10 +104,10 @@ function ScopeDialog({ open, managers, onConfirm, onClose }: ScopeDialogProps) {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ pb: 0 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+        <Typography variant="h6" component="div" sx={{ fontWeight: 700 }}>
           Create Slip Template
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+        <Typography variant="body2" component="div" color="text.secondary" sx={{ mt: 0.5 }}>
           Choose whether this template applies to all employees or a specific manager's employees.
         </Typography>
       </DialogTitle>
@@ -340,8 +340,10 @@ export default function SlipTemplateDesigner() {
       }
       setAlert({ type: "success", message: "Template saved" });
       await load();
-    } catch {
-      setAlert({ type: "error", message: "Failed to save template" });
+    } catch (err) {
+      console.error("Failed to save slip template:", err);
+      const detail = err instanceof Error ? `: ${err.message}` : "";
+      setAlert({ type: "error", message: `Failed to save template${detail}` });
     }
   };
 

@@ -140,6 +140,85 @@ export interface SlipTemplate {
 export const DEFAULT_CANVAS_WIDTH = 794;
 export const DEFAULT_CANVAS_HEIGHT = 1123;
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Recursively remove `undefined` values from an object/array so Firestore
+ * doesn't reject the write. Firestore throws
+ * "Unsupported field value: undefined" for any nested `undefined`, which is a
+ * common cause of "Failed to save template" — table cells and elements often
+ * carry optional fields (variableKey, text, colSpan, fontStyle, …) left unset.
+ */
+export function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((v) => stripUndefined(v)) as unknown as T;
+  }
+  if (value !== null && typeof value === "object" && !(value instanceof Date)) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v === undefined) continue;
+      out[k] = stripUndefined(v);
+    }
+    return out as T;
+  }
+  return value;
+}
+
+/**
+ * Firestore does NOT support nested arrays (an array whose elements are also
+ * arrays). A table element stores `rows: TableCell[][]` — an array of arrays —
+ * which triggers "Nested arrays are not supported" on save. To work around
+ * this, we wrap each row in an object (`{ cells: TableCell[] }`) before writing,
+ * so the persisted shape is an array of maps (allowed) rather than an array of
+ * arrays.
+ */
+export function serializeElements(elements: SlipElement[]): SlipElement[] {
+  return elements.map((el) => {
+    if (el.type === "table" && Array.isArray(el.rows)) {
+      return {
+        ...el,
+        rows: el.rows.map((row) => ({
+          cells: Array.isArray(row) ? row : Object.values(row ?? {}),
+        })),
+      } as unknown as SlipElement;
+    }
+    return el;
+  });
+}
+
+/**
+ * Inverse of {@link serializeElements}: unwrap `{ cells: [...] }` rows back into
+ * `TableCell[][]` when reading a template from Firestore. Also tolerates legacy
+ * documents where rows were stored directly as arrays or as objects.
+ */
+export function deserializeElements(elements: SlipElement[] | undefined): SlipElement[] {
+  if (!Array.isArray(elements)) return [];
+  return elements.map((el) => {
+    if (el && el.type === "table" && Array.isArray(el.rows)) {
+      return {
+        ...el,
+        rows: el.rows.map((row: unknown) => {
+          if (Array.isArray(row)) return row;
+          if (row && typeof row === "object" && "cells" in row) {
+            const cells = (row as { cells: unknown }).cells;
+            return Array.isArray(cells) ? cells : Object.values(cells ?? {});
+          }
+          return Object.values((row as object) ?? {});
+        }),
+      } as unknown as SlipElement;
+    }
+    return el;
+  });
+}
+
+function deserializeTemplate(id: string, data: Record<string, unknown>): SlipTemplate {
+  return {
+    id,
+    ...data,
+    elements: deserializeElements(data.elements as SlipElement[] | undefined),
+  } as SlipTemplate;
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export const slipTemplateService = {
@@ -150,14 +229,14 @@ export const slipTemplateService = {
       where("companyId", "==", companyId)
     );
     const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as SlipTemplate));
+    return snap.docs.map((d) => deserializeTemplate(d.id, d.data()));
   },
 
   /** Fetch a single template by ID */
   async getById(id: string): Promise<SlipTemplate | null> {
     const snap = await getDoc(doc(db, "slipTemplates", id));
     if (!snap.exists()) return null;
-    return { id: snap.id, ...snap.data() } as SlipTemplate;
+    return deserializeTemplate(snap.id, snap.data());
   },
 
   /** Get the manager-specific template for a given manager (or null if none) */
@@ -186,13 +265,14 @@ export const slipTemplateService = {
     data: Omit<SlipTemplate, "id" | "companyId" | "createdAt" | "updatedAt" | "createdBy">
   ): Promise<string> {
     const ref = doc(collection(db, "slipTemplates"));
-    await setDoc(ref, {
+    await setDoc(ref, stripUndefined({
       ...data,
+      elements: serializeElements(data.elements),
       companyId,
       createdBy,
       createdAt: new Date(),
       updatedAt: new Date(),
-    });
+    }));
     return ref.id;
   },
 
@@ -201,10 +281,11 @@ export const slipTemplateService = {
     id: string,
     data: Partial<Omit<SlipTemplate, "id" | "companyId" | "createdAt" | "createdBy">>
   ): Promise<void> {
-    await updateDoc(doc(db, "slipTemplates", id), {
+    await updateDoc(doc(db, "slipTemplates", id), stripUndefined({
       ...data,
+      ...(data.elements ? { elements: serializeElements(data.elements) } : {}),
       updatedAt: new Date(),
-    });
+    }));
   },
 
   /** Delete a slip template */

@@ -272,6 +272,7 @@ export const ATTENDANCE_VARIABLES: { key: string; label: string }[] = [
  *  - <> (not-equal)              → !=
  *  - TRUE / FALSE                → true / false
  *  - & (string concat)           → +
+ *  - N%  (percent literal)       → (N/100)   e.g. 12% → (12/100)
  *  - Removes leading = from formula
  */
 function convertExcelFormula(raw: string): { result: string; warnings: string[]; cellRefs: string[] } {
@@ -341,15 +342,35 @@ function convertExcelFormula(raw: string): { result: string; warnings: string[];
   s = s.replace(/([^&])&([^&])/g, "$1+$2");
   s = s.replace(/^&/, "+").replace(/&$/, "+");
 
+  // Excel percent literals: N% means N/100 (e.g. 12% → (12/100), 5.5% → (5.5/100)).
+  // Without this, "%" is later interpreted as the JS modulo operator, breaking
+  // formulas like ROUND(AP13*12%,0).
+  s = s.replace(/(\d+(?:\.\d+)?)\s*%/g, "($1/100)");
+
   // Detect Excel cell refs like A1, B12, AA3 — including those inside __RANGE_SUM__
   const cellRefMatches = s.match(/\b[A-Z]{1,3}\d+\b/g);
   const cellRefs = cellRefMatches ? [...new Set(cellRefMatches)] : [];
 
+  // Math functions the EMS evaluator supports natively (see evaluateTemplateFormula)
+  // — these must NOT be reported as unsupported.
+  const SUPPORTED_FNS = new Set([
+    "ROUND", "ROUNDUP", "ROUNDDOWN", "CEIL", "FLOOR", "ABS",
+    "MIN", "MAX", "SQRT", "POW", "INT", "TRUNC",
+  ]);
+
   // Excel functions we don't handle — warn (exclude __RANGE_SUM__ which we do handle)
   const unknownFns = s.replace(/__RANGE_SUM__/g, "").match(/\b([A-Z][A-Z0-9_]+)\s*\(/g);
   if (unknownFns) {
-    const names = unknownFns.map((f) => f.replace(/\s*\($/, ""));
-    warnings.push(`Unsupported Excel functions: ${names.join(", ")} — convert manually`);
+    const names = [
+      ...new Set(
+        unknownFns
+          .map((f) => f.replace(/\s*\($/, ""))
+          .filter((name) => !SUPPORTED_FNS.has(name.toUpperCase())),
+      ),
+    ];
+    if (names.length > 0) {
+      warnings.push(`Unsupported Excel functions: ${names.join(", ")} — convert manually`);
+    }
   }
 
   return { result: s.trim(), warnings, cellRefs };

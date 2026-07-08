@@ -76,12 +76,6 @@ export const SLIP_VARIABLE_GROUPS: SlipVariableGroup[] = [
     ],
   },
   {
-    group: "Net",
-    vars: [
-      { key: "net_salary", label: "Net Salary" },
-    ],
-  },
-  {
     group: "Employer Contributions",
     vars: [
       { key: "esic_employer",  label: "ESIC (Employer 3.25%)" },

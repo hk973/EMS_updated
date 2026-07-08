@@ -57,7 +57,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { salaryTemplateService, evaluateTemplateFormula } from "@/lib/salaryTemplateService";
 import type { SalaryTemplate } from "@/lib/salaryTemplateService";
-import { slipTemplateService } from "@/lib/slipTemplateService";
+import { slipTemplateService, deserializeElements } from "@/lib/slipTemplateService";
 import type { SlipTemplate, SlipElement, TextElement, VariableElement, LineElement, RectElement, LogoElement, StampElement, SignatureElement, TableElement, TableCell } from "@/lib/slipTemplateService";
 import { ALL_SLIP_VARIABLES } from "@/lib/slipVariables";
 import {
@@ -325,6 +325,34 @@ export default function SalarySlips() {
     mlwfAmount: number = 1,
   ): number => (totalGross > 0 ? mlwfAmount : 0);
 
+  // ── Month-specific salary resolver ────────────────────────────────────────
+  // Salary data is stored per month under employee.salaryByMonth["${year}-${month}"]
+  // (see SalaryStructures.getMonthlyKey). The slip must read ONLY the SELECTED
+  // month's data so every variable reflects that month.
+  //
+  // IMPORTANT: We must NOT bleed values across months. If the employee uses the
+  // month-wise model (salaryByMonth exists) but the selected month has no saved
+  // bucket, we return an EMPTY object so every value resolves to 0 for that month
+  // (e.g. CTC in a month with no data must be 0, not the last saved month's CTC).
+  // The legacy global employee.salary object is used ONLY for employees that were
+  // never migrated to the month-wise model (no salaryByMonth at all).
+  const getMonthlySalary = (
+    employee: Employee,
+    payroll: Payroll,
+  ): Record<string, unknown> => {
+    const byMonth = (employee as unknown as {
+      salaryByMonth?: Record<string, Record<string, unknown>>;
+    }).salaryByMonth;
+    // Employee uses the month-wise model → return strictly this month's bucket
+    // (empty when the month has no data, so values fall back to 0 — no bleed).
+    if (byMonth && Object.keys(byMonth).length > 0) {
+      const key = `${payroll.year}-${payroll.month}`;
+      return (byMonth[key] ?? {}) as Record<string, unknown>;
+    }
+    // Pure legacy employee (never migrated) → fall back to global salary object.
+    return (employee.salary ?? {}) as Record<string, unknown>;
+  };
+
   const getDeductionAmounts = (
     employee: Employee,
     payroll: Payroll,
@@ -339,15 +367,12 @@ export default function SalarySlips() {
     pfEmployer: number;
     mlwfEmployer: number;
   } => {
-    const salary = employee.salary || {};
+    const salary = getMonthlySalary(employee, payroll);
+    // Read strictly from the selected month's salary structure. Do NOT fall back
+    // to the payroll record here — the slip must reflect the month's variable
+    // data (0 when a month has no value), not a stale/default payroll amount.
     const totalGrossEarning = toAmount(
-      (salary as Record<string, unknown>).totalGrossEarning ??
-        payroll.grossSalary ??
-        payroll.baseSalary +
-          payroll.hra +
-          payroll.ta +
-          payroll.da +
-          payroll.totalBonus,
+      (salary as Record<string, unknown>).totalGrossEarning,
     );
 
     const totalDays =
@@ -355,10 +380,8 @@ export default function SalarySlips() {
     const paidDays =
       toAmount((salary as Record<string, unknown>).paidDays) || totalDays;
 
-    const basic = toAmount(
-      (salary as Record<string, unknown>).basic ?? payroll.baseSalary,
-    );
-    const da = toAmount((salary as Record<string, unknown>).da ?? payroll.da);
+    const basic = toAmount((salary as Record<string, unknown>).basic);
+    const da = toAmount((salary as Record<string, unknown>).da);
 
     const professionalTax =
       toAmount((salary as Record<string, unknown>).professionalTax) ||
@@ -460,9 +483,9 @@ export default function SalarySlips() {
     baseAfterAttendance: number = 0,
     liveVars?: AttendanceVariables,
   ): { earnings: string[][]; deductions: string[][]; netSalary: string } => {
-    const s = (employee.salary ?? {}) as Record<string, unknown>;
+    const s = getMonthlySalary(employee, payroll);
 
-    // ── Seed ctx with ALL pre-calculated values from employee.salary ──────────
+    // ── Seed ctx with ALL pre-calculated values from the selected month ───────
     // (section.type drives earnings/deductions — slipConfig is NOT used)
     // This ensures columns without formulas (e.g. professional_tax) still work
 
@@ -491,8 +514,8 @@ export default function SalarySlips() {
       ifsc_code: (employee as any).ifscCode ?? "",
       employee_type: (employee as Record<string, unknown>).employeeType ?? "",
       // raw inputs
-      basic: toAmount(s.basic ?? s.base ?? payroll.baseSalary),
-      da: toAmount(s.da ?? payroll.da),
+      basic: toAmount(s.basic ?? s.base),
+      da: toAmount(s.da),
       // Attendance fields: live vars take priority; snapshot is the fallback (Req 2.1, 4.1)
       total_days:     liveAttendanceCtx ? liveAttendanceCtx.total_days     : totalDaysVal,
       paid_days:      liveAttendanceCtx ? liveAttendanceCtx.paid_days      : paidDaysVal,
@@ -518,7 +541,7 @@ export default function SalarySlips() {
       attendance_deduction: attendanceDeduction,
       base_after_attendance: baseAfterAttendance > 0
         ? baseAfterAttendance
-        : toAmount(s.basic ?? s.base ?? payroll.baseSalary),
+        : toAmount(s.basic ?? s.base),
       // pre-calculated deductions
       professional_tax: toAmount(s.professionalTax),
       esic_employee: toAmount(s.esicEmployee),
@@ -638,21 +661,19 @@ export default function SalarySlips() {
     const monthLabel =
       months.find((m) => m.value === payroll.month)?.label || "Month";
     const period = `${monthLabel.slice(0, 3).toUpperCase()}-${payroll.year}`;
-    const salary = employee.salary || {};
+    const salary = getMonthlySalary(employee, payroll);
 
-    const basic = toAmount(
-      (salary as Record<string, unknown>).basic ?? payroll.baseSalary,
-    );
-    const hra = toAmount(
-      (salary as Record<string, unknown>).hra ?? payroll.hra,
-    );
-    const ta = toAmount((salary as Record<string, unknown>).ta ?? payroll.ta);
-    const da = toAmount((salary as Record<string, unknown>).da ?? payroll.da);
+    // Read strictly from the selected month's salary structure (no payroll
+    // fallback) so each money variable reflects that month's value or 0.
+    const basic = toAmount((salary as Record<string, unknown>).basic);
+    const hra = toAmount((salary as Record<string, unknown>).hra);
+    const ta = toAmount((salary as Record<string, unknown>).ta);
+    const da = toAmount((salary as Record<string, unknown>).da);
     const totalBonus = toAmount(
-      (salary as Record<string, unknown>).totalBonus ?? payroll.totalBonus,
+      (salary as Record<string, unknown>).totalBonus,
     );
     const grossSalary = toAmount(
-      (salary as Record<string, unknown>).grossRatePM ?? payroll.grossSalary,
+      (salary as Record<string, unknown>).grossRatePM,
     );
 
     const deductionAmounts = getDeductionAmounts(employee, payroll);
@@ -1209,7 +1230,9 @@ export default function SalarySlips() {
       | null
       | undefined;
     if (snapshot && Array.isArray(snapshot.elements)) {
-      return snapshot;
+      // The snapshot is stored with table rows serialized as { cells: [...] }
+      // (Firestore forbids nested arrays); unwrap them back to TableCell[][].
+      return { ...snapshot, elements: deserializeElements(snapshot.elements) };
     }
 
     const managerId =
@@ -1235,7 +1258,7 @@ export default function SalarySlips() {
     managerData: Record<string, unknown> | undefined,
     companyData: Record<string, unknown> | undefined,
   ): Record<string, string> => {
-    const s = (employee.salary ?? {}) as Record<string, unknown>;
+    const s = getMonthlySalary(employee, payroll);
     const months_names = ["January","February","March","April","May","June","July","August","September","October","November","December"];
     const payPeriod = `${months_names[(payroll.month ?? 1) - 1]?.slice(0, 3).toUpperCase() ?? "?"}-${payroll.year}`;
 
@@ -1286,17 +1309,17 @@ export default function SalarySlips() {
       paid_leave_days:String(liveVars ? liveVars.paid_leave_days : "0"),
       unmarked_days:  String(liveVars ? liveVars.unmarked_days  : "0"),
       // Earnings
-      basic:          fmt(s.basic ?? s.base ?? payroll.baseSalary),
-      da:             fmt(s.da ?? payroll.da),
-      hra:            fmt(s.hra ?? payroll.hra),
-      gross_rate_pm:  fmt(s.grossRatePM ?? payroll.grossSalary),
-      gross_earning:  fmt(s.totalGrossEarning ?? payroll.grossSalary),
+      basic:          fmt(s.basic ?? s.base),
+      da:             fmt(s.da),
+      hra:            fmt(s.hra),
+      gross_rate_pm:  fmt(s.grossRatePM),
+      gross_earning:  fmt(s.totalGrossEarning),
       ot_rate:        fmt(s.otRatePerHour),
       single_ot_hours:String(toAmount(s.singleOTHours)),
       double_ot_hours:String(toAmount(s.doubleOTHours)),
       ot_amount:      fmt(s.otAmount),
       difference:     fmt(s.difference),
-      total_gross:    fmt(s.totalGrossEarning ?? payroll.grossSalary),
+      total_gross:    fmt(s.totalGrossEarning),
       // Deductions
       professional_tax: fmt(s.professionalTax),
       esic_employee:    fmt(s.esicEmployee),
@@ -1304,9 +1327,9 @@ export default function SalarySlips() {
       pf_employee:      fmt(s.pfEmployee),
       advance:          fmt(s.advance),
       mlwf_employer:    fmt(s.mlwfEmployer),
-      total_deduction:  fmt(s.totalDeduction ?? payroll.totalDeduction),
+      total_deduction:  fmt(s.totalDeduction),
       // Net
-      net_salary:       fmt(s.netSalary ?? payroll.netSalary),
+      net_salary:       fmt(s.netSalary),
       // Employer
       esic_employer:    fmt(s.esicEmployer),
       pf_employer:      fmt(s.pfEmployer),
@@ -2269,15 +2292,6 @@ export default function SalarySlips() {
                           borderBottom: "2px solid #333",
                         }}
                       >
-                        Net Salary
-                      </MuiTableCell>
-                      <MuiTableCell
-                        sx={{
-                          fontWeight: 600,
-                          color: "#ffffff",
-                          borderBottom: "2px solid #333",
-                        }}
-                      >
                         Actions
                       </MuiTableCell>
                     </TableRow>
@@ -2325,29 +2339,6 @@ export default function SalarySlips() {
                               }}
                             >
                               {employee?.employeeId || "Unknown"}
-                            </MuiTableCell>
-                            <MuiTableCell
-                              sx={{
-                                borderBottom: "1px solid #333",
-                                color: "#ffffff",
-                              }}
-                            >
-                              {(() => {
-                                if (!employee) return `₹${payroll.netSalary?.toFixed(2) || "0.00"}`;
-                                const tmpl = getTemplateForEmployee(employee);
-                                const liveVars = attendanceVarsByEmployee.get(employee.id ?? "");
-                                const deductionResult = attendanceDeductionByEmployee[employee.id ?? ""];
-                                const attendanceDeduction = deductionResult?.totalDeductionAmount ?? 0;
-                                const salary = (employee.salary ?? {}) as Record<string, unknown>;
-                                const basic = toAmount(salary.basic ?? salary.base ?? payroll.baseSalary);
-                                const baseAfterAttendance = deductionResult?.baseSalaryAfterAttendance ?? basic;
-                                if (tmpl) {
-                                  const rows = buildTemplateSlipRows(employee, payroll, tmpl, attendanceDeduction, baseAfterAttendance, liveVars);
-                                  return `₹${rows.netSalary}`;
-                                }
-                                const { netSalary } = getDeductionAmounts(employee, payroll);
-                                return `₹${netSalary.toFixed(2)}`;
-                              })()}
                             </MuiTableCell>
                             <MuiTableCell
                               sx={{
