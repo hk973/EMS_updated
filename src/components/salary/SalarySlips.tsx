@@ -1390,30 +1390,47 @@ export default function SalarySlips() {
       };
 
       const infoKeys = new Set(["name", "employee_id", "esic_no", "uan", "epf_no", "father_name", "designation", "department", "dob", "joining_date", "hq_location", "bank_account", "ifsc_code", "employee_type"]);
+      const attendanceKeys = new Set(["total_days", "paid_days", "present_days", "absent_days", "half_days", "half_day_days", "leave_days", "paid_leave_days", "working_holiday_days", "unmarked_days"]);
       const sortedSections = [...tmpl.sections].sort((a, b) => a.order - b.order);
 
-      // First pass: evaluate formulas / seed values into numCtx.
+      // Per-month stored values for no-formula custom columns are kept under
+      // employee.salaryByMonth["<year>-<month>"] (== `s`) and, as a fallback,
+      // employee.salaryOverrides. Mirror TemplateSalaryView so custom columns
+      // (conv_all, washing_all, bonus, tds, …) resolve to their real values.
+      const overrides = ((employee as any).salaryOverrides ?? {}) as Record<string, unknown>;
+      const isBlank = (v: unknown) => v === undefined || v === null || v === "" || v === "-";
+
+      // First pass: seed stored (no-formula) values so formulas can reference them.
+      for (const sec of sortedSections) {
+        for (const col of sec.columns) {
+          if (col.formula?.expression) continue;
+          if (numCtx[col.key] !== undefined) continue;
+          const stored = !isBlank((s as Record<string, unknown>)[col.key])
+            ? (s as Record<string, unknown>)[col.key]
+            : overrides[col.key];
+          numCtx[col.key] = isBlank(stored) ? 0 : toAmount(stored);
+        }
+      }
+
+      // Second pass: evaluate every formula column (dependencies now seeded).
       for (const sec of sortedSections) {
         for (const col of sec.columns) {
           if (col.formula?.expression) {
             const result = evaluateTemplateFormula(col.formula.expression, numCtx);
             if (typeof result === "number" && isFinite(result)) numCtx[col.key] = result;
           }
-          if (numCtx[col.key] === undefined) {
-            const fromSalary = (s as Record<string, unknown>)[col.key];
-            if (fromSalary !== undefined) numCtx[col.key] = toAmount(fromSalary);
-          }
         }
       }
 
-      // Second pass: expose every template column as a slip variable. Numeric
-      // (money) columns are formatted; identity/info columns fall back to base.
+      // Third pass: expose every template column as a slip variable so the slip
+      // never prints a raw variable name. Identity/info columns keep the base
+      // string values; attendance day-counts stay as their base (integer) strings;
+      // all other (money) columns are formatted numbers, defaulting to 0.
       for (const sec of sortedSections) {
         for (const col of sec.columns) {
-          if (infoKeys.has(col.key)) continue; // keep identity strings from base
-          const raw = numCtx[col.key];
-          if (raw === undefined) continue;
-          base[col.key] = fmt(raw);
+          if (infoKeys.has(col.key)) continue;      // keep identity strings from base
+          if (attendanceKeys.has(col.key)) continue; // keep day-count strings from base
+          base[col.key] = fmt(numCtx[col.key]);
         }
       }
     }
