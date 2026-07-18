@@ -525,6 +525,7 @@ export default function SalarySlips() {
       half_day_days:  liveAttendanceCtx ? liveAttendanceCtx.half_day_days  : (toAmount((payroll as any).halfDayDays)  || toAmount(s.halfDayDays)),
       leave_days:     liveAttendanceCtx ? liveAttendanceCtx.leave_days     : (toAmount((payroll as any).leaveDays)    || toAmount(s.leaveDays)),
       paid_leave_days:liveAttendanceCtx ? liveAttendanceCtx.paid_leave_days: 0,
+      working_holiday_days: liveAttendanceCtx ? liveAttendanceCtx.working_holiday_days : (toAmount((payroll as any).workingHolidayDays) || toAmount(s.workingHolidayDays)),
       unmarked_days:  liveAttendanceCtx ? liveAttendanceCtx.unmarked_days  : (toAmount((payroll as any).unmarkedDays) || toAmount(s.unmarkedDays)),
       single_ot_hours: toAmount(s.singleOTHours),
       double_ot_hours: toAmount(s.doubleOTHours),
@@ -611,7 +612,7 @@ export default function SalarySlips() {
         if (infoKeys.has(col.key)) continue;
 
         // Skip attendance count columns (they appear in the attendance table already)
-        const attendanceKeys = new Set(["total_days", "paid_days", "present_days", "absent_days", "half_days", "leave_days", "paid_leave_days", "unmarked_days"]);
+        const attendanceKeys = new Set(["total_days", "paid_days", "present_days", "absent_days", "half_days", "leave_days", "paid_leave_days", "working_holiday_days", "unmarked_days"]);
         if (attendanceKeys.has(col.key)) continue;
 
         const val = toAmount(ctx[col.key]);
@@ -808,6 +809,7 @@ export default function SalarySlips() {
             ["Absent Days", String(s.absent + s.unmarked)],
             ["Half Days", String(s["half-day"])],
             ["Leave Days", String(s.leave)],
+            ["Working Holiday Days", String(s["working-holiday"])],
           ];
         }
         // No attendance data — show dashes
@@ -817,6 +819,7 @@ export default function SalarySlips() {
           ["Absent Days", "-"],
           ["Half Days", "-"],
           ["Leave Days", "-"],
+          ["Working Holiday Days", "-"],
         ];
       })(),
       earnings: (() => {
@@ -1300,13 +1303,14 @@ export default function SalarySlips() {
       pay_period:     payPeriod,
       total_days:     String(liveVars ? liveVars.total_days : (toAmount(s.totalDays) || 30)),
       paid_days:      String(liveVars
-        ? (liveVars.present_days + liveVars.half_days * 0.5 + liveVars.leave_days + liveVars.paid_leave_days)
+        ? (liveVars.present_days + liveVars.half_days * 0.5 + liveVars.leave_days + liveVars.paid_leave_days + liveVars.working_holiday_days)
         : (toAmount(s.paidDays) || 30)),
       present_days:   String(liveVars ? liveVars.present_days   : toAmount(s.presentDays)),
       absent_days:    String(liveVars ? liveVars.absent_days    : toAmount(s.absentDays)),
       half_days:      String(liveVars ? liveVars.half_days      : toAmount(s.halfDayDays)),
       leave_days:     String(liveVars ? liveVars.leave_days     : toAmount(s.leaveDays)),
       paid_leave_days:String(liveVars ? liveVars.paid_leave_days : "0"),
+      working_holiday_days: String(liveVars ? liveVars.working_holiday_days : (toAmount(s.workingHolidayDays) || "0")),
       unmarked_days:  String(liveVars ? liveVars.unmarked_days  : "0"),
       // Earnings
       basic:          fmt(s.basic ?? s.base),

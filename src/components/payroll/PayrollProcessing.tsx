@@ -676,6 +676,7 @@ export default function PayrollProcessing() {
           halfDayDays: attVars.half_days,
           leaveDays: attVars.leave_days,
           paidLeaveDays: attVars.paid_leave_days,
+          workingHolidayDays: attVars.working_holiday_days,
           unmarkedDays: attVars.unmarked_days,
           // Manager + slip-template snapshot (kept until the payroll is reverted)
           managerId,

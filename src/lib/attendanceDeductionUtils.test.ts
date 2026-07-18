@@ -681,6 +681,7 @@ describe("Property 2 (attendance-variables): Context merge completeness", () => 
       half_days:       fc.integer({ min: 0, max: 31 }),
       leave_days:      fc.integer({ min: 0, max: 31 }),
       paid_leave_days: fc.integer({ min: 0, max: 31 }),
+      working_holiday_days: fc.integer({ min: 0, max: 31 }),
       unmarked_days:   fc.integer({ min: 0, max: 31 }),
       total_days:      fc.integer({ min: 0, max: 31 }),
     });
@@ -1071,6 +1072,7 @@ const arbAttendanceVariables: fc.Arbitrary<AttendanceVariables> = fc.record({
   half_days:       fc.integer({ min: 0, max: 31 }),
   leave_days:      fc.integer({ min: 0, max: 31 }),
   paid_leave_days: fc.integer({ min: 0, max: 31 }),
+  working_holiday_days: fc.integer({ min: 0, max: 31 }),
   unmarked_days:   fc.integer({ min: 0, max: 31 }),
   total_days:      fc.integer({ min: 0, max: 31 }),
 });
@@ -1113,6 +1115,7 @@ describe("Property 3 (live-salary-slip-attendance): Live attendance overrides sn
       half_days:       fc.integer({ min: 0, max: 31 }),
       leave_days:      fc.integer({ min: 0, max: 31 }),
       paid_leave_days: fc.integer({ min: 0, max: 31 }),
+      working_holiday_days: fc.integer({ min: 0, max: 31 }),
       unmarked_days:   fc.integer({ min: 0, max: 31 }),
       total_days:      fc.integer({ min: 1, max: 31 }),
     });
@@ -1142,7 +1145,8 @@ describe("Property 3 (live-salary-slip-attendance): Live attendance overrides sn
           liveVars.present_days +
           liveVars.half_days * 0.5 +
           liveVars.leave_days +
-          liveVars.paid_leave_days;
+          liveVars.paid_leave_days +
+          liveVars.working_holiday_days;
 
         return (
           ctx.present_days    === liveVars.present_days    &&
@@ -1188,6 +1192,7 @@ describe("Property 4 (live-salary-slip-attendance): Zero attendance produces zer
           half_days:       0,
           leave_days:      0,
           paid_leave_days: 0,
+          working_holiday_days: 0,
           unmarked_days:   calendarDays, // unmarked = all days when no records
           total_days:      calendarDays,
         };

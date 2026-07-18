@@ -245,7 +245,7 @@ const SAMPLE_CTX: Record<string, unknown> = {
   employee_type: "labor",
   // Attendance variables
   present_days: 24, absent_days: 2, half_days: 1, leave_days: 1,
-  paid_leave_days: 0, unmarked_days: 2, total_days: 30,
+  paid_leave_days: 0, working_holiday_days: 0, unmarked_days: 2, total_days: 30,
 };
 
 export const ATTENDANCE_VARIABLES: { key: string; label: string }[] = [
@@ -254,6 +254,7 @@ export const ATTENDANCE_VARIABLES: { key: string; label: string }[] = [
   { key: "half_days",       label: "Half Days" },
   { key: "leave_days",      label: "Leave Days" },
   { key: "paid_leave_days", label: "Paid Leave Days" },
+  { key: "working_holiday_days", label: "Working Holiday Days" },
   { key: "unmarked_days",   label: "Unmarked Days" },
   { key: "total_days",      label: "Total Days" },
 ];

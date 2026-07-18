@@ -44,6 +44,7 @@ export const SLIP_VARIABLE_GROUPS: SlipVariableGroup[] = [
       { key: "half_days",       label: "Half Days" },
       { key: "leave_days",      label: "Leave Days" },
       { key: "paid_leave_days", label: "Paid Leave Days" },
+      { key: "working_holiday_days", label: "Working Holiday Days" },
       { key: "unmarked_days",   label: "Unmarked Days" },
     ],
   },

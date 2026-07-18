@@ -396,9 +396,10 @@ export default function TemplateSalaryView({
         ctx.half_day_days = vars.half_days; // legacy alias
         ctx.leave_days = vars.leave_days;
         ctx.paid_leave_days = vars.paid_leave_days;
+        ctx.working_holiday_days = vars.working_holiday_days;
         ctx.unmarked_days = vars.unmarked_days;
         ctx.total_days = vars.total_days;
-        ctx.paid_days = vars.present_days + vars.half_days * 0.5 + vars.leave_days + vars.paid_leave_days;
+        ctx.paid_days = vars.present_days + vars.half_days * 0.5 + vars.leave_days + vars.paid_leave_days + vars.working_holiday_days;
       }
 
       // Pre-populate no-formula column values from stored salary data so:

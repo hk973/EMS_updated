@@ -494,6 +494,8 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
       half_days: Number((s as any).halfDayDays ?? 0),
       half_day_days: Number((s as any).halfDayDays ?? 0), // legacy alias
       leave_days: Number((s as any).leaveDays ?? 0),
+      paid_leave_days: Number((s as any).paidLeaveDays ?? 0),
+      working_holiday_days: Number((s as any).workingHolidayDays ?? 0),
       unmarked_days: Number((s as any).unmarkedDays ?? 0),
       hra: Number((s as any).hra ?? 0),
       gross_rate_pm: Number((s as any).grossRatePM ?? 0),
@@ -1108,6 +1110,8 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
       half_days: halfDayDays,
       half_day_days: halfDayDays, // legacy alias
       leave_days: leaveDays,
+      paid_leave_days: Number((base as any).paidLeaveDays || 0),
+      working_holiday_days: Number((base as any).workingHolidayDays || 0),
       unmarked_days: unmarkedDays,
       // earnings
       hra: Number(s.hra || 0),

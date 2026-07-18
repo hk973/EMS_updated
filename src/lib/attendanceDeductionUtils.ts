@@ -15,6 +15,7 @@ export interface AttendanceDeductionConfig {
   "half-day": number;
   leave: number;
   "paid-leave": number;
+  "working-holiday": number;
 }
 
 export const DEFAULT_DEDUCTION_CONFIG: AttendanceDeductionConfig = {
@@ -23,6 +24,7 @@ export const DEFAULT_DEDUCTION_CONFIG: AttendanceDeductionConfig = {
   "half-day": 50,
   leave: 0,
   "paid-leave": 0,
+  "working-holiday": 0,
 };
 
 export interface AttendanceSummary {
@@ -31,6 +33,7 @@ export interface AttendanceSummary {
   "half-day": number;
   leave: number;
   "paid-leave": number;
+  "working-holiday": number;
   unmarked: number;
   totalDays: number;
 }
@@ -62,6 +65,7 @@ export function computeAttendanceDeduction(
     "half-day": 0,
     leave: 0,
     "paid-leave": 0,
+    "working-holiday": 0,
     unmarked: 0,
     totalDays: workingDaysInPeriod,
   };
@@ -104,6 +108,7 @@ export interface AttendanceVariables {
   half_days: number;
   leave_days: number;
   paid_leave_days: number;
+  working_holiday_days: number;
   unmarked_days: number;
   total_days: number;
 }
@@ -124,6 +129,7 @@ export function computeAttendanceVariables(
   let half_days = 0;
   let leave_days = 0;
   let paid_leave_days = 0;
+  let working_holiday_days = 0;
 
   for (const s of statuses) {
     if (s === "present") present_days++;
@@ -131,15 +137,16 @@ export function computeAttendanceVariables(
     else if (s === "half-day") half_days++;
     else if (s === "leave") leave_days++;
     else if (s === "paid-leave") paid_leave_days++;
+    else if (s === "working-holiday") working_holiday_days++;
   }
 
-  const marked = present_days + absent_days + half_days + leave_days + paid_leave_days;
+  const marked = present_days + absent_days + half_days + leave_days + paid_leave_days + working_holiday_days;
   const unmarked_days = Math.max(0, totalDays - marked);
 
   // Unmarked days are treated as absent (no record = absent)
   const effective_absent_days = absent_days + unmarked_days;
 
-  return { present_days, absent_days: effective_absent_days, half_days, leave_days, paid_leave_days, unmarked_days, total_days: totalDays };
+  return { present_days, absent_days: effective_absent_days, half_days, leave_days, paid_leave_days, working_holiday_days, unmarked_days, total_days: totalDays };
 }
 
 /**
@@ -155,6 +162,7 @@ export function formatAttendanceVariables(vars: AttendanceVariables): string {
     `half_days=${vars.half_days}`,
     `leave_days=${vars.leave_days}`,
     `paid_leave_days=${vars.paid_leave_days}`,
+    `working_holiday_days=${vars.working_holiday_days}`,
     `unmarked_days=${vars.unmarked_days}`,
     `total_days=${vars.total_days}`,
   ].join(" ");
@@ -213,6 +221,7 @@ export async function fetchAttendanceVariables(
       half_days: 0,
       leave_days: 0,
       paid_leave_days: 0,
+      working_holiday_days: 0,
       unmarked_days: 0,
       total_days: totalDays,
     };
@@ -233,6 +242,7 @@ export function buildAttendanceContext(vars: AttendanceVariables): {
   half_day_days: number;
   leave_days: number;
   paid_leave_days: number;
+  working_holiday_days: number;
   unmarked_days: number;
   total_days: number;
   paid_days: number;
@@ -241,7 +251,8 @@ export function buildAttendanceContext(vars: AttendanceVariables): {
     vars.present_days +
     vars.half_days * 0.5 +
     vars.leave_days +
-    vars.paid_leave_days;
+    vars.paid_leave_days +
+    vars.working_holiday_days;
   return {
     present_days: vars.present_days,
     absent_days: vars.absent_days,
@@ -249,6 +260,7 @@ export function buildAttendanceContext(vars: AttendanceVariables): {
     half_day_days: vars.half_days, // legacy alias
     leave_days: vars.leave_days,
     paid_leave_days: vars.paid_leave_days,
+    working_holiday_days: vars.working_holiday_days,
     unmarked_days: vars.unmarked_days,
     total_days: vars.total_days,
     paid_days,
@@ -270,6 +282,7 @@ export function buildAttendanceRows(
     ["Absent Days",   String(vars.absent_days)],   // includes unmarked
     ["Half Days",     String(vars.half_days)],
     ["Leave Days",    String(vars.leave_days)],
+    ["Working Holiday Days", String(vars.working_holiday_days)],
     ["Unmarked Days", String(vars.unmarked_days)],
   ];
 }

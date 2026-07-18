@@ -30,6 +30,8 @@ const attendanceStatuses = [
   { value: "absent", label: "Absent", color: "error" as const },
   { value: "half-day", label: "Half Day", color: "warning" as const },
   { value: "leave", label: "Leave", color: "info" as const },
+  { value: "paid-leave", label: "Paid Leave", color: "secondary" as const },
+  { value: "working-holiday", label: "Working Holiday", color: "primary" as const },
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────

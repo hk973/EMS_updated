@@ -63,7 +63,7 @@ import * as XLSX from "xlsx";
 
 // ─── Excel helpers ────────────────────────────────────────────────────────────
 
-const VALID_STATUSES = new Set(["present", "absent", "half-day", "leave"]);
+const VALID_STATUSES = new Set(["present", "absent", "half-day", "leave", "paid-leave", "working-holiday"]);
 
 /** Export current grid (with existing data pre-filled) as .xlsx */
 function exportGridToExcel(
@@ -171,6 +171,8 @@ const ATTENDANCE_STATUSES = [
   { value: "absent", label: "Absent", color: "error" as const },
   { value: "half-day", label: "Half Day", color: "warning" as const },
   { value: "leave", label: "Leave", color: "info" as const },
+  { value: "paid-leave", label: "Paid Leave", color: "secondary" as const },
+  { value: "working-holiday", label: "Working Holiday", color: "primary" as const },
 ];
 
 const MAX_PERIOD_DAYS = 62;

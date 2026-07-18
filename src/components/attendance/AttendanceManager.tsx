@@ -22,7 +22,7 @@ import {
   Card,
   CardContent,
 } from "@mui/material";
-import { CheckCircle, Cancel, Schedule, Person, Edit } from "@mui/icons-material";
+import { CheckCircle, Cancel, Schedule, Person, EventAvailable, Edit } from "@mui/icons-material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -42,10 +42,12 @@ import { useAsyncAction, isRowLoading, revertAttendanceStatus } from "@/lib/useA
 import { LoadingButton } from "@/components/ui/LoadingButton";
 
 const attendanceStatuses = [
-  { value: "present",  label: "Present",  color: "success" as const },
-  { value: "absent",   label: "Absent",   color: "error"   as const },
-  { value: "half-day", label: "Half Day", color: "warning" as const },
-  { value: "leave",    label: "Leave",    color: "info"    as const },
+  { value: "present",    label: "Present",    color: "success"   as const },
+  { value: "absent",     label: "Absent",     color: "error"     as const },
+  { value: "half-day",   label: "Half Day",   color: "warning"   as const },
+  { value: "leave",      label: "Leave",      color: "info"      as const },
+  { value: "paid-leave", label: "Paid Leave", color: "secondary" as const },
+  { value: "working-holiday", label: "Working Holiday", color: "primary" as const },
 ];
 
 interface ManagerOption {
@@ -222,7 +224,7 @@ export default function AttendanceManager() {
       : employees;
 
   const stats = (() => {
-    const s = { present: 0, absent: 0, "half-day": 0, leave: 0 };
+    const s = { present: 0, absent: 0, "half-day": 0, leave: 0, "paid-leave": 0 };
     filteredEmployees.forEach((emp) => {
       const st = attendanceData[emp.id];
       if (st && st in s) s[st as keyof typeof s]++;
@@ -293,6 +295,7 @@ export default function AttendanceManager() {
               { icon: <Cancel      color="error"   sx={{ fontSize: 40, mb: 1 }} />, value: stats.absent,        label: "Absent"   },
               { icon: <Schedule    color="warning" sx={{ fontSize: 40, mb: 1 }} />, value: stats["half-day"],   label: "Half Day" },
               { icon: <Person      color="info"    sx={{ fontSize: 40, mb: 1 }} />, value: stats.leave,         label: "Leave"    },
+              { icon: <EventAvailable color="secondary" sx={{ fontSize: 40, mb: 1 }} />, value: stats["paid-leave"], label: "Paid Leave" },
             ].map(({ icon, value, label }) => (
               <Card key={label}>
                 <CardContent sx={{ textAlign: "center", py: 2 }}>
