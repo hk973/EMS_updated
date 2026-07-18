@@ -950,6 +950,11 @@ export default function SlipTemplateCanvas({ template, managers, onSave, onBack 
 
   const [elements, setElements] = useState<SlipElement[]>(template.elements ?? []);
   const [templateName, setTemplateName] = useState(template.name);
+  // Scope + assigned manager are editable after creation (not only in the
+  // create dialog) so the template can be re-assigned to another manager or
+  // switched between global / per-manager later.
+  const [scope, setScope] = useState<"global" | "manager">(template.scope);
+  const [managerId, setManagerId] = useState<string | null>(template.managerId ?? null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(0.75);
   const [saving, setSaving] = useState(false);
@@ -1223,6 +1228,8 @@ export default function SlipTemplateCanvas({ template, managers, onSave, onBack 
         ...template,
         id: savedId,
         name: templateName,
+        scope,
+        managerId: scope === "manager" ? managerId : null,
         elements,
         canvasWidth: DEFAULT_CANVAS_WIDTH,
         canvasHeight: DEFAULT_CANVAS_HEIGHT,
@@ -1249,6 +1256,41 @@ export default function SlipTemplateCanvas({ template, managers, onSave, onBack 
           onChange={(e) => setTemplateName(e.target.value)}
           sx={{ minWidth: 220, "& input": { fontSize: 13 } }}
         />
+        <FormControl size="small" sx={{ minWidth: 130 }}>
+          <InputLabel>Scope</InputLabel>
+          <Select
+            value={scope}
+            label="Scope"
+            onChange={(e) => {
+              const next = e.target.value as "global" | "manager";
+              setScope(next);
+              if (next === "global") setManagerId(null);
+            }}
+            sx={{ fontSize: 13 }}
+          >
+            <MenuItem value="global">Global</MenuItem>
+            <MenuItem value="manager">Per Manager</MenuItem>
+          </Select>
+        </FormControl>
+        {scope === "manager" && (
+          <FormControl size="small" sx={{ minWidth: 180 }}>
+            <InputLabel>Manager</InputLabel>
+            <Select
+              value={managerId ?? ""}
+              label="Manager"
+              onChange={(e) => setManagerId(e.target.value || null)}
+              sx={{ fontSize: 13 }}
+            >
+              {managers.length === 0 ? (
+                <MenuItem disabled value="">No managers found</MenuItem>
+              ) : (
+                managers.map((m) => (
+                  <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
+                ))
+              )}
+            </Select>
+          </FormControl>
+        )}
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, ml: "auto" }}>
           <Tooltip title="Zoom out"><IconButton size="small" onClick={() => setZoom((z) => Math.max(0.3, z - 0.1))}><ZoomOut /></IconButton></Tooltip>
           <Chip label={`${Math.round(zoom * 100)}%`} size="small" sx={{ minWidth: 52, fontSize: 12 }} />
@@ -1268,7 +1310,7 @@ export default function SlipTemplateCanvas({ template, managers, onSave, onBack 
       <Box sx={{ display: "flex", flex: 1, gap: 0, overflow: "hidden", border: "1px solid #333", borderRadius: 1 }}>
         {/* Left: element palette */}
         <Box sx={{ width: 150, flexShrink: 0, p: 1.5, overflowY: "auto", borderRight: "1px solid #333", backgroundColor: "#1a1a1a" }}>
-          <ElementPalette scope={template.scope} onAdd={addElement} />
+          <ElementPalette scope={scope} onAdd={addElement} />
         </Box>
 
         {/* Centre: canvas */}
