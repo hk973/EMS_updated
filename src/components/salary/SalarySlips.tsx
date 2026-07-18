@@ -1281,7 +1281,7 @@ export default function SalarySlips() {
       String(companyAddressObj.pinCode || ""),
     ].filter(Boolean).join(", ");
 
-    return {
+    const base: Record<string, string> = {
       // Employee Info
       employee_name:  String(employee.fullName ?? "-"),
       employee_id:    String(employee.employeeId ?? "-"),
@@ -1343,6 +1343,82 @@ export default function SalarySlips() {
       ),
       company_address: String(payslipBranding.companyAddress || companyAddr || "-"),
     };
+
+    // ── Dynamic template-driven variables ───────────────────────────────────────
+    // The `base` map above only covers the well-known keys. Any custom column an
+    // admin adds in the salary structure (and even the standard earning/deduction
+    // columns, incl. net_salary) must resolve to a real value too — otherwise the
+    // slip prints the raw variable name. So we compute every template column here
+    // from the same month's figures (evaluating formulas) and merge them in.
+    const tmpl = getTemplateForEmployee(employee);
+    if (tmpl) {
+      // Numeric ctx seeded with the resolved figures so formulas can reference them.
+      const numCtx: Record<string, unknown> = {
+        name: employee.fullName ?? "",
+        employee_id: employee.employeeId ?? "",
+        basic: toAmount(s.basic ?? s.base),
+        da: toAmount(s.da),
+        hra: toAmount(s.hra),
+        gross_rate_pm: toAmount(s.grossRatePM),
+        gross_earning: toAmount(s.totalGrossEarning),
+        ot_rate: toAmount(s.otRatePerHour),
+        ot_amount: toAmount(s.otAmount),
+        single_ot_hours: toAmount(s.singleOTHours),
+        double_ot_hours: toAmount(s.doubleOTHours),
+        difference: toAmount(s.difference),
+        total_gross: toAmount(s.totalGrossEarning),
+        advance: toAmount(s.advance),
+        professional_tax: toAmount(s.professionalTax),
+        esic_employee: toAmount(s.esicEmployee),
+        pf_base: toAmount(s.pfBase),
+        pf_employee: toAmount(s.pfEmployee),
+        total_deduction: toAmount(s.totalDeduction),
+        net_salary: toAmount(s.netSalary),
+        esic_employer: toAmount(s.esicEmployer),
+        pf_employer: toAmount(s.pfEmployer),
+        mlwf_employer: toAmount(s.mlwfEmployer),
+        ctc_per_month: toAmount(s.ctcPerMonth),
+        total_days: toAmount(base.total_days),
+        paid_days: toAmount(base.paid_days),
+        present_days: toAmount(base.present_days),
+        absent_days: toAmount(base.absent_days),
+        half_days: toAmount(base.half_days),
+        leave_days: toAmount(base.leave_days),
+        paid_leave_days: toAmount(base.paid_leave_days),
+        working_holiday_days: toAmount(base.working_holiday_days),
+        unmarked_days: toAmount(base.unmarked_days),
+      };
+
+      const infoKeys = new Set(["name", "employee_id", "esic_no", "uan", "epf_no", "father_name", "designation", "department", "dob", "joining_date", "hq_location", "bank_account", "ifsc_code", "employee_type"]);
+      const sortedSections = [...tmpl.sections].sort((a, b) => a.order - b.order);
+
+      // First pass: evaluate formulas / seed values into numCtx.
+      for (const sec of sortedSections) {
+        for (const col of sec.columns) {
+          if (col.formula?.expression) {
+            const result = evaluateTemplateFormula(col.formula.expression, numCtx);
+            if (typeof result === "number" && isFinite(result)) numCtx[col.key] = result;
+          }
+          if (numCtx[col.key] === undefined) {
+            const fromSalary = (s as Record<string, unknown>)[col.key];
+            if (fromSalary !== undefined) numCtx[col.key] = toAmount(fromSalary);
+          }
+        }
+      }
+
+      // Second pass: expose every template column as a slip variable. Numeric
+      // (money) columns are formatted; identity/info columns fall back to base.
+      for (const sec of sortedSections) {
+        for (const col of sec.columns) {
+          if (infoKeys.has(col.key)) continue; // keep identity strings from base
+          const raw = numCtx[col.key];
+          if (raw === undefined) continue;
+          base[col.key] = fmt(raw);
+        }
+      }
+    }
+
+    return base;
   };
 
   // ── Canvas-template PDF renderer ──────────────────────────────────────────────
