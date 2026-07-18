@@ -57,7 +57,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { salaryTemplateService, evaluateTemplateFormula } from "@/lib/salaryTemplateService";
 import type { SalaryTemplate } from "@/lib/salaryTemplateService";
-import { slipTemplateService, deserializeElements } from "@/lib/slipTemplateService";
+import { slipTemplateService, deserializeElements, tableColumnWidths, tableRowHeightAt, tableCellSides } from "@/lib/slipTemplateService";
 import type { SlipTemplate, SlipElement, TextElement, VariableElement, LineElement, RectElement, LogoElement, StampElement, SignatureElement, TableElement, TableCell } from "@/lib/slipTemplateService";
 import {
   computeAttendanceDeduction,
@@ -1499,6 +1499,15 @@ export default function SalarySlips() {
             else bodyRows.push(cells);
           });
 
+          // Honor manual per-column widths when auto layout is off.
+          const columnStyles: Record<number, { cellWidth: number }> = {};
+          if (te.autoLayout === false) {
+            tableColumnWidths(te).forEach((wpx, i) => {
+              columnStyles[i] = { cellWidth: wpx * sx };
+            });
+          }
+          const defaultLineW = (te.borderWidth ?? 1) * sx;
+
           autoTable(pdf, {
             startY: y,
             head: headRows.length > 0 ? headRows : undefined,
@@ -1506,12 +1515,13 @@ export default function SalarySlips() {
             theme: "grid",
             margin: { left: x, right: PW - (x + w) },
             tableWidth: w,
+            columnStyles,
             styles: {
               fontSize: (te.fontSize ?? 10) * sx * 2.835,
               cellPadding: 1.5,
               textColor: [31, 41, 55],
               lineColor: [brR, brG, brB],
-              lineWidth: (te.borderWidth ?? 1) * sx,
+              lineWidth: defaultLineW,
             },
             headStyles: {
               fillColor: [hbr, hbg, hbb],
@@ -1519,6 +1529,25 @@ export default function SalarySlips() {
               fontStyle: "bold",
             },
             alternateRowStyles: te.alternateRowColor ? { fillColor: [245, 245, 245] } : {},
+            // Apply manual row heights and per-cell (Excel-style) walls.
+            didParseCell: (data) => {
+              const ci = data.column.index;
+              const ri = data.section === "head"
+                ? 0
+                : (te.hasHeaderRow ? data.row.index + 1 : data.row.index);
+              const cell = te.rows[ri]?.[ci];
+              if (te.autoLayout === false) {
+                data.cell.styles.minCellHeight = tableRowHeightAt(te, ri) * sy;
+              }
+              if (cell?.borders) {
+                data.cell.styles.lineWidth = {
+                  top: cell.borders.top ? defaultLineW : 0,
+                  right: cell.borders.right ? defaultLineW : 0,
+                  bottom: cell.borders.bottom ? defaultLineW : 0,
+                  left: cell.borders.left ? defaultLineW : 0,
+                };
+              }
+            },
           });
           break;
         }
@@ -2738,14 +2767,20 @@ export default function SalarySlips() {
                         }
                         case "table": {
                           const te = el as TableElement;
-                          const colW = el.width / te.cols;
+                          const colWidths = tableColumnWidths(te);
+                          const line = `${te.borderWidth}px solid ${te.borderColor}`;
+                          const spanWidth = (ci: number, span: number) => {
+                            let w = 0;
+                            for (let k = 0; k < Math.max(1, span); k++) w += colWidths[ci + k] ?? 0;
+                            return w;
+                          };
                           return (
                             <Box key={el.id} sx={{ ...base, border: `${te.borderWidth}px solid ${te.borderColor}` }}>
                               {te.rows.map((row, ri) => {
                                 const isHdr = te.hasHeaderRow && ri === 0;
                                 const isAlt = te.alternateRowColor && !isHdr && ri % 2 === 0;
                                 return (
-                                  <Box key={ri} sx={{ display: "flex", height: te.rowHeight,
+                                  <Box key={ri} sx={{ display: "flex", height: tableRowHeightAt(te, ri),
                                     backgroundColor: isHdr ? te.headerBgColor : isAlt ? "rgba(0,0,0,0.04)" : "transparent" }}>
                                     {row.map((cell, ci) => {
                                       const cellVal =
@@ -2754,11 +2789,14 @@ export default function SalarySlips() {
                                         cell.kind === "logo" ? "[Logo]" :
                                         cell.kind === "stamp" ? "[Stamp]" :
                                         cell.kind === "signature" ? "[Signature]" : "";
+                                      const sides = tableCellSides(te, cell, ri, ci, row.length);
                                       return (
                                         <Box key={ci} sx={{
-                                          width: colW * (cell.colSpan ?? 1), height: "100%",
-                                          borderRight: ci < row.length - 1 ? `${te.borderWidth}px solid ${te.borderColor}` : "none",
-                                          borderBottom: ri < te.rows.length - 1 ? `${te.borderWidth}px solid ${te.borderColor}` : "none",
+                                          width: spanWidth(ci, cell.colSpan ?? 1), height: "100%",
+                                          borderTop: sides.top ? line : "none",
+                                          borderRight: sides.right ? line : "none",
+                                          borderBottom: sides.bottom ? line : "none",
+                                          borderLeft: sides.left ? line : "none",
                                           display: "flex", alignItems: "center",
                                           justifyContent: cell.textAlign === "center" ? "center" : cell.textAlign === "right" ? "flex-end" : "flex-start",
                                           px: 0.75, overflow: "hidden", boxSizing: "border-box",

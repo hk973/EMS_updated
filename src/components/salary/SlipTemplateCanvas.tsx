@@ -82,6 +82,9 @@ import {
   TableCell,
   DEFAULT_CANVAS_WIDTH,
   DEFAULT_CANVAS_HEIGHT,
+  tableColumnWidths,
+  tableRowHeightAt,
+  tableCellSides,
 } from "@/lib/slipTemplateService";
 import {
   buildSlipVariableGroups,
@@ -378,6 +381,25 @@ function CellEditor({ cell, isHeader, headerBg, onChange }: CellEditorProps) {
                 </Box>
               </>
             )}
+
+            {/* Per-cell borders (Excel-style walls). Enabling "Custom borders"
+                lets the user choose exactly which of the 4 walls are drawn for
+                this cell; when off, the table's default grid borders apply. */}
+            <Divider sx={{ my: 0.5 }} />
+            <FormControlLabel control={
+              <Switch size="small" checked={!!cell.borders}
+                onChange={(e) => onChange({ borders: e.target.checked ? { top: false, right: true, bottom: false, left: false } : undefined })} />
+            } label={<Typography variant="caption">Custom borders (walls)</Typography>} />
+            {cell.borders && (
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                {(["top", "right", "bottom", "left"] as const).map((side) => (
+                  <FormControlLabel key={side} control={
+                    <Switch size="small" checked={!!cell.borders?.[side]}
+                      onChange={(e) => onChange({ borders: { ...cell.borders, [side]: e.target.checked } })} />
+                  } label={<Typography variant="caption" sx={{ textTransform: "capitalize" }}>{side}</Typography>} />
+                ))}
+              </Box>
+            )}
           </Box>
         </DialogContent>
         <DialogActions>
@@ -537,7 +559,18 @@ function PropertiesPanel({
       {(element.type === "line") && (
         <>
           {field("Orientation",
-            <Select size="small" value={element.orientation} onChange={(e) => upd({ orientation: e.target.value as any })}>
+            <Select size="small" value={element.orientation} onChange={(e) => {
+              const orientation = e.target.value as "horizontal" | "vertical";
+              // Swap the element's box dimensions so the line actually points the
+              // chosen way. Without this, switching to "vertical" left the box at
+              // its wide/short size, so a vertical line still looked horizontal.
+              const w = element.width;
+              const h = element.height;
+              const patch: Partial<LineElement> = { orientation };
+              if (orientation === "vertical" && w > h) { patch.width = h; patch.height = w; }
+              if (orientation === "horizontal" && h > w) { patch.width = h; patch.height = w; }
+              upd(patch as any);
+            }}>
               <MenuItem value="horizontal">Horizontal</MenuItem>
               <MenuItem value="vertical">Vertical</MenuItem>
             </Select>
@@ -677,6 +710,67 @@ function PropertiesPanel({
               <Switch size="small" checked={te.alternateRowColor}
                 onChange={(e) => updTable({ alternateRowColor: e.target.checked })} />
             } label={<Typography variant="caption">Alternating rows</Typography>} />
+
+            <Divider sx={{ borderColor: "#333", my: 0.5 }} />
+
+            {/* Layout: auto-fit vs. manual per-column / per-row sizing */}
+            <Typography variant="caption" sx={{ color: "#90caf9", fontWeight: 700, fontSize: 10 }}>Sizing</Typography>
+            <FormControlLabel control={
+              <Switch size="small" checked={te.autoLayout !== false}
+                onChange={(e) => {
+                  const auto = e.target.checked;
+                  if (auto) {
+                    updTable({ autoLayout: true });
+                  } else {
+                    // Seed the manual arrays from the current equal layout so the
+                    // user starts editing from what's on screen.
+                    const equal = Math.round(te.width / Math.max(1, te.cols));
+                    updTable({
+                      autoLayout: false,
+                      columnWidths: te.columnWidths ?? Array.from({ length: te.cols }, () => equal),
+                      rowHeights: te.rowHeights ?? te.rows.map(() => te.rowHeight),
+                    });
+                  }
+                }} />
+            } label={<Typography variant="caption">Auto column/row sizing</Typography>} />
+
+            {te.autoLayout === false && (
+              <>
+                <Typography variant="caption" sx={{ color: "#888", fontSize: 10 }}>Column widths (px)</Typography>
+                <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
+                  {Array.from({ length: te.cols }, (_, ci) => {
+                    const equal = Math.round(te.width / Math.max(1, te.cols));
+                    const val = te.columnWidths?.[ci] ?? equal;
+                    return (
+                      <TextField key={ci} size="small" type="number" value={val}
+                        onChange={(e) => {
+                          const arr = Array.from({ length: te.cols }, (_, i) => te.columnWidths?.[i] ?? equal);
+                          arr[ci] = Number(e.target.value);
+                          updTable({ columnWidths: arr });
+                        }}
+                        inputProps={{ min: 8 }}
+                        sx={{ width: 62, "& input": { fontSize: 11, p: "6px" } }} />
+                    );
+                  })}
+                </Box>
+                <Typography variant="caption" sx={{ color: "#888", fontSize: 10, mt: 0.5 }}>Row heights (px)</Typography>
+                <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
+                  {te.rows.map((_, ri) => {
+                    const val = te.rowHeights?.[ri] ?? te.rowHeight;
+                    return (
+                      <TextField key={ri} size="small" type="number" value={val}
+                        onChange={(e) => {
+                          const arr = te.rows.map((_, i) => te.rowHeights?.[i] ?? te.rowHeight);
+                          arr[ri] = Number(e.target.value);
+                          updTable({ rowHeights: arr });
+                        }}
+                        inputProps={{ min: 8 }}
+                        sx={{ width: 62, "& input": { fontSize: 11, p: "6px" } }} />
+                    );
+                  })}
+                </Box>
+              </>
+            )}
 
             <Divider sx={{ borderColor: "#333", my: 0.5 }} />
 
@@ -889,7 +983,13 @@ function renderElementContent(el: SlipElement, variableGroups: SlipVariableGroup
       );
 
     case "table": {
-      const colW = el.width / el.cols;
+      const colWidths = tableColumnWidths(el);
+      const line = `${el.borderWidth}px solid ${el.borderColor}`;
+      const spanWidth = (ci: number, span: number) => {
+        let w = 0;
+        for (let k = 0; k < Math.max(1, span); k++) w += colWidths[ci + k] ?? 0;
+        return w;
+      };
       return (
         <Box sx={{ width: "100%", height: "100%", overflow: "hidden", pointerEvents: "none", border: `${el.borderWidth}px solid ${el.borderColor}`, boxSizing: "border-box" }}>
           {el.rows.map((rawRow, ri) => {
@@ -899,13 +999,17 @@ function renderElementContent(el: SlipElement, variableGroups: SlipVariableGroup
             const isHeader = el.hasHeaderRow && ri === 0;
             const isAlt = el.alternateRowColor && !isHeader && ri % 2 === 0;
             return (
-              <Box key={ri} sx={{ display: "flex", height: el.rowHeight, backgroundColor: isHeader ? el.headerBgColor : isAlt ? "rgba(0,0,0,0.04)" : "transparent" }}>
-                {row.map((cell, ci) => (
+              <Box key={ri} sx={{ display: "flex", height: tableRowHeightAt(el, ri), backgroundColor: isHeader ? el.headerBgColor : isAlt ? "rgba(0,0,0,0.04)" : "transparent" }}>
+                {row.map((cell, ci) => {
+                  const sides = tableCellSides(el, cell, ri, ci, row.length);
+                  return (
                   <Box key={ci} sx={{
-                    width: colW * (cell.colSpan ?? 1),
+                    width: spanWidth(ci, cell.colSpan ?? 1),
                     height: "100%",
-                    borderRight: ci < row.length - 1 ? `${el.borderWidth}px solid ${el.borderColor}` : "none",
-                    borderBottom: ri < el.rows.length - 1 ? `${el.borderWidth}px solid ${el.borderColor}` : "none",
+                    borderTop: sides.top ? line : "none",
+                    borderRight: sides.right ? line : "none",
+                    borderBottom: sides.bottom ? line : "none",
+                    borderLeft: sides.left ? line : "none",
                     display: "flex", alignItems: "center",
                     justifyContent: cell.textAlign === "center" ? "center" : cell.textAlign === "right" ? "flex-end" : "flex-start",
                     px: 0.75, overflow: "hidden", boxSizing: "border-box", pointerEvents: "none",
@@ -930,7 +1034,8 @@ function renderElementContent(el: SlipElement, variableGroups: SlipVariableGroup
                       <Box sx={{ fontSize: 9, color: "#ff5722", fontStyle: "italic", pointerEvents: "none" }}>Signature</Box>
                     )}
                   </Box>
-                ))}
+                  );
+                })}
               </Box>
             );
           })}

@@ -83,6 +83,19 @@ export interface TableCell {
   fontStyle?: "normal" | "italic";
   textAlign?: "left" | "center" | "right";
   color?: string;
+  /**
+   * Per-cell border overrides (Excel-style). When omitted, the table's default
+   * grid borders are drawn (right border except last column, bottom border
+   * except last row). When present, exactly the enabled sides are drawn for
+   * this cell, letting the user control individual walls (e.g. only a right
+   * wall).
+   */
+  borders?: {
+    top?: boolean;
+    right?: boolean;
+    bottom?: boolean;
+    left?: boolean;
+  };
 }
 
 export interface TableElement extends SlipElementBase {
@@ -103,10 +116,21 @@ export interface TableElement extends SlipElementBase {
   headerBgColor: string;
   /** Header text color */
   headerTextColor: string;
-  /** Row height in px */
+  /** Row height in px (used as the uniform height when autoLayout is true) */
   rowHeight: number;
   /** Font size for body cells */
   fontSize: number;
+  /**
+   * Layout mode. When true (default when undefined), all columns share an equal
+   * width (table width / cols) and every row uses `rowHeight`. When false, the
+   * per-column `columnWidths` and per-row `rowHeights` are used so the user can
+   * size each column/row manually instead of the automatic fit.
+   */
+  autoLayout?: boolean;
+  /** Manual per-column widths in px (used when autoLayout === false) */
+  columnWidths?: number[];
+  /** Manual per-row heights in px (used when autoLayout === false) */
+  rowHeights?: number[];
 }
 
 export type SlipElement =
@@ -118,6 +142,50 @@ export type SlipElement =
   | StampElement
   | SignatureElement
   | TableElement;
+
+// ─── Table layout helpers ─────────────────────────────────────────────────────
+// Shared by the designer canvas, the on-screen slip preview and the PDF export
+// so column widths, row heights and per-cell borders are always computed the
+// same way.
+
+/** Effective width (px) of each column, honoring manual sizing when autoLayout is off. */
+export function tableColumnWidths(te: TableElement): number[] {
+  const auto = te.autoLayout !== false;
+  const equal = te.width / Math.max(1, te.cols);
+  return Array.from({ length: te.cols }, (_, i) =>
+    auto ? equal : (te.columnWidths?.[i] ?? equal),
+  );
+}
+
+/** Effective height (px) of a given row, honoring manual sizing when autoLayout is off. */
+export function tableRowHeightAt(te: TableElement, ri: number): number {
+  const auto = te.autoLayout !== false;
+  return auto ? te.rowHeight : (te.rowHeights?.[ri] ?? te.rowHeight);
+}
+
+/**
+ * Which of the 4 walls of a cell should be drawn. When the cell defines an
+ * explicit `borders` override, exactly those sides are used; otherwise the
+ * default grid (right except last column, bottom except last row) applies.
+ */
+export function tableCellSides(
+  te: TableElement,
+  cell: TableCell,
+  ri: number,
+  ci: number,
+  rowLen: number,
+): { top: boolean; right: boolean; bottom: boolean; left: boolean } {
+  const b = cell.borders;
+  if (b) {
+    return { top: !!b.top, right: !!b.right, bottom: !!b.bottom, left: !!b.left };
+  }
+  return {
+    top: false,
+    right: ci < rowLen - 1,
+    bottom: ri < te.rows.length - 1,
+    left: false,
+  };
+}
 
 // ─── Template ─────────────────────────────────────────────────────────────────
 
