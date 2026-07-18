@@ -11,7 +11,7 @@
 // ELEMENTS (not variables) and are resolved per-manager at print time.
 
 import type { SalaryTemplate, TemplateSection } from "@/lib/salaryTemplateService";
-import { FIXED_SECTIONS, stripRemovedFixedColumns } from "@/lib/salaryTemplateService";
+import { FIXED_SECTIONS, stripRemovedFixedColumns, ensureFixedSections } from "@/lib/salaryTemplateService";
 
 export interface SlipVariable {
   key: string;
@@ -65,7 +65,9 @@ function mergeSections(templates: SalaryTemplate[]): TemplateSection[] {
   const byLabel = new Map<string, TemplateSection>();
 
   for (const tmpl of templates) {
-    const sections = stripRemovedFixedColumns(tmpl.sections ?? []);
+    // Make sure fixed sections/columns (e.g. Attendance) are present even for
+    // templates saved before they were introduced.
+    const sections = ensureFixedSections(stripRemovedFixedColumns(tmpl.sections ?? []));
     for (const sec of [...sections].sort((a, b) => a.order - b.order)) {
       const existing = byLabel.get(sec.label);
       if (!existing) {
@@ -105,7 +107,7 @@ export function buildSlipVariableGroups(
   const sections =
     list.length > 0
       ? mergeSections(list)
-      : stripRemovedFixedColumns(FIXED_SECTIONS);
+      : ensureFixedSections(stripRemovedFixedColumns(FIXED_SECTIONS));
 
   const groups: SlipVariableGroup[] = [];
   for (const sec of sections) {

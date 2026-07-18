@@ -99,6 +99,28 @@ export const FIXED_SECTIONS: TemplateSection[] = [
       { id: "col_hq_location", label: "HQ Location",    key: "hq_location",  isFixed: true, order: 10 },
     ],
   },
+  {
+    // Attendance / day-count fields. These are monthly values (resolved per
+    // employee for the selected month/year on the salary slip) and are shown
+    // as fixed, display-only columns in the salary structure template so the
+    // slip designer exposes them as variables too.
+    id: "attendance",
+    label: "Attendance",
+    type: "custom",
+    isFixed: true,
+    order: 1,
+    columns: [
+      { id: "col_total_days",           label: "Total Days",           key: "total_days",           isFixed: true, order: 0 },
+      { id: "col_paid_days",            label: "Paid Days",            key: "paid_days",            isFixed: true, order: 1 },
+      { id: "col_present_days",         label: "Present Days",         key: "present_days",         isFixed: true, order: 2 },
+      { id: "col_absent_days",          label: "Absent Days",          key: "absent_days",          isFixed: true, order: 3 },
+      { id: "col_half_days",            label: "Half Days",            key: "half_days",            isFixed: true, order: 4 },
+      { id: "col_leave_days",           label: "Leave Days",           key: "leave_days",           isFixed: true, order: 5 },
+      { id: "col_paid_leave_days",      label: "Paid Leave Days",      key: "paid_leave_days",      isFixed: true, order: 6 },
+      { id: "col_working_holiday_days", label: "Working Holiday Days", key: "working_holiday_days", isFixed: true, order: 7 },
+      { id: "col_unmarked_days",        label: "Unmarked Days",        key: "unmarked_days",        isFixed: true, order: 8 },
+    ],
+  },
 ];
 
 // ─── Removed fixed columns ────────────────────────────────────────────────────
@@ -124,6 +146,39 @@ export function stripRemovedFixedColumns(sections: TemplateSection[]): TemplateS
       ),
     };
   });
+}
+
+/**
+ * Ensure every fixed section defined in FIXED_SECTIONS is present in the given
+ * sections, and that each such fixed section contains all of its fixed columns.
+ * This lets templates that were saved before a fixed section/column was
+ * introduced (e.g. the "Attendance" section) automatically pick it up on load
+ * without a manual migration. User-added sections/columns are preserved.
+ */
+export function ensureFixedSections(sections: TemplateSection[]): TemplateSection[] {
+  const result = sections.map((sec) => ({
+    ...sec,
+    columns: [...sec.columns],
+  }));
+
+  for (const fixed of FIXED_SECTIONS) {
+    const existing = result.find((s) => s.id === fixed.id);
+    if (!existing) {
+      // Whole fixed section missing — insert a copy.
+      result.push({ ...fixed, columns: fixed.columns.map((c) => ({ ...c })) });
+      continue;
+    }
+    // Section exists — add any missing fixed columns (by key).
+    const seen = new Set(existing.columns.map((c) => c.key));
+    for (const col of fixed.columns) {
+      if (!seen.has(col.key)) {
+        existing.columns.push({ ...col });
+        seen.add(col.key);
+      }
+    }
+  }
+
+  return result;
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -216,7 +271,7 @@ export const salaryTemplateService = {
           label: "Earnings & Overtime",
           type: "earnings",
           isFixed: false,
-          order: 1,
+          order: 2,
           columns: [
             { id: "col_hra", label: "HRA (5%)", key: "hra", formula: { expression: "(basic + da) * 0.05", description: "5% of Basic + DA" }, isFixed: false, order: 0, slipConfig: { includeInSlip: true, slipSection: "earnings", slipLabel: "H.R.A" } },
             { id: "col_gross_pm", label: "Gross Rate PM", key: "gross_rate_pm", formula: { expression: "basic + da + hra", description: "Basic + DA + HRA" }, isFixed: false, order: 1, slipConfig: { includeInSlip: false, slipSection: "none" } },
@@ -231,7 +286,7 @@ export const salaryTemplateService = {
           label: "Deductions & Net Pay",
           type: "deductions",
           isFixed: false,
-          order: 2,
+          order: 3,
           columns: [
             { id: "col_prof_tax", label: "Prof. Tax", key: "professional_tax", isFixed: false, order: 0, slipConfig: { includeInSlip: true, slipSection: "deductions", slipLabel: "PT" } },
             { id: "col_esic_emp", label: "ESIC (0.75%)", key: "esic_employee", formula: { expression: "total_gross * 0.0075" }, isFixed: false, order: 1, slipConfig: { includeInSlip: true, slipSection: "deductions", slipLabel: "ESIC" } },
@@ -246,7 +301,7 @@ export const salaryTemplateService = {
           label: "Employer Contributions & CTC",
           type: "employer_contributions",
           isFixed: false,
-          order: 3,
+          order: 4,
           columns: [
             { id: "col_esic_er", label: "Employer ESIC (3.25%)", key: "esic_employer", formula: { expression: "total_gross * 0.0325" }, isFixed: false, order: 0, slipConfig: { includeInSlip: false, slipSection: "none" } },
             { id: "col_pf_er", label: "Employer PF (13%)", key: "pf_employer", formula: { expression: "pf_base * 0.13" }, isFixed: false, order: 1, slipConfig: { includeInSlip: false, slipSection: "none" } },

@@ -55,6 +55,7 @@ import {
   TemplateSection,
   TemplateColumn,
   stripRemovedFixedColumns,
+  ensureFixedSections,
 } from "@/lib/salaryTemplateService";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -1293,7 +1294,10 @@ export default function SalaryTemplateBuilder() {
       setTemplates(
         tmpl.map((t) => ({
           ...t,
-          sections: stripRemovedFixedColumns(t.sections),
+          // Strip retired fixed columns, then make sure all currently-defined
+          // fixed sections/columns (e.g. the Attendance section) are present
+          // even for templates saved before they were introduced.
+          sections: ensureFixedSections(stripRemovedFixedColumns(t.sections)),
         })),
       );
       setManagers(
