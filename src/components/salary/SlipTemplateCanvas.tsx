@@ -19,6 +19,8 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useContext,
+  createContext,
 } from "react";
 import {
   Box,
@@ -82,9 +84,18 @@ import {
   DEFAULT_CANVAS_HEIGHT,
 } from "@/lib/slipTemplateService";
 import {
-  SLIP_VARIABLE_GROUPS,
+  buildSlipVariableGroups,
   getVariableLabel,
 } from "@/lib/slipVariables";
+import type { SlipVariableGroup } from "@/lib/slipVariables";
+import { salaryTemplateService } from "@/lib/salaryTemplateService";
+import type { SalaryTemplate } from "@/lib/salaryTemplateService";
+
+// ─── Variable groups context ──────────────────────────────────────────────────
+// The slip variable list is generated dynamically from the company's salary
+// structure template(s). We expose it through a context so the nested editor
+// components (CellEditor, PropertiesPanel) can read it without prop-drilling.
+const VariableGroupsContext = createContext<SlipVariableGroup[]>([]);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -267,6 +278,7 @@ interface CellEditorProps {
 
 function CellEditor({ cell, isHeader, headerBg, onChange }: CellEditorProps) {
   const [open, setOpen] = useState(false);
+  const variableGroups = useContext(VariableGroupsContext);
   const CELL_KINDS: { value: TableCell["kind"]; label: string }[] = [
     { value: "empty",     label: "Empty" },
     { value: "text",      label: "Text" },
@@ -276,7 +288,7 @@ function CellEditor({ cell, isHeader, headerBg, onChange }: CellEditorProps) {
     { value: "signature", label: "Signature" },
   ];
   const label =
-    cell.kind === "variable" ? getVariableLabel(cell.variableKey ?? "") :
+    cell.kind === "variable" ? getVariableLabel(cell.variableKey ?? "", variableGroups) :
     cell.kind === "text"     ? (cell.text || "(empty)") :
     cell.kind === "empty"    ? "—" :
     cell.kind;
@@ -327,7 +339,7 @@ function CellEditor({ cell, isHeader, headerBg, onChange }: CellEditorProps) {
                 <InputLabel>Variable</InputLabel>
                 <Select value={cell.variableKey ?? ""} label="Variable"
                   onChange={(e) => onChange({ variableKey: e.target.value })}>
-                  {SLIP_VARIABLE_GROUPS.map((g) => [
+                  {variableGroups.map((g) => [
                     <MenuItem key={g.group} disabled sx={{ fontSize: 11, color: "#888", py: 0.25 }}>{g.group}</MenuItem>,
                     ...g.vars.map((v) => (
                       <MenuItem key={v.key} value={v.key} sx={{ fontSize: 12, pl: 3 }}>{v.label}</MenuItem>
@@ -393,6 +405,7 @@ function PropertiesPanel({
   element, onChange, onDelete, onDuplicate,
   onBringForward, onSendBackward, onBringFront, onSendBack,
 }: PropsPanel) {
+  const variableGroups = useContext(VariableGroupsContext);
   const upd = (patch: Partial<SlipElement>) => onChange({ ...element, ...patch } as SlipElement);
 
   const field = (label: string, node: React.ReactNode) => (
@@ -481,7 +494,7 @@ function PropertiesPanel({
           {field("Variable",
             <Select size="small" value={element.variableKey}
               onChange={(e) => upd({ variableKey: e.target.value } as any)}>
-              {SLIP_VARIABLE_GROUPS.map((g) => [
+              {variableGroups.map((g) => [
                 <MenuItem key={g.group} disabled sx={{ fontSize: 11, color: "#888", py: 0.25 }}>{g.group}</MenuItem>,
                 ...g.vars.map((v) => (
                   <MenuItem key={v.key} value={v.key} sx={{ fontSize: 12, pl: 3 }}>{v.label}</MenuItem>
@@ -768,7 +781,7 @@ function PropertiesPanel({
 
 // ─── Canvas Element Renderer ──────────────────────────────────────────────────
 
-function renderElementContent(el: SlipElement) {
+function renderElementContent(el: SlipElement, variableGroups: SlipVariableGroup[]) {
   switch (el.type) {
     case "text":
       return (
@@ -802,7 +815,7 @@ function renderElementContent(el: SlipElement) {
             color: el.color, lineHeight: 1.3, userSelect: "none",
             pointerEvents: "none",
           }}>
-            {`{{ ${getVariableLabel(el.variableKey)} }}`}
+            {`{{ ${getVariableLabel(el.variableKey, variableGroups)} }}`}
           </Typography>
         </Box>
       );
@@ -899,7 +912,7 @@ function renderElementContent(el: SlipElement) {
                   }}>
                     {cell.kind === "variable" && (
                       <Typography noWrap sx={{ fontSize: el.fontSize, fontWeight: cell.fontWeight ?? (isHeader ? "bold" : "normal"), fontStyle: cell.fontStyle ?? "normal", color: cell.color ?? (isHeader ? el.headerTextColor : "#000"), pointerEvents: "none", lineHeight: 1 }}>
-                        {`{${getVariableLabel(cell.variableKey ?? "")}}`}
+                        {`{${getVariableLabel(cell.variableKey ?? "", variableGroups)}}`}
                       </Typography>
                     )}
                     {cell.kind === "text" && (
@@ -949,6 +962,25 @@ export default function SlipTemplateCanvas({ template, managers, onSave, onBack 
 
   // Internal template id tracking for saves
   const [savedId, setSavedId] = useState(template.id);
+
+  // Salary structure templates for this company — the slip variable list is
+  // generated dynamically from them (instead of a hardcoded registry).
+  const [salaryTemplates, setSalaryTemplates] = useState<SalaryTemplate[]>([]);
+
+  useEffect(() => {
+    const companyId = currentUser?.uid;
+    if (!companyId) return;
+    salaryTemplateService
+      .getAll(companyId)
+      .then(setSalaryTemplates)
+      .catch(console.error);
+  }, [currentUser?.uid]);
+
+  // Dynamic variable groups = structure variables + fixed extras
+  const variableGroups = useMemo(
+    () => buildSlipVariableGroups(salaryTemplates),
+    [salaryTemplates],
+  );
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -1208,6 +1240,7 @@ export default function SlipTemplateCanvas({ template, managers, onSave, onBack 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
+    <VariableGroupsContext.Provider value={variableGroups}>
     <Box sx={{ display: "flex", flexDirection: "column", height: "calc(100vh - 130px)", minHeight: 600 }}>
       {/* Top toolbar */}
       <Paper sx={{ px: 2, py: 1, mb: 1, display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap", backgroundColor: "#1e1e1e", border: "1px solid #333" }}>
@@ -1278,7 +1311,7 @@ export default function SlipTemplateCanvas({ template, managers, onSave, onBack 
                     boxSizing: "border-box",
                   }}
                 >
-                  {renderElementContent(el)}
+                  {renderElementContent(el, variableGroups)}
 
                   {/* Resize handles — only when selected */}
                   {isSelected && (
@@ -1343,5 +1376,6 @@ export default function SlipTemplateCanvas({ template, managers, onSave, onBack 
         </Box>
       </Box>
     </Box>
+    </VariableGroupsContext.Provider>
   );
 }

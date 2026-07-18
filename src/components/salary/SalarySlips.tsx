@@ -59,7 +59,6 @@ import { salaryTemplateService, evaluateTemplateFormula } from "@/lib/salaryTemp
 import type { SalaryTemplate } from "@/lib/salaryTemplateService";
 import { slipTemplateService, deserializeElements } from "@/lib/slipTemplateService";
 import type { SlipTemplate, SlipElement, TextElement, VariableElement, LineElement, RectElement, LogoElement, StampElement, SignatureElement, TableElement, TableCell } from "@/lib/slipTemplateService";
-import { ALL_SLIP_VARIABLES } from "@/lib/slipVariables";
 import {
   computeAttendanceDeduction,
   AttendanceDeductionConfig,

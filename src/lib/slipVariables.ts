@@ -1,6 +1,17 @@
-// ─── Salary Slip Variable Registry ───────────────────────────────────────────
-// Central list of all variables that can be placed on a salary slip template.
-// Used by ElementPanel (variable picker) and PropertiesPanel (variableKey dropdown).
+// ─── Salary Slip Variable Registry (DYNAMIC) ─────────────────────────────────
+// The list of variables that can be placed on a salary slip template is NOT
+// hardcoded anymore. Instead it is generated at runtime from the company's
+// salary structure template(s) (see salaryTemplateService.ts), so the slip
+// designer always stays in sync with the structure builder.
+//
+// On top of the structure-derived variables we append a small, fixed set of
+// EXTRAS that only make sense on a slip and are not part of the salary
+// structure: pay month/year (Pay Period) and company name/address
+// (Company / Manager). Logo, stamp and signature remain separate slip
+// ELEMENTS (not variables) and are resolved per-manager at print time.
+
+import type { SalaryTemplate, TemplateSection } from "@/lib/salaryTemplateService";
+import { FIXED_SECTIONS, stripRemovedFixedColumns } from "@/lib/salaryTemplateService";
 
 export interface SlipVariable {
   key: string;
@@ -12,93 +23,124 @@ export interface SlipVariableGroup {
   vars: SlipVariable[];
 }
 
-export const SLIP_VARIABLE_GROUPS: SlipVariableGroup[] = [
-  {
-    group: "Employee Info",
-    vars: [
-      { key: "employee_name",  label: "Employee Name" },
-      { key: "employee_id",    label: "Employee ID" },
-      { key: "designation",    label: "Designation" },
-      { key: "department",     label: "Department" },
-      { key: "father_name",    label: "Father's Name" },
-      { key: "dob",            label: "Date of Birth" },
-      { key: "joining_date",   label: "Date of Joining" },
-      { key: "esic_no",        label: "ESIC No." },
-      { key: "uan",            label: "UAN No." },
-      { key: "epf_no",         label: "EPF No." },
-      { key: "bank_account",   label: "Bank Account" },
-      { key: "ifsc_code",      label: "IFSC Code" },
-      { key: "hq_location",    label: "HQ Location" },
-    ],
-  },
-  {
-    group: "Pay Period",
-    vars: [
-      { key: "pay_month",       label: "Pay Month" },
-      { key: "pay_year",        label: "Pay Year" },
-      { key: "pay_period",      label: "Pay Period (e.g. JUN-2025)" },
-      { key: "total_days",      label: "Total Days" },
-      { key: "paid_days",       label: "Paid Days" },
-      { key: "present_days",    label: "Present Days" },
-      { key: "absent_days",     label: "Absent Days" },
-      { key: "half_days",       label: "Half Days" },
-      { key: "leave_days",      label: "Leave Days" },
-      { key: "paid_leave_days", label: "Paid Leave Days" },
-      { key: "working_holiday_days", label: "Working Holiday Days" },
-      { key: "unmarked_days",   label: "Unmarked Days" },
-    ],
-  },
-  {
-    group: "Earnings",
-    vars: [
-      { key: "basic",           label: "Basic Salary" },
-      { key: "da",              label: "Dearness Allowance (DA)" },
-      { key: "hra",             label: "HRA" },
-      { key: "gross_rate_pm",   label: "Gross Rate PM" },
-      { key: "gross_earning",   label: "Gross Earning" },
-      { key: "ot_rate",         label: "OT Rate / Hour" },
-      { key: "single_ot_hours", label: "Single OT Hours" },
-      { key: "double_ot_hours", label: "Double OT Hours" },
-      { key: "ot_amount",       label: "OT Amount" },
-      { key: "difference",      label: "Difference / Adjustment" },
-      { key: "total_gross",     label: "Total Gross Earning" },
-    ],
-  },
-  {
-    group: "Deductions",
-    vars: [
-      { key: "professional_tax", label: "Professional Tax (PT)" },
-      { key: "esic_employee",    label: "ESIC (Employee)" },
-      { key: "pf_base",          label: "PF Base" },
-      { key: "pf_employee",      label: "PF / EPF (Employee 12%)" },
-      { key: "advance",          label: "Advance Deduction" },
-      { key: "mlwf_employer",    label: "MLWF" },
-      { key: "total_deduction",  label: "Total Deduction" },
-    ],
-  },
-  {
-    group: "Employer Contributions",
-    vars: [
-      { key: "esic_employer",  label: "ESIC (Employer 3.25%)" },
-      { key: "pf_employer",    label: "PF (Employer 13%)" },
-      { key: "ctc_per_month",  label: "CTC Per Month" },
-    ],
-  },
-  {
-    group: "Company / Manager",
-    vars: [
-      { key: "company_name",    label: "Company Name" },
-      { key: "company_address", label: "Company Address" },
-    ],
-  },
-];
+// ─── Key aliases ──────────────────────────────────────────────────────────────
+// A few structure column keys differ from the keys used by the slip value
+// resolver (buildSlipVariableContext in SalarySlips.tsx). Map them here so the
+// variables produced from the structure resolve to real values on the slip.
+const KEY_ALIASES: Record<string, string> = {
+  // Structure "name" → slip "employee_name"
+  name: "employee_name",
+};
 
-/** Flat list of all variables — for quick lookup */
-export const ALL_SLIP_VARIABLES: SlipVariable[] = SLIP_VARIABLE_GROUPS.flatMap(
-  (g) => g.vars
-);
+function aliasKey(key: string): string {
+  return KEY_ALIASES[key] ?? key;
+}
 
-/** Resolve a variable key to its display label */
-export function getVariableLabel(key: string): string {
-  return ALL_SLIP_VARIABLES.find((v) => v.key === key)?.label ?? key;
+// ─── Fixed extras (appended after structure-derived variables) ────────────────
+
+const PAY_PERIOD_GROUP: SlipVariableGroup = {
+  group: "Pay Period",
+  vars: [
+    { key: "pay_month",  label: "Pay Month" },
+    { key: "pay_year",   label: "Pay Year" },
+    { key: "pay_period", label: "Pay Period (e.g. JUN-2025)" },
+  ],
+};
+
+const COMPANY_GROUP: SlipVariableGroup = {
+  group: "Company / Manager",
+  vars: [
+    { key: "company_name",    label: "Company Name" },
+    { key: "company_address", label: "Company Address" },
+  ],
+};
+
+// ─── Builder ──────────────────────────────────────────────────────────────────
+
+/**
+ * Merge sections coming from one or more salary templates into a single ordered
+ * list, grouping by section label and de-duplicating columns by key.
+ */
+function mergeSections(templates: SalaryTemplate[]): TemplateSection[] {
+  const byLabel = new Map<string, TemplateSection>();
+
+  for (const tmpl of templates) {
+    const sections = stripRemovedFixedColumns(tmpl.sections ?? []);
+    for (const sec of [...sections].sort((a, b) => a.order - b.order)) {
+      const existing = byLabel.get(sec.label);
+      if (!existing) {
+        byLabel.set(sec.label, { ...sec, columns: [...sec.columns] });
+        continue;
+      }
+      // Merge columns, skipping keys we've already seen in this group
+      const seen = new Set(existing.columns.map((c) => c.key));
+      for (const col of sec.columns) {
+        if (!seen.has(col.key)) {
+          existing.columns.push(col);
+          seen.add(col.key);
+        }
+      }
+    }
+  }
+
+  return [...byLabel.values()];
+}
+
+/**
+ * Build the full list of slip variable groups from the given salary template(s),
+ * followed by the fixed Pay Period and Company / Manager extras.
+ *
+ * When no template is available we still expose the fixed employee-info fields
+ * (from FIXED_SECTIONS) plus the extras, so the designer is never empty.
+ */
+export function buildSlipVariableGroups(
+  templates: SalaryTemplate | SalaryTemplate[] | null | undefined,
+): SlipVariableGroup[] {
+  const list = Array.isArray(templates)
+    ? templates
+    : templates
+    ? [templates]
+    : [];
+
+  const sections =
+    list.length > 0
+      ? mergeSections(list)
+      : stripRemovedFixedColumns(FIXED_SECTIONS);
+
+  const groups: SlipVariableGroup[] = [];
+  for (const sec of sections) {
+    const vars: SlipVariable[] = [];
+    const seen = new Set<string>();
+    for (const col of [...sec.columns].sort((a, b) => a.order - b.order)) {
+      const key = aliasKey(col.key);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      vars.push({ key, label: col.label });
+    }
+    if (vars.length > 0) groups.push({ group: sec.label, vars });
+  }
+
+  return [...groups, PAY_PERIOD_GROUP, COMPANY_GROUP];
+}
+
+/** Flat list of all variables for the given template(s). */
+export function buildSlipVariables(
+  templates: SalaryTemplate | SalaryTemplate[] | null | undefined,
+): SlipVariable[] {
+  return buildSlipVariableGroups(templates).flatMap((g) => g.vars);
+}
+
+/**
+ * Resolve a variable key to its display label using the supplied groups.
+ * Falls back to the raw key when the variable is unknown.
+ */
+export function getVariableLabel(
+  key: string,
+  groups: SlipVariableGroup[],
+): string {
+  for (const g of groups) {
+    const found = g.vars.find((v) => v.key === key);
+    if (found) return found.label;
+  }
+  return key;
 }
