@@ -58,6 +58,7 @@ import {
   bulkFillRow,
   buildAttendanceBatchEntries,
 } from "@/lib/attendanceDeductionUtils";
+import { isEmployeeActiveOn, getEmployeeMonthActivity } from "@/lib/employeeStatus";
 
 import * as XLSX from "xlsx";
 
@@ -73,14 +74,24 @@ function exportGridToExcel(
   startDate: Date,
   endDate: Date,
 ) {
+  const year = startDate.getFullYear();
+  const month = startDate.getMonth() + 1;
+
   const header = ["Employee ID", "Employee", ...dateKeys];
-  const rows = employees.map((emp) => {
-    const row: string[] = [emp.employeeId || emp.id, emp.fullName];
-    for (const dk of dateKeys) {
-      row.push(grid[emp.id]?.[dk] ?? "");
-    }
-    return row;
-  });
+  const rows = employees
+    .filter((emp) => getEmployeeMonthActivity(emp, year, month).includeInMonth)
+    .map((emp) => {
+      const row: string[] = [emp.employeeId || emp.id, emp.fullName];
+      for (const dk of dateKeys) {
+        const date = new Date(dk + "T00:00:00");
+        if (!isEmployeeActiveOn(emp, date)) {
+          row.push("Inactive");
+        } else {
+          row.push(grid[emp.id]?.[dk] ?? "");
+        }
+      }
+      return row;
+    });
 
   const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
   // Column widths
@@ -302,37 +313,54 @@ function AttendanceGridTable({
                   }
                 >
                   <Tooltip title="Click to bulk-fill this employee">
-                    <span>{emp.fullName}</span>
+                    <Box>
+                      <Typography variant="body2">{emp.fullName}</Typography>
+                      {(() => {
+                        const date = dateKeys.length > 0 ? new Date(dateKeys[0] + "T00:00:00") : new Date();
+                        const activity = getEmployeeMonthActivity(emp, date.getFullYear(), date.getMonth() + 1);
+                        return activity.label ? (
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {activity.label}
+                          </Typography>
+                        ) : null;
+                      })()}
+                    </Box>
                   </Tooltip>
                 </TableCell>
                 {dateKeys.map((dk) => {
+                  const date = new Date(dk + "T00:00:00");
+                  const isActive = isEmployeeActiveOn(emp, date);
                   const status = grid[emp.id]?.[dk] ?? "";
                   return (
                     <TableCell key={dk} align="center" sx={{ p: 0.5 }}>
-                      <FormControl size="small" sx={{ minWidth: 100 }}>
-                        <Select
-                          value={status}
-                          onChange={(e) =>
-                            onCellChange(emp.id, dk, e.target.value)
-                          }
-                          displayEmpty
-                          sx={{ fontSize: "0.75rem" }}
-                        >
-                          <MenuItem value="">
-                            <em style={{ fontSize: "0.75rem" }}>—</em>
-                          </MenuItem>
-                          {ATTENDANCE_STATUSES.map((s) => (
-                            <MenuItem key={s.value} value={s.value}>
-                              <Chip
-                                label={s.label}
-                                color={s.color}
-                                size="small"
-                                sx={{ fontSize: "0.65rem", height: 20 }}
-                              />
+                      {isActive ? (
+                        <FormControl size="small" sx={{ minWidth: 100 }}>
+                          <Select
+                            value={status}
+                            onChange={(e) =>
+                              onCellChange(emp.id, dk, e.target.value)
+                            }
+                            displayEmpty
+                            sx={{ fontSize: "0.75rem" }}
+                          >
+                            <MenuItem value="">
+                              <em style={{ fontSize: "0.75rem" }}>—</em>
                             </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
+                            {ATTENDANCE_STATUSES.map((s) => (
+                              <MenuItem key={s.value} value={s.value}>
+                                <Chip
+                                  label={s.label}
+                                  color={s.color}
+                                  size="small"
+                                  sx={{ fontSize: "0.65rem", height: 20 }}
+                                />
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      ) : (
+                        <Typography variant="caption" color="text.disabled">Inactive</Typography>
+                      )}
                     </TableCell>
                   );
                 })}
@@ -526,25 +554,33 @@ export default function BulkAttendancePeriodDialog({
       );
       const snapshot = await getDocs(q);
 
-      // Build initial grid: all employees × all days = ""
-      const initialGrid: AttendanceGrid = {};
-      for (const emp of employees) {
-        initialGrid[emp.id] = {};
-        for (const dk of keys) {
-          initialGrid[emp.id][dk] = "";
-        }
-      }
+    // Build initial grid: all employees × all days = ""
+    const initialGrid: AttendanceGrid = {};
+    const year = startDate.getFullYear();
+    const month = startDate.getMonth() + 1;
 
-      // Overlay fetched records
-      snapshot.docs.forEach((docSnap) => {
-        const data = docSnap.data();
-        const empId: string = data.employeeId;
-        const dateVal = data.date?.toDate ? data.date.toDate() : new Date(data.date);
-        const dk = format(dateVal, "yyyy-MM-dd");
-        if (initialGrid[empId] && keys.includes(dk)) {
-          initialGrid[empId][dk] = data.status ?? "";
-        }
-      });
+    const includedEmployees = employees.filter((emp) => {
+      const activity = getEmployeeMonthActivity(emp, year, month);
+      return activity.includeInMonth;
+    });
+
+    for (const emp of includedEmployees) {
+      initialGrid[emp.id] = {};
+      for (const dk of keys) {
+        initialGrid[emp.id][dk] = "";
+      }
+    }
+
+    // Overlay fetched records
+    snapshot.docs.forEach((docSnap) => {
+      const data = docSnap.data();
+      const empId: string = data.employeeId;
+      const dateVal = data.date?.toDate ? data.date.toDate() : new Date(data.date);
+      const dk = format(dateVal, "yyyy-MM-dd");
+      if (initialGrid[empId] && keys.includes(dk)) {
+        initialGrid[empId][dk] = data.status ?? "";
+      }
+    });
 
       setGrid(initialGrid);
       setGridReady(true);
@@ -773,7 +809,10 @@ export default function BulkAttendancePeriodDialog({
 
               {/* Attendance Grid */}
               <AttendanceGridTable
-                employees={employees}
+                employees={employees.filter(e => {
+                  const date = startDate || new Date();
+                  return getEmployeeMonthActivity(e, date.getFullYear(), date.getMonth() + 1).includeInMonth;
+                })}
                 dateKeys={dateKeys}
                 grid={grid}
                 onCellChange={handleCellChange}

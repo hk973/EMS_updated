@@ -38,6 +38,7 @@ import {
 import { db } from "@/lib/firebase";
 import { Employee, Payroll } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
+import { getEmployeeMonthActivity } from "@/lib/employeeStatus";
 import { computeAttendanceVariables } from "@/lib/attendanceDeductionUtils";
 import {
   slipTemplateService,
@@ -423,6 +424,13 @@ export default function PayrollProcessing() {
         ) {
           return false;
         }
+
+        // Only process employees who are active at some point during the selected month/year
+        const activity = getEmployeeMonthActivity(emp, selectedYear, selectedMonth);
+        if (!activity.includeInMonth) {
+          return false;
+        }
+
         // When a specific manager is selected, only process that manager's
         // employees so payroll can be proceeded manager-wise.
         if (selectedManager) {
@@ -520,9 +528,16 @@ export default function PayrollProcessing() {
       const monthlyKey = `${selectedYear}-${selectedMonth}`;
 
       const payrollRecords = employeesToProcess.map((employee) => {
-        const byMonth = (employee as unknown as {
-          salaryByMonth?: Record<string, Record<string, unknown>>;
-        }).salaryByMonth;
+        const activity = getEmployeeMonthActivity(
+          employee,
+          selectedYear,
+          selectedMonth,
+        );
+        const byMonth = (
+          employee as unknown as {
+            salaryByMonth?: Record<string, Record<string, unknown>>;
+          }
+        ).salaryByMonth;
         const monthlySalary = byMonth?.[monthlyKey];
         const salary =
           monthlySalary && Object.keys(monthlySalary).length > 0
@@ -557,7 +572,14 @@ export default function PayrollProcessing() {
         // present_days counts present + half-day*0.5 + leave (paid)
         // absent_days = absent + unmarked (both treated as absent for salary)
         const effectiveAbsent = attVars.absent_days + attVars.unmarked_days;
-        const paidDays = daysInMonth - effectiveAbsent - attVars.half_days * 0.5;
+        let paidDays =
+          daysInMonth - effectiveAbsent - attVars.half_days * 0.5;
+
+        // Cap paidDays by employee active days in the month (pro-rating for partial status)
+        if (paidDays > activity.activeDays) {
+          paidDays = activity.activeDays;
+        }
+
         const totalDays = daysInMonth;
 
         // Calculate salary components
@@ -571,7 +593,7 @@ export default function PayrollProcessing() {
           totalDays,
           paidDays,
         );
-        const otRate = calculateOTRate(grossEarning, paidDays);
+        const otRate = paidDays > 0 ? calculateOTRate(grossEarning, paidDays) : 0;
         const singleOTHours = Number(salary.singleOTHours ?? 0);
         const doubleOTHours = Number(salary.doubleOTHours ?? 0);
         const otAmount = calculateOTAmount(
@@ -681,6 +703,8 @@ export default function PayrollProcessing() {
           // Manager + slip-template snapshot (kept until the payroll is reverted)
           managerId,
           slipTemplateSnapshot: slipTemplateSnapshot ?? null,
+          // Activity status label (e.g. "Inactive from 15/06/2025")
+          activityLabel: activity.label ?? null,
         };
       });
 
@@ -770,6 +794,11 @@ export default function PayrollProcessing() {
 
   /** Compute live gross/net salary using current attendance data */
   const getLivePayrollAmounts = (employee: Employee) => {
+    const activity = getEmployeeMonthActivity(
+      employee,
+      selectedYear,
+      selectedMonth,
+    );
     const config = salaryConfig || {
       hraPercentage: 5,
       esicEmployeePercentage: 0.75,
@@ -795,12 +824,24 @@ export default function PayrollProcessing() {
     } else {
       paidDays = daysInMonth;
     }
+
+    // Cap paidDays by employee active days in the month
+    if (paidDays > activity.activeDays) {
+      paidDays = activity.activeDays;
+    }
+
     const totalDays = daysInMonth;
 
-    const hraPercentage = Number(salary.hraPercentage ?? config.hraPercentage ?? 5);
+    const hraPercentage = Number(
+      salary.hraPercentage ?? config.hraPercentage ?? 5,
+    );
     const hra = calculateHRA(basic, da, hraPercentage);
     const grossRatePM = calculateGrossRate(basic, da, hra);
-    const grossEarning = calculateGrossEarning(grossRatePM, totalDays, paidDays);
+    const grossEarning = calculateGrossEarning(
+      grossRatePM,
+      totalDays,
+      paidDays,
+    );
     const singleOTHours = Number((salary as any).singleOTHours ?? 0);
     const doubleOTHours = Number((salary as any).doubleOTHours ?? 0);
     const otRate = paidDays > 0 ? calculateOTRate(grossEarning, paidDays) : 0;
@@ -808,10 +849,14 @@ export default function PayrollProcessing() {
     const totalGross = grossEarning + otAmount;
 
     const pt = calculateProfessionalTax(totalGross);
-    const esicPct = Number(salary.esicEmployeePercentage ?? config.esicEmployeePercentage ?? 0.75);
+    const esicPct = Number(
+      salary.esicEmployeePercentage ?? config.esicEmployeePercentage ?? 0.75,
+    );
     const esic = calculateESICEmployee(totalGross, esicPct);
     const pfBase = calculatePFBase(basic, da, totalDays, paidDays);
-    const pfPct = Number(salary.pfEmployeePercentage ?? config.pfEmployeePercentage ?? 12);
+    const pfPct = Number(
+      salary.pfEmployeePercentage ?? config.pfEmployeePercentage ?? 12,
+    );
     const pf = calculatePFEmployee(pfBase, pfPct);
     const totalDeduction = pt + esic + pf;
     const netSalary = Math.max(0, totalGross - totalDeduction);
@@ -823,6 +868,15 @@ export default function PayrollProcessing() {
     const employee = getEmployeeForPayroll(payroll);
     // Drop orphaned payroll records (employee was deleted or belongs to another company)
     if (!employee) return false;
+
+    // Exclude employees who are not active at all during the selected month/year
+    if (
+      !getEmployeeMonthActivity(employee, selectedYear, selectedMonth)
+        .includeInMonth
+    ) {
+      return false;
+    }
+
     if (!selectedManager) return true;
     return normalizeManagerIds(
       employee.assignedManagers,
@@ -872,13 +926,22 @@ export default function PayrollProcessing() {
   };
 
   const getPayrollStats = () => {
-    const alreadyProcessedIds = new Set(existingPayroll.map((p) => p.employeeId));
-    const unprocessedCount = employees.filter(
-      (emp) => !alreadyProcessedIds.has(emp.employeeId) && !alreadyProcessedIds.has(emp.id)
+    // Only count employees who are active at some point during the selected month/year
+    const activeEmployees = employees.filter((emp) =>
+      getEmployeeMonthActivity(emp, selectedYear, selectedMonth).includeInMonth,
+    );
+
+    const alreadyProcessedIds = new Set(
+      existingPayroll.map((p) => p.employeeId),
+    );
+    const unprocessedCount = activeEmployees.filter(
+      (emp) =>
+        !alreadyProcessedIds.has(emp.employeeId) &&
+        !alreadyProcessedIds.has(emp.id),
     ).length;
 
     return {
-      totalEmployees: employees.length,
+      totalEmployees: activeEmployees.length,
       processedPayroll: filteredExistingPayroll.length,
       unprocessedCount,
       allProcessed: unprocessedCount === 0,
@@ -890,7 +953,10 @@ export default function PayrollProcessing() {
         const emp = getEmployeeForPayroll(p);
         return sum + (emp ? getLivePayrollAmounts(emp).netSalary : 0);
       }, 0),
-      totalTax: filteredExistingPayroll.reduce((sum, p) => sum + ((p as any).taxAmount || 0), 0),
+      totalTax: filteredExistingPayroll.reduce(
+        (sum, p) => sum + ((p as any).taxAmount || 0),
+        0,
+      ),
     };
   };
 
@@ -1140,7 +1206,19 @@ export default function PayrollProcessing() {
                     <TableRow key={payroll.id}>
                       <TableCell>{employee?.employeeId}</TableCell>
                       <TableCell>
-                        {employee ? employee.fullName : "Unknown"}
+                        <Box>
+                          <Typography variant="body2">
+                            {employee ? employee.fullName : "Unknown"}
+                          </Typography>
+                          {(payroll as any).activityLabel && (
+                            <Typography
+                              variant="caption"
+                              sx={{ color: "text.secondary", display: "block" }}
+                            >
+                              {(payroll as any).activityLabel}
+                            </Typography>
+                          )}
+                        </Box>
                       </TableCell>
                       <TableCell align="right">
                         ₹{liveAmounts.basic.toLocaleString()}

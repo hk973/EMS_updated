@@ -69,6 +69,7 @@ import {
   buildAttendanceContext,
   buildAttendanceRows,
 } from "@/lib/attendanceDeductionUtils";
+import { getEmployeeMonthActivity } from "@/lib/employeeStatus";
 
 const months = [
   { value: 1, label: "January" },
@@ -101,6 +102,7 @@ type PayslipModel = {
   earnings: string[][];
   deductions: string[][];
   netSalary: string;
+  statusLabel?: string;
 };
 
 type StoredSlipRow = {
@@ -344,12 +346,73 @@ export default function SalarySlips() {
     }).salaryByMonth;
     // Employee uses the month-wise model → return strictly this month's bucket
     // (empty when the month has no data, so values fall back to 0 — no bleed).
+    let baseSalary: Record<string, unknown>;
     if (byMonth && Object.keys(byMonth).length > 0) {
       const key = `${payroll.year}-${payroll.month}`;
-      return (byMonth[key] ?? {}) as Record<string, unknown>;
+      baseSalary = (byMonth[key] ?? {}) as Record<string, unknown>;
+    } else {
+      // Pure legacy employee (never migrated) → fall back to global salary object.
+      baseSalary = (employee.salary ?? {}) as Record<string, unknown>;
     }
-    // Pure legacy employee (never migrated) → fall back to global salary object.
-    return (employee.salary ?? {}) as Record<string, unknown>;
+
+    const activity = getEmployeeMonthActivity(
+      employee as any,
+      payroll.year,
+      payroll.month,
+    );
+
+    if (activity.fullyActive) {
+      return { ...baseSalary, _activity: activity };
+    }
+
+    // Partial activity - adjust paid days and pro-rate earnings
+    const adjusted = { ...baseSalary };
+    const totalDays = toAmount(baseSalary.totalDays) || activity.totalDays;
+
+    // Requirement: cap/adjust paid days and total days to activeDays for that employee.
+    adjusted.totalDays = Math.min(totalDays, activity.activeDays);
+    const originalPaidDays = toAmount(baseSalary.paidDays) || totalDays;
+    adjusted.paidDays = Math.min(originalPaidDays, activity.activeDays);
+
+    // Scaling earnings components by activeDays/totalDays ratio
+    const ratio = activity.activeDays / activity.totalDays;
+    [
+      "basic",
+      "base",
+      "hra",
+      "da",
+      "ta",
+      "totalBonus",
+      "grossRatePM",
+      "totalGrossEarning",
+      "netSalary",
+      "totalDeduction",
+      "pfBase",
+      "pfEmployee",
+      "pfEmployer",
+      "esicEmployee",
+      "esicEmployer",
+      "professionalTax",
+    ].forEach((key) => {
+      if (adjusted[key] !== undefined) {
+        adjusted[key] = toAmount(adjusted[key]) * ratio;
+      }
+    });
+
+    if (Array.isArray(adjusted.customAllowances)) {
+      adjusted.customAllowances = adjusted.customAllowances.map((a: any) => ({
+        ...a,
+        amount: toAmount(a.amount) * ratio,
+      }));
+    }
+    if (Array.isArray(adjusted.customDeductions)) {
+      adjusted.customDeductions = adjusted.customDeductions.map((d: any) => ({
+        ...d,
+        amount: toAmount(d.amount) * ratio,
+      }));
+    }
+
+    return { ...adjusted, _activity: activity };
   };
 
   const getDeductionAmounts = (
@@ -727,6 +790,9 @@ export default function SalarySlips() {
       ? managersById[resolvedManagerId]
       : undefined;
 
+    const activity = (salary as any)._activity;
+    const statusLabel = activity?.label;
+
     // All branding fields are stored under manager.payslipBranding
     const payslipBranding =
       (managerData?.payslipBranding as Record<string, unknown> | undefined) || {};
@@ -741,6 +807,42 @@ export default function SalarySlips() {
     ]
       .filter(Boolean)
       .join(", ");
+
+    const detailsRows = [
+      ["E Code", employee.employeeId || "-"],
+      ["Name", employee.fullName || "-"],
+      [
+        "Father Name",
+        String((employee as Record<string, unknown>).fatherName || "-"),
+      ],
+      [
+        "Designation",
+        String((employee as Record<string, unknown>).designation || "-"),
+      ],
+      [
+        "Department",
+        String((employee as Record<string, unknown>).department || "-"),
+      ],
+      [
+        "D.O.J",
+        formatEmployeeDate((employee as Record<string, unknown>).joinDate),
+      ],
+      [
+        "D.O.B",
+        formatEmployeeDate((employee as Record<string, unknown>).dob),
+      ],
+      ["EPF No.", String((employee as Record<string, unknown>).epfNo || "-")],
+      ["UAN No.", String(employee.uan || "-")],
+      ["ESIC", String(employee.esicNo || "-")],
+      [
+        "HQ Location",
+        String((employee as Record<string, unknown>).hqLocation || "-"),
+      ],
+    ];
+
+    if (statusLabel) {
+      detailsRows.push(["Status", statusLabel]);
+    }
 
     return {
       companyName: String(
@@ -762,37 +864,8 @@ export default function SalarySlips() {
       logoUrl: String(payslipBranding.logoUrl || ""),
       stampUrl: String(payslipBranding.stampUrl || ""),
       signUrl: String(payslipBranding.signUrl || ""),
-      details: [
-        ["E Code", employee.employeeId || "-"],
-        ["Name", employee.fullName || "-"],
-        [
-          "Father Name",
-          String((employee as Record<string, unknown>).fatherName || "-"),
-        ],
-        [
-          "Designation",
-          String((employee as Record<string, unknown>).designation || "-"),
-        ],
-        [
-          "Department",
-          String((employee as Record<string, unknown>).department || "-"),
-        ],
-        [
-          "D.O.J",
-          formatEmployeeDate((employee as Record<string, unknown>).joinDate),
-        ],
-        [
-          "D.O.B",
-          formatEmployeeDate((employee as Record<string, unknown>).dob),
-        ],
-        ["EPF No.", String((employee as Record<string, unknown>).epfNo || "-")],
-        ["UAN No.", String(employee.uan || "-")],
-        ["ESIC", String(employee.esicNo || "-")],
-        [
-          "HQ Location",
-          String((employee as Record<string, unknown>).hqLocation || "-"),
-        ],
-      ].map((row) => row.map((cell) => String(cell))),
+      statusLabel,
+      details: detailsRows.map((row) => row.map((cell) => String(cell))),
       attendance: (() => {
         // Req 1.3, 3.1, 3.2, 3.3, 4.1, 4.2 — use live attendance vars if available
         const liveVars = attendanceVarsByEmployee.get(employee.id ?? "");
@@ -945,10 +1018,19 @@ export default function SalarySlips() {
             )
           : query(collection(db, "employees"), orderBy("fullName"));
       const employeesSnapshot = await getDocs(employeesQuery);
-      const employeesData = employeesSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Employee[];
+      const employeesData = employeesSnapshot.docs
+        .map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+        .filter((emp) => {
+          const activity = getEmployeeMonthActivity(
+            emp as Employee,
+            selectedYear,
+            selectedMonth,
+          );
+          return activity.includeInMonth;
+        }) as Employee[];
       setEmployees(employeesData);
 
       // Fetch live attendance variables for each employee in parallel (Req 1.1, 1.2, 4.3)
@@ -962,6 +1044,26 @@ export default function SalarySlips() {
             selectedYear,
             daysInMonth,
           );
+          // Requirement: cap/adjust attendance days to activeDays for that employee.
+          const activity = getEmployeeMonthActivity(
+            emp,
+            selectedYear,
+            selectedMonth,
+          );
+          if (!activity.fullyActive) {
+            vars.total_days = Math.min(vars.total_days, activity.activeDays);
+            vars.present_days = Math.min(vars.present_days, activity.activeDays);
+            vars.absent_days = Math.min(vars.absent_days, activity.activeDays);
+            vars.leave_days = Math.min(vars.leave_days, activity.activeDays);
+            vars.paid_leave_days = Math.min(
+              vars.paid_leave_days,
+              activity.activeDays,
+            );
+            vars.working_holiday_days = Math.min(
+              vars.working_holiday_days,
+              activity.activeDays,
+            );
+          }
           return [emp.id ?? "", vars] as const;
         }),
       );
@@ -1265,6 +1367,8 @@ export default function SalarySlips() {
     const payPeriod = `${months_names[(payroll.month ?? 1) - 1]?.slice(0, 3).toUpperCase() ?? "?"}-${payroll.year}`;
 
     const liveVars = attendanceVarsByEmployee.get(employee.id ?? "");
+    const activity = (s as any)._activity;
+    const statusLabel = activity?.label || "";
 
     const fmt = (v: unknown) => {
       const n = toAmount(v);
@@ -1296,6 +1400,7 @@ export default function SalarySlips() {
       bank_account:   String((employee as any).bankAccount ?? "-"),
       ifsc_code:      String((employee as any).ifscCode ?? "-"),
       hq_location:    String((employee as any).hqLocation ?? "-"),
+      status_label:   statusLabel,
       // Pay Period
       pay_month:      String(months_names[(payroll.month ?? 1) - 1] ?? "-"),
       pay_year:       String(payroll.year ?? "-"),

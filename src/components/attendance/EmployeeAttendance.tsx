@@ -24,6 +24,7 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Attendance } from "@/types";
+import { isEmployeeActiveOn, getEmployeeMonthActivity } from "@/lib/employeeStatus";
 
 const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -33,6 +34,7 @@ export default function EmployeeAttendance() {
   const [error, setError] = useState("");
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
   const [attendanceRecords, setAttendanceRecords] = useState<Attendance[]>([]);
+  const [employeeData, setEmployeeData] = useState<any>(null);
 
   useEffect(() => {
     const loadAttendance = async () => {
@@ -56,6 +58,7 @@ export default function EmployeeAttendance() {
           );
           if (employeeDocById.exists()) {
             employeeIdentifiers.add(employeeDocById.id);
+            setEmployeeData({ id: employeeDocById.id, ...employeeDocById.data() });
           }
 
           const employeeByEmployeeIdSnapshot = await getDocs(
@@ -175,12 +178,19 @@ export default function EmployeeAttendance() {
 
   const activeYear = calendarMonth.getFullYear();
   const activeMonth = calendarMonth.getMonth();
+
+  const activity = useMemo(() => {
+    if (!employeeData) return null;
+    return getEmployeeMonthActivity(employeeData, activeYear, activeMonth + 1);
+  }, [employeeData, activeYear, activeMonth]);
+
   const firstDayOfMonth = new Date(activeYear, activeMonth, 1);
   const daysInMonth = new Date(activeYear, activeMonth + 1, 0).getDate();
   const leadingEmptyDays = firstDayOfMonth.getDay();
   const totalCells = Math.ceil((leadingEmptyDays + daysInMonth) / 7) * 7;
 
-  const getAttendanceColor = (status?: Attendance["status"]) => {
+  const getAttendanceColor = (status?: Attendance["status"] | "inactive") => {
+    if (status === "inactive") return "#374151"; // Dark gray for inactive
     if (status === "present") return "#4caf50";
     if (status === "late") return "#ff9800";
     if (status === "half-day") return "#2196f3";
@@ -256,114 +266,137 @@ export default function EmployeeAttendance() {
             </Box>
           </Box>
 
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: "repeat(7, 1fr)",
-              gap: 0.7,
-            }}
-          >
-            {dayLabels.map((label) => (
+          {!activity?.includeInMonth ? (
+            <Box sx={{ py: 4, textAlign: "center" }}>
+              <Typography variant="body1" sx={{ color: "#9ca3af" }}>
+                You are marked as inactive for this month.
+              </Typography>
+              {activity?.label && (
+                <Typography variant="caption" sx={{ color: "#6b7280" }} display="block" mt={1}>
+                  ({activity.label})
+                </Typography>
+              )}
+            </Box>
+          ) : (
+            <>
               <Box
-                key={label}
                 sx={{
-                  textAlign: "center",
-                  py: 0.5,
-                  fontSize: "0.75rem",
-                  color: "#9ca3af",
-                  fontWeight: 600,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(7, 1fr)",
+                  gap: 0.7,
                 }}
               >
-                {label}
+                {dayLabels.map((label) => (
+                  <Box
+                    key={label}
+                    sx={{
+                      textAlign: "center",
+                      py: 0.5,
+                      fontSize: "0.75rem",
+                      color: "#9ca3af",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {label}
+                  </Box>
+                ))}
+
+                {Array.from({ length: totalCells }, (_, index) => {
+                  const dayNumber = index - leadingEmptyDays + 1;
+                  const inMonth = dayNumber > 0 && dayNumber <= daysInMonth;
+                  const date = inMonth ? new Date(activeYear, activeMonth, dayNumber) : null;
+                  const isActive = (inMonth && date && employeeData) ? isEmployeeActiveOn(employeeData, date) : true;
+                  const status = inMonth ? getDayCellStatus(dayNumber) : undefined;
+                  const finalStatus = !isActive ? "inactive" : status;
+
+                  return (
+                    <Box
+                      key={`day-${index}`}
+                      sx={{
+                        height: 36,
+                        borderRadius: 1,
+                        border: "1px solid #3b3b3b",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: inMonth ? (isActive ? "#ffffff" : "#9ca3af") : "#6b7280",
+                        fontSize: "0.8rem",
+                        backgroundColor: inMonth
+                          ? getAttendanceColor(finalStatus as any)
+                          : "#262626",
+                        opacity: inMonth ? 1 : 0.4,
+                      }}
+                    >
+                      {inMonth ? dayNumber : ""}
+                    </Box>
+                  );
+                })}
               </Box>
-            ))}
 
-            {Array.from({ length: totalCells }, (_, index) => {
-              const dayNumber = index - leadingEmptyDays + 1;
-              const inMonth = dayNumber > 0 && dayNumber <= daysInMonth;
-              const status = inMonth ? getDayCellStatus(dayNumber) : undefined;
-
-              return (
-                <Box
-                  key={`day-${index}`}
-                  sx={{
-                    height: 36,
-                    borderRadius: 1,
-                    border: "1px solid #3b3b3b",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: inMonth ? "#ffffff" : "#6b7280",
-                    fontSize: "0.8rem",
-                    backgroundColor: inMonth
-                      ? getAttendanceColor(status)
-                      : "#262626",
-                    opacity: inMonth ? 1 : 0.4,
-                  }}
-                >
-                  {inMonth ? dayNumber : ""}
-                </Box>
-              );
-            })}
-          </Box>
-
-          <Box display="flex" flexWrap="wrap" gap={1} mt={2}>
-            <Chip
-              size="small"
-              sx={{ backgroundColor: "#4caf50", color: "#fff" }}
-              label="Present"
-            />
-            <Chip
-              size="small"
-              sx={{ backgroundColor: "#ff9800", color: "#fff" }}
-              label="Late"
-            />
-            <Chip
-              size="small"
-              sx={{ backgroundColor: "#2196f3", color: "#fff" }}
-              label="Half-day"
-            />
-            <Chip
-              size="small"
-              sx={{ backgroundColor: "#f44336", color: "#fff" }}
-              label="Absent"
-            />
-          </Box>
-
-          <Divider sx={{ my: 2, borderColor: "#444" }} />
-
-          <Typography variant="subtitle2" sx={{ color: "#ffffff", mb: 1 }}>
-            Recent Attendance
-          </Typography>
-          <Box>
-            {attendanceRecords.slice(0, 5).map((record) => (
-              <Box
-                key={record.id}
-                display="flex"
-                justifyContent="space-between"
-                alignItems="center"
-                py={0.8}
-                borderBottom="1px solid #3a3a3a"
-              >
-                <Typography variant="body2" sx={{ color: "#ffffff" }}>
-                  {new Date(record.date).toLocaleDateString()}
-                </Typography>
+              <Box display="flex" flexWrap="wrap" gap={1} mt={2}>
                 <Chip
                   size="small"
-                  label={record.status}
-                  sx={{
-                    backgroundColor: getAttendanceColor(record.status),
-                    color: "#ffffff",
-                  }}
+                  sx={{ backgroundColor: "#4caf50", color: "#fff" }}
+                  label="Present"
+                />
+                <Chip
+                  size="small"
+                  sx={{ backgroundColor: "#ff9800", color: "#fff" }}
+                  label="Late"
+                />
+                <Chip
+                  size="small"
+                  sx={{ backgroundColor: "#2196f3", color: "#fff" }}
+                  label="Half-day"
+                />
+                <Chip
+                  size="small"
+                  sx={{ backgroundColor: "#f44336", color: "#fff" }}
+                  label="Absent"
+                />
+                <Chip
+                  size="small"
+                  sx={{ backgroundColor: "#374151", color: "#fff" }}
+                  label="Inactive"
                 />
               </Box>
-            ))}
-            {attendanceRecords.length === 0 && (
-              <Typography variant="body2" sx={{ color: "#9ca3af" }}>
-                No attendance records found.
+
+              <Divider sx={{ my: 2, borderColor: "#444" }} />
+
+              <Typography variant="subtitle2" sx={{ color: "#ffffff", mb: 1 }}>
+                Recent Attendance
               </Typography>
-            )}
-          </Box>
+              <Box>
+                {attendanceRecords.slice(0, 5).map((record) => (
+                  <Box
+                    key={record.id}
+                    display="flex"
+                    justifyContent="space-between"
+                    alignItems="center"
+                    py={0.8}
+                    borderBottom="1px solid #3a3a3a"
+                  >
+                    <Typography variant="body2" sx={{ color: "#ffffff" }}>
+                      {new Date(record.date).toLocaleDateString()}
+                    </Typography>
+                    <Chip
+                      size="small"
+                      label={record.status}
+                      sx={{
+                        backgroundColor: getAttendanceColor(record.status),
+                        color: "#ffffff",
+                      }}
+                    />
+                  </Box>
+                ))}
+                {attendanceRecords.length === 0 && (
+                  <Typography variant="body2" sx={{ color: "#9ca3af" }}>
+                    No attendance records found.
+                  </Typography>
+                )}
+              </Box>
+            </>
+          )}
         </CardContent>
       </Card>
     </Box>

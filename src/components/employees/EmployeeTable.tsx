@@ -39,6 +39,8 @@ import {
   FileUpload,
   FileDownload,
   AddBox,
+  ToggleOn,
+  ToggleOff,
 } from "@mui/icons-material";
 import {
   collection,
@@ -64,7 +66,6 @@ import type { Manager } from "@/types";
 interface Employee extends BaseEmployee {
   companyName?: string;
   managerNames?: string;
-  status?: string;
   department?: string;
 }
 interface ManagerFilterOption {
@@ -201,6 +202,50 @@ export default function EmployeeTable() {
     label: string;
     passwordRequirements: { managerId: string; managerName: string; expectedPassword: string }[];
   } | null>(null);
+  // Active/Inactive status dialog state
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [statusTarget, setStatusTarget] = useState<Employee | null>(null);
+  const [statusNextValue, setStatusNextValue] = useState<"active" | "inactive">(
+    "inactive",
+  );
+  const [statusEffectiveDate, setStatusEffectiveDate] = useState<string>("");
+  const [statusSaving, setStatusSaving] = useState(false);
+
+  const todayISO = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  const openStatusDialog = (employee: Employee) => {
+    const current = (employee.status as string) === "inactive" ? "inactive" : "active";
+    // Toggling to the opposite of the current status.
+    setStatusTarget(employee);
+    setStatusNextValue(current === "active" ? "inactive" : "active");
+    setStatusEffectiveDate(
+      typeof employee.statusEffectiveDate === "string" && employee.statusEffectiveDate
+        ? employee.statusEffectiveDate
+        : todayISO(),
+    );
+    setStatusDialogOpen(true);
+  };
+
+  const handleConfirmStatusChange = async () => {
+    if (!statusTarget || !statusEffectiveDate) return;
+    try {
+      setStatusSaving(true);
+      await updateDoc(doc(db, "employees", statusTarget.id), {
+        status: statusNextValue,
+        statusEffectiveDate: statusEffectiveDate,
+      });
+      setStatusDialogOpen(false);
+      setStatusTarget(null);
+      await loadEmployees();
+    } catch (error) {
+      console.error("Error updating employee status:", error);
+    } finally {
+      setStatusSaving(false);
+    }
+  };
 
   const normalizeManagerIds = (
     value: unknown,
@@ -796,6 +841,34 @@ export default function EmployeeTable() {
       return null;
     }
 
+    if (field === "status") {
+      const isInactive = (employee.status as string) === "inactive";
+      const eff =
+        typeof employee.statusEffectiveDate === "string"
+          ? employee.statusEffectiveDate
+          : "";
+      return (
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+          <Chip
+            label={isInactive ? "Inactive" : "Active"}
+            size="small"
+            sx={{
+              backgroundColor: isInactive ? "#f44336" : "#4caf50",
+              color: "#ffffff",
+              fontWeight: 600,
+              width: "fit-content",
+            }}
+          />
+          {eff && (
+            <Typography variant="caption" sx={{ color: "#b0b0b0" }}>
+              {isInactive ? "From " : "Since "}
+              {eff}
+            </Typography>
+          )}
+        </Box>
+      );
+    }
+
     // Gather value (supports nested dot paths)
     let value: any;
     if (field.includes(".")) {
@@ -879,6 +952,22 @@ export default function EmployeeTable() {
     return value !== undefined && value !== null ? String(value) : "";
   };
 
+  // Plain-text value of a field for CSV/exports (status returns a JSX chip
+  // from getFieldValue, so handle it separately here).
+  const getFieldTextValue = (emp: Employee, field: string): string => {
+    if (field === "status") {
+      const isInactive = (emp.status as string) === "inactive";
+      const eff =
+        typeof emp.statusEffectiveDate === "string" ? emp.statusEffectiveDate : "";
+      const label = isInactive ? "Inactive" : "Active";
+      return eff ? `${label} (${isInactive ? "from" : "since"} ${eff})` : label;
+    }
+    const node = getFieldValue(emp, field);
+    return typeof node === "string" || typeof node === "number"
+      ? String(node)
+      : "";
+  };
+
   const handleExportCSV = () => {
     const headers = columns
       .filter((col) => col.visible && col.field !== "actions")
@@ -888,7 +977,7 @@ export default function EmployeeTable() {
       ...filteredEmployees.map((emp) =>
         columns
           .filter((col) => col.visible && col.field !== "actions")
-          .map((col) => getFieldValue(emp, col.field))
+          .map((col) => getFieldTextValue(emp, col.field))
           .join(","),
       ),
     ].join("\n");
@@ -1458,6 +1547,32 @@ export default function EmployeeTable() {
                                 </IconButton>
                               </Tooltip>
                               {currentUser?.role === "admin" && (
+                                <Tooltip
+                                  title={
+                                    (employee.status as string) === "inactive"
+                                      ? "Mark Active"
+                                      : "Mark Inactive"
+                                  }
+                                >
+                                  <IconButton
+                                    size="small"
+                                    sx={{
+                                      color:
+                                        (employee.status as string) === "inactive"
+                                          ? "#9e9e9e"
+                                          : "#4caf50",
+                                    }}
+                                    onClick={() => openStatusDialog(employee)}
+                                  >
+                                    {(employee.status as string) === "inactive" ? (
+                                      <ToggleOff />
+                                    ) : (
+                                      <ToggleOn />
+                                    )}
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                              {currentUser?.role === "admin" && (
                                 <Tooltip title="Delete">
                                   <IconButton
                                     size="small"
@@ -1515,6 +1630,68 @@ export default function EmployeeTable() {
           setEditingEmployee(null);
         }}
       />
+
+      {/* Employee Active/Inactive Status Dialog */}
+      <Dialog
+        open={statusDialogOpen}
+        onClose={() => !statusSaving && setStatusDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>
+          {statusNextValue === "inactive"
+            ? "Mark Employee Inactive"
+            : "Mark Employee Active"}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 1 }}>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              {statusTarget?.fullName}
+              {statusTarget?.employeeId ? ` (${statusTarget.employeeId})` : ""}
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
+              {statusNextValue === "inactive"
+                ? "The employee will be treated as inactive on and after the selected date. Their attendance, salary slip and payroll for days on/after this date will be excluded. If inactive for a whole month, they are hidden from that month's exports."
+                : "The employee will be treated as active on and after the selected date."}
+            </Typography>
+            <TextField
+              type="date"
+              label={
+                statusNextValue === "inactive"
+                  ? "Inactive From"
+                  : "Active From"
+              }
+              fullWidth
+              value={statusEffectiveDate}
+              onChange={(e) => setStatusEffectiveDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setStatusDialogOpen(false)}
+            disabled={statusSaving}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleConfirmStatusChange}
+            disabled={statusSaving || !statusEffectiveDate}
+            sx={{
+              backgroundColor:
+                statusNextValue === "inactive" ? "#f44336" : "#4caf50",
+            }}
+          >
+            {statusSaving
+              ? "Saving..."
+              : statusNextValue === "inactive"
+                ? "Mark Inactive"
+                : "Mark Active"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Employee Delete Password Dialog */}
       {empDeleteTarget && (

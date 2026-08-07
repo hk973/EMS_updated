@@ -70,6 +70,17 @@ export interface Employee {
   email: string;
   mobile: number;
   companyId?: string; // Added to link employee to company
+
+  // Active/Inactive lifecycle.
+  // `status` is the employee's current state; `statusEffectiveDate` (ISO
+  // 'YYYY-MM-DD') is the date from which that status applies. An inactive
+  // employee is treated as inactive on/after the effective date, and active
+  // employees re-activated on a date are active on/after it. Used to hide
+  // fully-inactive employees from monthly salary/attendance/payroll exports and
+  // to mark partially-inactive employees.
+  status?: 'active' | 'inactive';
+  statusEffectiveDate?: string;
+
   assignedManager?: string; // Single manager ID (current model)
   assignedManagers?: string[] | string; // Backward compatible with legacy shape
   

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Paper,
@@ -40,6 +40,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import BulkAttendancePeriodDialog from "@/components/attendance/BulkAttendancePeriodDialog";
 import { useAsyncAction, isRowLoading, revertAttendanceStatus } from "@/lib/useAsyncAction";
 import { LoadingButton } from "@/components/ui/LoadingButton";
+import { isEmployeeActiveOn, getEmployeeMonthActivity } from "@/lib/employeeStatus";
 
 const attendanceStatuses = [
   { value: "present",    label: "Present",    color: "success"   as const },
@@ -216,16 +217,26 @@ export default function AttendanceManager() {
   };
 
   // ── Derived values ─────────────────────────────────────────────────────────
-  const filteredEmployees =
-    currentUser?.role === "admin" && selectedManagerId !== "all"
+  const filteredEmployees = useMemo(() => {
+    const base = currentUser?.role === "admin" && selectedManagerId !== "all"
       ? employees.filter(
           (emp) => Array.isArray(emp.assignedManagers) && emp.assignedManagers.includes(selectedManagerId),
         )
       : employees;
 
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth() + 1;
+
+    return base.filter((emp) => {
+      const activity = getEmployeeMonthActivity(emp, year, month);
+      return activity.includeInMonth;
+    });
+  }, [employees, currentUser, selectedManagerId, selectedDate]);
+
   const stats = (() => {
     const s = { present: 0, absent: 0, "half-day": 0, leave: 0, "paid-leave": 0 };
     filteredEmployees.forEach((emp) => {
+      if (!isEmployeeActiveOn(emp, selectedDate)) return;
       const st = attendanceData[emp.id];
       if (st && st in s) s[st as keyof typeof s]++;
     });
@@ -325,25 +336,45 @@ export default function AttendanceManager() {
                 {filteredEmployees.map((employee) => (
                   <TableRow key={employee.id}>
                     <TableCell>{employee.employeeId}</TableCell>
-                    <TableCell>{employee.fullName}</TableCell>
+                    <TableCell>
+                      <Box>
+                        <Typography variant="body2">{employee.fullName}</Typography>
+                        {(() => {
+                          const activity = getEmployeeMonthActivity(
+                            employee,
+                            selectedDate.getFullYear(),
+                            selectedDate.getMonth() + 1
+                          );
+                          return activity.label ? (
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {activity.label}
+                            </Typography>
+                          ) : null;
+                        })()}
+                      </Box>
+                    </TableCell>
                     <TableCell>{(employee as any).department  || "-"}</TableCell>
                     <TableCell>{(employee as any).designation || "-"}</TableCell>
                     <TableCell align="center">
-                      <FormControl size="small" sx={{ minWidth: 120 }}>
-                        <Select
-                          value={attendanceData[employee.id] || ""}
-                          onChange={(e) => handleAttendanceChange(employee.id, e.target.value)}
-                          displayEmpty
-                          disabled={isRowLoading(savingRows, employee.id)}
-                        >
-                          <MenuItem value=""><em>Not Marked</em></MenuItem>
-                          {attendanceStatuses.map((s) => (
-                            <MenuItem key={s.value} value={s.value}>
-                              <Chip label={s.label} color={s.color} size="small" sx={{ minWidth: 80 }} />
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
+                      {isEmployeeActiveOn(employee, selectedDate) ? (
+                        <FormControl size="small" sx={{ minWidth: 120 }}>
+                          <Select
+                            value={attendanceData[employee.id] || ""}
+                            onChange={(e) => handleAttendanceChange(employee.id, e.target.value)}
+                            displayEmpty
+                            disabled={isRowLoading(savingRows, employee.id)}
+                          >
+                            <MenuItem value=""><em>Not Marked</em></MenuItem>
+                            {attendanceStatuses.map((s) => (
+                              <MenuItem key={s.value} value={s.value}>
+                                <Chip label={s.label} color={s.color} size="small" sx={{ minWidth: 80 }} />
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      ) : (
+                        <Chip label="Inactive" size="small" variant="outlined" disabled />
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
