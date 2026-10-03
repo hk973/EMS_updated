@@ -1086,11 +1086,21 @@ export default function SlipTemplateCanvas({ template, managers, onSave, onBack 
       .catch(console.error);
   }, [currentUser?.uid]);
 
-  // Dynamic variable groups = structure variables + fixed extras
-  const variableGroups = useMemo(
-    () => buildSlipVariableGroups(salaryTemplates),
-    [salaryTemplates],
-  );
+  // Dynamic variable groups = structure variables + fixed extras.
+  // Only show variables when a specific manager is selected. If no manager is
+  // assigned (managerId is null), return an empty list so the variable picker
+  // stays empty until the user assigns a manager to this slip template.
+  // If a manager is selected but has no salary template assigned yet, also
+  // return empty — never fall back to other managers' templates.
+  const variableGroups = useMemo(() => {
+    if (!managerId) return [];
+    // Manager-specific slip: filter to that manager's salary templates + global ones only
+    const filtered = salaryTemplates.filter(
+      (t) => t.managerId === managerId || t.managerId === null,
+    );
+    if (filtered.length === 0) return [];
+    return buildSlipVariableGroups(filtered);
+  }, [salaryTemplates, managerId]);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
