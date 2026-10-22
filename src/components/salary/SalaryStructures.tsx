@@ -67,6 +67,7 @@ import type {
   TemplateSection,
   TemplateColumn,
 } from "@/lib/salaryTemplateService";
+import { getEmployeeMonthActivity } from "@/lib/employeeStatus";
 
 interface SalaryCalculationData {
   // Employee Information
@@ -433,6 +434,277 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     return byMonth?.[getMonthlyKey()] ?? {};
   };
 
+  /** Get available previous months for an employee that have salary data */
+  const getAvailablePreviousMonths = (emp: Employee): string[] => {
+    const byMonth = (emp as unknown as {
+      salaryByMonth?: Record<string, Record<string, unknown>>;
+    }).salaryByMonth;
+    
+    if (!byMonth) return [];
+    
+    const currentKey = getMonthlyKey();
+    const months = Object.keys(byMonth)
+      .filter((key) => key !== currentKey && Object.keys(byMonth[key] || {}).length > 0)
+      .sort((a, b) => {
+        const [yearA, monthA] = a.split('-').map(Number);
+        const [yearB, monthB] = b.split('-').map(Number);
+        return (yearB * 12 + monthB) - (yearA * 12 + monthA);
+      });
+    
+    return months;
+  };
+
+  /** 
+   * Check if employee should be shown for the selected month based on statusEffectiveDate.
+   * Uses the centralized employeeStatus library which handles:
+   * - Inactive from date (employee worked part of month if inactive date > 1st)
+   * - Active from date (employee starts working from that date onward)
+   * - Full month active/inactive scenarios
+   */
+  const isEmployeeIncludedForMonth = (emp: Employee, year: number, month: number): boolean => {
+    const activity = getEmployeeMonthActivity(emp, year, month);
+    return activity.includeInMonth; // True if employee was active for at least 1 day in the month
+  };
+
+  /** Format month key (YYYY-M) to readable format (Month YYYY) */
+  const formatMonthKey = (key: string): string => {
+    const [year, month] = key.split('-').map(Number);
+    const date = new Date(year, month - 1, 1);
+    return date.toLocaleString("default", { month: "long", year: "numeric" });
+  };
+
+  /** Get all copyable fields from a month's salary data */
+  const getCopyableFields = (monthData: Record<string, unknown>): string[] => {
+    const excludeFields = [
+      'createdAt', 'updatedAt', 'id', 'employeeId', 'companyId',
+      'name', 'employee_id', 'esic_no', 'uan', 'epf_no',
+      'father_name', 'designation', 'department', 'dob', 'joining_date', 'hq_location'
+    ];
+    
+    return Object.keys(monthData).filter(key => 
+      !excludeFields.includes(key) && 
+      monthData[key] !== null && 
+      monthData[key] !== undefined &&
+      monthData[key] !== ''
+    );
+  };
+
+  /** Handle opening copy from previous month dialog */
+  const handleOpenCopyDialog = () => {
+    if (!editingEmployee) return;
+    
+    const availableMonths = getAvailablePreviousMonths(editingEmployee);
+    if (availableMonths.length === 0) {
+      setAlert({ 
+        type: "warning", 
+        message: "No previous month data available to copy from" 
+      });
+      return;
+    }
+    
+    // Set the most recent month as default
+    setCopyFromMonth(availableMonths[0]);
+    
+    // Initialize all fields as unselected
+    const byMonth = (editingEmployee as any).salaryByMonth;
+    const monthData = byMonth?.[availableMonths[0]] || {};
+    const fields = getCopyableFields(monthData);
+    const initialSelection: Record<string, boolean> = {};
+    fields.forEach(field => {
+      initialSelection[field] = false;
+    });
+    setSelectedFieldsToCopy(initialSelection);
+    
+    setShowCopyFromPreviousDialog(true);
+  };
+
+  /** Handle copying selected fields from previous month */
+  const handleCopyFromPrevious = () => {
+    if (!editingEmployee || !copyFromMonth) return;
+    
+    const byMonth = (editingEmployee as any).salaryByMonth;
+    const previousMonthData = byMonth?.[copyFromMonth] || {};
+    
+    // Count selected fields
+    const selectedCount = Object.values(selectedFieldsToCopy).filter(Boolean).length;
+    if (selectedCount === 0) {
+      setAlert({ 
+        type: "warning", 
+        message: "Please select at least one field to copy" 
+      });
+      return;
+    }
+    
+    // Copy selected fields to editData
+    const newEditData = { ...editData };
+    const newTemplateColumnValues = { ...templateColumnValues };
+    
+    Object.entries(selectedFieldsToCopy).forEach(([field, isSelected]) => {
+      if (isSelected && previousMonthData[field] !== undefined) {
+        const value = previousMonthData[field];
+        
+        // Check if field exists in editData
+        if (field in editData) {
+          (newEditData as any)[field] = typeof value === 'number' ? value : parseFloat(String(value)) || 0;
+        } 
+        // Check if it's a template column value
+        else if (field in templateColumnValues) {
+          newTemplateColumnValues[field] = typeof value === 'number' ? value : parseFloat(String(value)) || 0;
+        }
+        // Handle custom arrays (allowances, bonuses, deductions)
+        else if (field === 'customAllowances' && Array.isArray(value)) {
+          newEditData.customAllowances = JSON.parse(JSON.stringify(value));
+        } else if (field === 'customBonuses' && Array.isArray(value)) {
+          newEditData.customBonuses = JSON.parse(JSON.stringify(value));
+        } else if (field === 'customDeductions' && Array.isArray(value)) {
+          newEditData.customDeductions = JSON.parse(JSON.stringify(value));
+        }
+        // Any other custom field
+        else {
+          newTemplateColumnValues[field] = typeof value === 'number' ? value : parseFloat(String(value)) || 0;
+        }
+      }
+    });
+    
+    setEditData(newEditData);
+    setTemplateColumnValues(newTemplateColumnValues);
+    setShowCopyFromPreviousDialog(false);
+    
+    setAlert({ 
+      type: "success", 
+      message: `Copied ${selectedCount} field(s) from ${formatMonthKey(copyFromMonth)}` 
+    });
+  };
+
+  /** Handle opening bulk copy dialog for all active employees */
+  const handleOpenBulkCopyDialog = () => {
+    // Get all unique months that have data across all employees
+    const allMonths = new Set<string>();
+    employees.forEach(emp => {
+      const byMonth = (emp as any).salaryByMonth;
+      if (byMonth) {
+        Object.keys(byMonth).forEach(key => {
+          if (key !== getMonthlyKey() && Object.keys(byMonth[key] || {}).length > 0) {
+            allMonths.add(key);
+          }
+        });
+      }
+    });
+
+    const sortedMonths = Array.from(allMonths).sort((a, b) => {
+      const [yearA, monthA] = a.split('-').map(Number);
+      const [yearB, monthB] = b.split('-').map(Number);
+      return (yearB * 12 + monthB) - (yearA * 12 + monthA);
+    });
+
+    if (sortedMonths.length === 0) {
+      setAlert({ 
+        type: "warning", 
+        message: "No previous month data available to copy from" 
+      });
+      return;
+    }
+
+    // Set the most recent month as default
+    setCopyFromMonth(sortedMonths[0]);
+    
+    // Get a sample employee to show available fields
+    const sampleEmp = employees.find(emp => {
+      const byMonth = (emp as any).salaryByMonth;
+      return byMonth && byMonth[sortedMonths[0]];
+    });
+
+    if (sampleEmp) {
+      const byMonth = (sampleEmp as any).salaryByMonth;
+      const monthData = byMonth?.[sortedMonths[0]] || {};
+      const fields = getCopyableFields(monthData);
+      const initialSelection: Record<string, boolean> = {};
+      fields.forEach(field => {
+        initialSelection[field] = false;
+      });
+      setSelectedFieldsToCopy(initialSelection);
+    }
+    
+    setShowBulkCopyDialog(true);
+  };
+
+  /** Handle bulk copying selected fields from previous month to all active employees */
+  const handleBulkCopyFromPrevious = async () => {
+    if (!copyFromMonth || !currentUser?.uid) return;
+    
+    // Count selected fields
+    const selectedCount = Object.values(selectedFieldsToCopy).filter(Boolean).length;
+    if (selectedCount === 0) {
+      setAlert({ 
+        type: "warning", 
+        message: "Please select at least one field to copy" 
+      });
+      return;
+    }
+
+    try {
+      setBulkCopyLoading(true);
+      const currentKey = getMonthlyKey();
+      let successCount = 0;
+      let skipCount = 0;
+
+      // Filter employees that should be included for the current month
+      const activeEmployees = employees.filter(emp => 
+        isEmployeeIncludedForMonth(emp, selectedYear, selectedMonth)
+      );
+
+      // Process each active employee
+      const updates = activeEmployees.map(async (emp) => {
+        const byMonth = (emp as any).salaryByMonth || {};
+        const previousMonthData = byMonth[copyFromMonth];
+        
+        // Skip if no data in source month
+        if (!previousMonthData || Object.keys(previousMonthData).length === 0) {
+          skipCount++;
+          return null;
+        }
+
+        // Get current month data or initialize empty
+        const currentMonthData = { ...(byMonth[currentKey] || {}) };
+
+        // Copy selected fields
+        Object.entries(selectedFieldsToCopy).forEach(([field, isSelected]) => {
+          if (isSelected && previousMonthData[field] !== undefined) {
+            currentMonthData[field] = previousMonthData[field];
+          }
+        });
+
+        // Update Firestore
+        await updateDoc(doc(db, "employees", emp.id), {
+          [`salaryByMonth.${currentKey}`]: currentMonthData,
+          updatedAt: new Date(),
+        });
+
+        successCount++;
+        return emp.id;
+      });
+
+      await Promise.all(updates);
+
+      // Reload employees to show updated data
+      await loadEmployees();
+
+      setShowBulkCopyDialog(false);
+      setAlert({ 
+        type: "success", 
+        message: `Successfully copied ${selectedCount} field(s) from ${formatMonthKey(copyFromMonth)} to ${successCount} active employee(s)${skipCount > 0 ? ` (skipped ${skipCount} without source data)` : ''}` 
+      });
+    } catch (error) {
+      console.error("Error bulk copying salary data:", error);
+      setAlert({ 
+        type: "error", 
+        message: "Failed to copy salary data. Please try again." 
+      });
+    } finally {
+      setBulkCopyLoading(false);
+    }
+  };
+
   /** Format a date value (string, number, Date, Firestore timestamp) to a readable string */
   const formatDate = (value: unknown): string => {
     if (!value) return "-";
@@ -779,7 +1051,13 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
   const [showCalculationDialog, setShowCalculationDialog] = useState(false);
   const [showConfigDialog, setShowConfigDialog] = useState(false);
   const [showBulkEditDialog, setShowBulkEditDialog] = useState(false);
+  const [showCopyFromPreviousDialog, setShowCopyFromPreviousDialog] = useState(false);
+  const [showBulkCopyDialog, setShowBulkCopyDialog] = useState(false);
+  const [showInactiveEmployees, setShowInactiveEmployees] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [copyFromMonth, setCopyFromMonth] = useState<string>("");
+  const [selectedFieldsToCopy, setSelectedFieldsToCopy] = useState<Record<string, boolean>>({});
+  const [bulkCopyLoading, setBulkCopyLoading] = useState(false);
 
   // Custom template column values for the edit dialog (key → number)
   // These are no-formula columns from the employee's assigned template (e.g. conv_allowance, washing_allowance)
@@ -2038,7 +2316,10 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
       (Array.isArray(employee.assignedManagers) &&
         employee.assignedManagers.includes(selectedManagerId));
 
-    return matchesSearch && matchesManager;
+    // Check if employee should be included for the selected month (unless toggle is on)
+    const isIncludedForMonth = showInactiveEmployees || isEmployeeIncludedForMonth(employee, selectedYear, selectedMonth);
+
+    return matchesSearch && matchesManager && isIncludedForMonth;
   });
 
   const isBlankCell = (value: unknown) =>
@@ -2802,6 +3083,26 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           </Select>
         </FormControl>
 
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={showInactiveEmployees}
+              onChange={(e) => setShowInactiveEmployees(e.target.checked)}
+              sx={{
+                color: "#888",
+                '&.Mui-checked': {
+                  color: "#2196f3"
+                }
+              }}
+            />
+          }
+          label={
+            <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
+              Show Inactive
+            </Typography>
+          }
+        />
+
         <FormControl sx={{ minWidth: 150 }}>
           <InputLabel id="attendance-period-month-label">Month</InputLabel>
           <Select
@@ -2872,6 +3173,19 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           }}
         >
           Upload Excel
+        </Button>
+
+        <Button
+          variant="contained"
+          startIcon={<FileUpload />}
+          onClick={handleOpenBulkCopyDialog}
+          sx={{
+            backgroundColor: "#ff9800",
+            "&:hover": { backgroundColor: "#f57c00" },
+            borderRadius: 2,
+          }}
+        >
+          Bulk Copy from Previous Month
         </Button>
 
         <Button
@@ -2961,6 +3275,264 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
             }
           >
             {deleteMonthLoading ? "Deleting…" : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Bulk Copy from Previous Month Dialog */}
+      <Dialog
+        open={showBulkCopyDialog}
+        onClose={() => !bulkCopyLoading && setShowBulkCopyDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Typography variant="h5" component="span">
+            Bulk Copy Salary Data from Previous Month
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Alert severity="info" sx={{ mb: 3 }}>
+              This will copy selected fields from the chosen previous month to <strong>all active employees</strong> for{" "}
+              {new Date(selectedYear, selectedMonth - 1, 1).toLocaleString("default", { month: "long", year: "numeric" })}.
+              {" "}Employees without data in the source month will be skipped.
+            </Alert>
+
+            {/* Month Selection */}
+            {(() => {
+              const allMonths = new Set<string>();
+              employees.forEach(emp => {
+                const byMonth = (emp as any).salaryByMonth;
+                if (byMonth) {
+                  Object.keys(byMonth).forEach(key => {
+                    if (key !== getMonthlyKey() && Object.keys(byMonth[key] || {}).length > 0) {
+                      allMonths.add(key);
+                    }
+                  });
+                }
+              });
+
+              const sortedMonths = Array.from(allMonths).sort((a, b) => {
+                const [yearA, monthA] = a.split('-').map(Number);
+                const [yearB, monthB] = b.split('-').map(Number);
+                return (yearB * 12 + monthB) - (yearA * 12 + monthA);
+              });
+
+              if (sortedMonths.length === 0) {
+                return (
+                  <Typography color="text.secondary" sx={{ textAlign: "center", py: 4 }}>
+                    No previous month data available
+                  </Typography>
+                );
+              }
+
+              return (
+                <>
+                  <FormControl fullWidth sx={{ mb: 3 }}>
+                    <InputLabel>Select Source Month</InputLabel>
+                    <Select
+                      value={copyFromMonth}
+                      onChange={(e) => {
+                        const newMonth = e.target.value;
+                        setCopyFromMonth(newMonth);
+                        
+                        // Reset selections when month changes
+                        const sampleEmp = employees.find(emp => {
+                          const byMonth = (emp as any).salaryByMonth;
+                          return byMonth && byMonth[newMonth];
+                        });
+
+                        if (sampleEmp) {
+                          const byMonth = (sampleEmp as any).salaryByMonth;
+                          const monthData = byMonth?.[newMonth] || {};
+                          const fields = getCopyableFields(monthData);
+                          const newSelection: Record<string, boolean> = {};
+                          fields.forEach(field => {
+                            newSelection[field] = false;
+                          });
+                          setSelectedFieldsToCopy(newSelection);
+                        }
+                      }}
+                      label="Select Source Month"
+                    >
+                      {sortedMonths.map((monthKey) => (
+                        <MenuItem key={monthKey} value={monthKey}>
+                          {formatMonthKey(monthKey)}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  {/* Field Selection */}
+                  {copyFromMonth && (() => {
+                    const sampleEmp = employees.find(emp => {
+                      const byMonth = (emp as any).salaryByMonth;
+                      return byMonth && byMonth[copyFromMonth];
+                    });
+
+                    if (!sampleEmp) return null;
+
+                    const byMonth = (sampleEmp as any).salaryByMonth;
+                    const monthData = byMonth?.[copyFromMonth] || {};
+                    const fields = getCopyableFields(monthData);
+
+                    return (
+                      <>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                          <Typography variant="h6">
+                            Select Fields to Copy
+                          </Typography>
+                          <Box>
+                            <Button
+                              size="small"
+                              onClick={() => {
+                                const allSelected: Record<string, boolean> = {};
+                                fields.forEach(field => {
+                                  allSelected[field] = true;
+                                });
+                                setSelectedFieldsToCopy(allSelected);
+                              }}
+                            >
+                              Select All
+                            </Button>
+                            <Button
+                              size="small"
+                              onClick={() => {
+                                const noneSelected: Record<string, boolean> = {};
+                                fields.forEach(field => {
+                                  noneSelected[field] = false;
+                                });
+                                setSelectedFieldsToCopy(noneSelected);
+                              }}
+                            >
+                              Clear All
+                            </Button>
+                          </Box>
+                        </Box>
+
+                        <Paper 
+                          sx={{ 
+                            maxHeight: 400, 
+                            overflow: "auto", 
+                            backgroundColor: "#2d2d2d", 
+                            border: "1px solid #444",
+                            p: 2 
+                          }}
+                        >
+                          {(() => {
+                            // Group fields by category
+                            const basicFields = ['basic', 'da'];
+                            const workingDaysFields = ['totalDays', 'paidDays'];
+                            const overtimeFields = ['singleOTHours', 'doubleOTHours', 'difference'];
+                            const deductionFields = ['advance', 'professionalTax'];
+                            const customFields = ['customAllowances', 'customBonuses', 'customDeductions'];
+                            const percentageFields = ['hraPercentage', 'esicEmployeePercentage', 'esicEmployerPercentage', 'pfEmployeePercentage', 'pfEmployerPercentage', 'mlwfEmployerAmount'];
+                            
+                            const categorizedFields: Record<string, string[]> = {
+                              'Basic Salary': fields.filter(f => basicFields.includes(f)),
+                              'Working Days': fields.filter(f => workingDaysFields.includes(f)),
+                              'Overtime': fields.filter(f => overtimeFields.includes(f)),
+                              'Deductions': fields.filter(f => deductionFields.includes(f)),
+                              'Custom Components': fields.filter(f => customFields.includes(f)),
+                              'Percentages': fields.filter(f => percentageFields.includes(f)),
+                              'Other': fields.filter(f => 
+                                !basicFields.includes(f) && 
+                                !workingDaysFields.includes(f) && 
+                                !overtimeFields.includes(f) && 
+                                !deductionFields.includes(f) && 
+                                !customFields.includes(f) &&
+                                !percentageFields.includes(f)
+                              )
+                            };
+                            
+                            return Object.entries(categorizedFields).map(([category, categoryFields]) => {
+                              if (categoryFields.length === 0) return null;
+                              
+                              return (
+                                <Box key={category} sx={{ mb: 3 }}>
+                                  <Typography variant="subtitle2" color="primary" sx={{ mb: 1, fontWeight: 600 }}>
+                                    {category}
+                                  </Typography>
+                                  <Box sx={{ pl: 2 }}>
+                                    {categoryFields.map((field) => {
+                                      const value = monthData[field];
+                                      let displayValue = '';
+                                      
+                                      if (Array.isArray(value)) {
+                                        displayValue = `${value.length} item(s)`;
+                                      } else if (typeof value === 'number') {
+                                        displayValue = value.toFixed(2);
+                                      } else {
+                                        displayValue = String(value);
+                                      }
+                                      
+                                      return (
+                                        <FormControlLabel
+                                          key={field}
+                                          control={
+                                            <Checkbox
+                                              checked={selectedFieldsToCopy[field] || false}
+                                              onChange={(e) => {
+                                                setSelectedFieldsToCopy(prev => ({
+                                                  ...prev,
+                                                  [field]: e.target.checked
+                                                }));
+                                              }}
+                                              sx={{ 
+                                                color: "#ff9800",
+                                                '&.Mui-checked': {
+                                                  color: "#ff9800"
+                                                }
+                                              }}
+                                            />
+                                          }
+                                          label={
+                                            <Box>
+                                              <Typography variant="body2">
+                                                {field.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                                              </Typography>
+                                              <Typography variant="caption" color="text.secondary">
+                                                Sample value: {displayValue}
+                                              </Typography>
+                                            </Box>
+                                          }
+                                          sx={{ display: "block", mb: 1 }}
+                                        />
+                                      );
+                                    })}
+                                  </Box>
+                                </Box>
+                              );
+                            });
+                          })()}
+                        </Paper>
+                      </>
+                    );
+                  })()}
+                </>
+              );
+            })()}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setShowBulkCopyDialog(false)}
+            disabled={bulkCopyLoading}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleBulkCopyFromPrevious}
+            variant="contained"
+            disabled={bulkCopyLoading || Object.values(selectedFieldsToCopy).filter(Boolean).length === 0}
+            startIcon={bulkCopyLoading ? <CircularProgress size={20} /> : <FileUpload />}
+            sx={{
+              backgroundColor: "#ff9800",
+              "&:hover": { backgroundColor: "#f57c00" },
+            }}
+          >
+            {bulkCopyLoading ? "Copying..." : "Copy to All Active Employees"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -3561,6 +4133,21 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           </Box>
         </DialogContent>
         <DialogActions>
+          <Button 
+            onClick={handleOpenCopyDialog}
+            variant="outlined"
+            sx={{ 
+              mr: "auto",
+              borderColor: "#4caf50",
+              color: "#4caf50",
+              "&:hover": { 
+                borderColor: "#66bb6a",
+                backgroundColor: "rgba(76, 175, 80, 0.08)"
+              }
+            }}
+          >
+            Copy from Previous Month
+          </Button>
           <Button onClick={() => setShowEditDialog(false)}>Cancel</Button>
           <Button
             onClick={handleSaveEdit}
@@ -3572,6 +4159,221 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
             }}
           >
             {editLoading ? <CircularProgress size={24} /> : "Save & Calculate"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Copy from Previous Month Dialog */}
+      <Dialog
+        open={showCopyFromPreviousDialog}
+        onClose={() => setShowCopyFromPreviousDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Typography variant="h5" component="span">
+            Copy Salary Data from Previous Month
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Select a previous month and the fields you want to copy to the current month
+              ({new Date(selectedYear, selectedMonth - 1, 1).toLocaleString("default", { month: "long", year: "numeric" })})
+            </Typography>
+
+            {/* Month Selection */}
+            {editingEmployee && getAvailablePreviousMonths(editingEmployee).length > 0 && (
+              <>
+                <FormControl fullWidth sx={{ mb: 3 }}>
+                  <InputLabel>Select Month</InputLabel>
+                  <Select
+                    value={copyFromMonth}
+                    onChange={(e) => {
+                      const newMonth = e.target.value;
+                      setCopyFromMonth(newMonth);
+                      
+                      // Reset selections when month changes
+                      const byMonth = (editingEmployee as any).salaryByMonth;
+                      const monthData = byMonth?.[newMonth] || {};
+                      const fields = getCopyableFields(monthData);
+                      const newSelection: Record<string, boolean> = {};
+                      fields.forEach(field => {
+                        newSelection[field] = false;
+                      });
+                      setSelectedFieldsToCopy(newSelection);
+                    }}
+                    label="Select Month"
+                  >
+                    {getAvailablePreviousMonths(editingEmployee).map((monthKey) => (
+                      <MenuItem key={monthKey} value={monthKey}>
+                        {formatMonthKey(monthKey)}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                {/* Field Selection */}
+                {copyFromMonth && (
+                  <>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                      <Typography variant="h6">
+                        Select Fields to Copy
+                      </Typography>
+                      <Box>
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            const byMonth = (editingEmployee as any).salaryByMonth;
+                            const monthData = byMonth?.[copyFromMonth] || {};
+                            const fields = getCopyableFields(monthData);
+                            const allSelected: Record<string, boolean> = {};
+                            fields.forEach(field => {
+                              allSelected[field] = true;
+                            });
+                            setSelectedFieldsToCopy(allSelected);
+                          }}
+                        >
+                          Select All
+                        </Button>
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            const byMonth = (editingEmployee as any).salaryByMonth;
+                            const monthData = byMonth?.[copyFromMonth] || {};
+                            const fields = getCopyableFields(monthData);
+                            const noneSelected: Record<string, boolean> = {};
+                            fields.forEach(field => {
+                              noneSelected[field] = false;
+                            });
+                            setSelectedFieldsToCopy(noneSelected);
+                          }}
+                        >
+                          Clear All
+                        </Button>
+                      </Box>
+                    </Box>
+
+                    <Paper 
+                      sx={{ 
+                        maxHeight: 400, 
+                        overflow: "auto", 
+                        backgroundColor: "#2d2d2d", 
+                        border: "1px solid #444",
+                        p: 2 
+                      }}
+                    >
+                      {(() => {
+                        const byMonth = (editingEmployee as any).salaryByMonth;
+                        const monthData = byMonth?.[copyFromMonth] || {};
+                        const fields = getCopyableFields(monthData);
+                        
+                        // Group fields by category
+                        const basicFields = ['basic', 'da'];
+                        const workingDaysFields = ['totalDays', 'paidDays'];
+                        const overtimeFields = ['singleOTHours', 'doubleOTHours', 'difference'];
+                        const deductionFields = ['advance', 'professionalTax'];
+                        const customFields = ['customAllowances', 'customBonuses', 'customDeductions'];
+                        const percentageFields = ['hraPercentage', 'esicEmployeePercentage', 'esicEmployerPercentage', 'pfEmployeePercentage', 'pfEmployerPercentage', 'mlwfEmployerAmount'];
+                        
+                        const categorizedFields: Record<string, string[]> = {
+                          'Basic Salary': fields.filter(f => basicFields.includes(f)),
+                          'Working Days': fields.filter(f => workingDaysFields.includes(f)),
+                          'Overtime': fields.filter(f => overtimeFields.includes(f)),
+                          'Deductions': fields.filter(f => deductionFields.includes(f)),
+                          'Custom Components': fields.filter(f => customFields.includes(f)),
+                          'Percentages': fields.filter(f => percentageFields.includes(f)),
+                          'Other': fields.filter(f => 
+                            !basicFields.includes(f) && 
+                            !workingDaysFields.includes(f) && 
+                            !overtimeFields.includes(f) && 
+                            !deductionFields.includes(f) && 
+                            !customFields.includes(f) &&
+                            !percentageFields.includes(f)
+                          )
+                        };
+                        
+                        return Object.entries(categorizedFields).map(([category, categoryFields]) => {
+                          if (categoryFields.length === 0) return null;
+                          
+                          return (
+                            <Box key={category} sx={{ mb: 3 }}>
+                              <Typography variant="subtitle2" color="primary" sx={{ mb: 1, fontWeight: 600 }}>
+                                {category}
+                              </Typography>
+                              <Box sx={{ pl: 2 }}>
+                                {categoryFields.map((field) => {
+                                  const value = monthData[field];
+                                  let displayValue = '';
+                                  
+                                  if (Array.isArray(value)) {
+                                    displayValue = `${value.length} item(s)`;
+                                  } else if (typeof value === 'number') {
+                                    displayValue = value.toFixed(2);
+                                  } else {
+                                    displayValue = String(value);
+                                  }
+                                  
+                                  return (
+                                    <FormControlLabel
+                                      key={field}
+                                      control={
+                                        <Checkbox
+                                          checked={selectedFieldsToCopy[field] || false}
+                                          onChange={(e) => {
+                                            setSelectedFieldsToCopy(prev => ({
+                                              ...prev,
+                                              [field]: e.target.checked
+                                            }));
+                                          }}
+                                          sx={{ 
+                                            color: "#4caf50",
+                                            '&.Mui-checked': {
+                                              color: "#4caf50"
+                                            }
+                                          }}
+                                        />
+                                      }
+                                      label={
+                                        <Box>
+                                          <Typography variant="body2">
+                                            {field.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                                          </Typography>
+                                          <Typography variant="caption" color="text.secondary">
+                                            Value: {displayValue}
+                                          </Typography>
+                                        </Box>
+                                      }
+                                      sx={{ display: "block", mb: 1 }}
+                                    />
+                                  );
+                                })}
+                              </Box>
+                            </Box>
+                          );
+                        });
+                      })()}
+                    </Paper>
+                  </>
+                )}
+              </>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowCopyFromPreviousDialog(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCopyFromPrevious}
+            variant="contained"
+            sx={{
+              backgroundColor: "#4caf50",
+              "&:hover": { backgroundColor: "#66bb6a" },
+            }}
+            disabled={Object.values(selectedFieldsToCopy).filter(Boolean).length === 0}
+          >
+            Copy Selected Fields
           </Button>
         </DialogActions>
       </Dialog>
