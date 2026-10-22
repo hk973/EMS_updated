@@ -529,7 +529,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     const selectedCount = Object.values(selectedFieldsToCopy).filter(Boolean).length;
     if (selectedCount === 0) {
       setAlert({ 
-        type: "warning", 
+        type: "error", 
         message: "Please select at least one field to copy" 
       });
       return;
@@ -599,7 +599,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
 
     if (sortedMonths.length === 0) {
       setAlert({ 
-        type: "warning", 
+        type: "error", 
         message: "No previous month data available to copy from" 
       });
       return;
@@ -636,7 +636,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     const selectedCount = Object.values(selectedFieldsToCopy).filter(Boolean).length;
     if (selectedCount === 0) {
       setAlert({ 
-        type: "warning", 
+        type: "error", 
         message: "Please select at least one field to copy" 
       });
       return;
