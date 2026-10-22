@@ -496,7 +496,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     const availableMonths = getAvailablePreviousMonths(editingEmployee);
     if (availableMonths.length === 0) {
       setAlert({ 
-        type: "warning", 
+        type: "error", 
         message: "No previous month data available to copy from" 
       });
       return;
