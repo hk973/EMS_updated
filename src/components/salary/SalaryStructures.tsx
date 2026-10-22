@@ -3179,13 +3179,16 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           variant="contained"
           startIcon={<FileUpload />}
           onClick={handleOpenBulkCopyDialog}
+          disabled={selectedManagerId === "all"}
           sx={{
-            backgroundColor: "#ff9800",
-            "&:hover": { backgroundColor: "#f57c00" },
+            backgroundColor: selectedManagerId === "all" ? "#ccc" : "#ff9800",
+            "&:hover": { backgroundColor: selectedManagerId === "all" ? "#ccc" : "#f57c00" },
             borderRadius: 2,
           }}
         >
-          Bulk Copy from Previous Month
+          <Tooltip title={selectedManagerId === "all" ? "Please select a specific manager to use bulk copy" : "Copy salary data from a previous month for all employees"}>
+            <span>Bulk Copy from Previous Month</span>
+          </Tooltip>
         </Button>
 
         <Button
@@ -3290,12 +3293,15 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           <Typography variant="h5" component="span">
             Bulk Copy Salary Data from Previous Month
           </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Select a <strong>source month</strong> (previous month to copy FROM) and choose which fields to copy for all employees
+          </Typography>
         </DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2 }}>
             <Alert severity="info" sx={{ mb: 3 }}>
-              This will copy selected fields from the chosen previous month to <strong>all active employees</strong> for{" "}
-              {new Date(selectedYear, selectedMonth - 1, 1).toLocaleString("default", { month: "long", year: "numeric" })}.
+              This will copy selected fields from the source month to <strong>all active employees</strong> for{" "}
+              <strong>{new Date(selectedYear, selectedMonth - 1, 1).toLocaleString("default", { month: "long", year: "numeric" })}</strong>.
               {" "}Employees without data in the source month will be skipped.
             </Alert>
 
@@ -3330,7 +3336,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
               return (
                 <>
                   <FormControl fullWidth sx={{ mb: 3 }}>
-                    <InputLabel>Select Source Month</InputLabel>
+                    <InputLabel>Source Month (copy FROM)</InputLabel>
                     <Select
                       value={copyFromMonth}
                       onChange={(e) => {
@@ -4133,21 +4139,25 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button 
-            onClick={handleOpenCopyDialog}
-            variant="outlined"
-            sx={{ 
-              mr: "auto",
-              borderColor: "#4caf50",
-              color: "#4caf50",
-              "&:hover": { 
-                borderColor: "#66bb6a",
-                backgroundColor: "rgba(76, 175, 80, 0.08)"
-              }
-            }}
-          >
-            Copy from Previous Month
-          </Button>
+          {selectedManagerId !== "all" && (
+            <Tooltip title="Copy salary data from a previous month to pre-fill this employee's current month data">
+              <Button 
+                onClick={handleOpenCopyDialog}
+                variant="outlined"
+                sx={{ 
+                  mr: "auto",
+                  borderColor: "#4caf50",
+                  color: "#4caf50",
+                  "&:hover": { 
+                    borderColor: "#66bb6a",
+                    backgroundColor: "rgba(76, 175, 80, 0.08)"
+                  }
+                }}
+              >
+                Copy from Previous Month
+              </Button>
+            </Tooltip>
+          )}
           <Button onClick={() => setShowEditDialog(false)}>Cancel</Button>
           <Button
             onClick={handleSaveEdit}
@@ -4174,19 +4184,21 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           <Typography variant="h5" component="span">
             Copy Salary Data from Previous Month
           </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Select a <strong>source month</strong> (previous month to copy FROM) and choose which salary fields to copy
+          </Typography>
         </DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2 }}>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Select a previous month and the fields you want to copy to the current month
-              ({new Date(selectedYear, selectedMonth - 1, 1).toLocaleString("default", { month: "long", year: "numeric" })})
+              Copying to: <strong>{new Date(selectedYear, selectedMonth - 1, 1).toLocaleString("default", { month: "long", year: "numeric" })}</strong>
             </Typography>
 
             {/* Month Selection */}
             {editingEmployee && getAvailablePreviousMonths(editingEmployee).length > 0 && (
               <>
                 <FormControl fullWidth sx={{ mb: 3 }}>
-                  <InputLabel>Select Month</InputLabel>
+                  <InputLabel>Source Month (copy FROM)</InputLabel>
                   <Select
                     value={copyFromMonth}
                     onChange={(e) => {
@@ -4203,7 +4215,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
                       });
                       setSelectedFieldsToCopy(newSelection);
                     }}
-                    label="Select Month"
+                    label="Source Month (copy FROM)"
                   >
                     {getAvailablePreviousMonths(editingEmployee).map((monthKey) => (
                       <MenuItem key={monthKey} value={monthKey}>
