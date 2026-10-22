@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion",
     "start": "next start",
     "lint": "next lint",
-    "preview": "opennextjs-cloudflare build && wrangler dev",
-    "deploy": "opennextjs-cloudflare build && wrangler deploy"
+    "preview": "opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion && wrangler dev",
+    "deploy": "opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion && wrangler deploy"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1046.0",
