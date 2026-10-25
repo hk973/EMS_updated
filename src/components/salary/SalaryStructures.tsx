@@ -674,9 +674,46 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           }
         });
 
+        // IMPORTANT: Recalculate all dependent values (HRA, gross, deductions, CTC, etc.)
+        // Build a temporary salary data object with the copied values
+        const salaryData: any = {
+          esicNo: emp.esicNo || "",
+          uan: emp.uan || "",
+          basic: Number(currentMonthData.basic ?? currentMonthData.base ?? 0),
+          da: Number(currentMonthData.da ?? 0),
+          totalDays: Number(currentMonthData.totalDays ?? 30),
+          paidDays: Number(currentMonthData.paidDays ?? 30),
+          singleOTHours: Number(currentMonthData.singleOTHours ?? 0),
+          doubleOTHours: Number(currentMonthData.doubleOTHours ?? 0),
+          difference: Number(currentMonthData.difference ?? 0),
+          advance: Number(currentMonthData.advance ?? 0),
+          isSkillBased: currentMonthData.isSkillBased ?? false,
+          skillCategory: currentMonthData.skillCategory ?? "",
+          skillAmount: Number(currentMonthData.skillAmount ?? 0),
+          customAllowances: currentMonthData.customAllowances ?? [],
+          customBonuses: currentMonthData.customBonuses ?? [],
+          customDeductions: currentMonthData.customDeductions ?? [],
+          hraPercentage: editData.hraPercentage,
+          esicEmployeePercentage: editData.esicEmployeePercentage,
+          esicEmployerPercentage: editData.esicEmployerPercentage,
+          pfEmployeePercentage: editData.pfEmployeePercentage,
+          pfEmployerPercentage: editData.pfEmployerPercentage,
+          mlwfEmployerAmount: editData.mlwfEmployerAmount,
+        };
+
+        // Recalculate everything
+        const recalculated = calculateFullSalary(salaryData);
+        
+        // Merge: keep copied fields + recalculated fields
+        const finalData = {
+          ...currentMonthData,
+          ...recalculated,
+        };
+
         // Update Firestore
         await updateDoc(doc(db, "employees", emp.id), {
-          [`salaryByMonth.${currentKey}`]: currentMonthData,
+          [`salaryByMonth.${currentKey}`]: finalData,
+          salary: finalData, // Keep global salary in sync
           updatedAt: new Date(),
         });
 
@@ -857,11 +894,20 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
             val = showCalculatedValues ? "" : "auto calculated";
           }
         } else {
+          // For non-formula columns, use the value from context (which has fallbacks to calculated values)
+          const ctxValue = ctx[col.key];
           const storedValue =
             (s as Record<string, unknown>)[col.key] ??
             (emp as any).salaryOverrides?.[col.key];
-          if (!isBlankCell(storedValue) && storedValue !== "-") {
+          
+          if (!isBlankCell(ctxValue) && ctxValue !== "-" && ctxValue !== undefined) {
+            // Use context value (which includes calculated fallbacks)
+            val = ctxValue as string | number;
+            // Also update ctx for formula dependencies
+            ctx[col.key] = ctxValue;
+          } else if (!isBlankCell(storedValue) && storedValue !== "-") {
             val = storedValue as string | number;
+            ctx[col.key] = storedValue;
           } else {
             val = ""; // empty string so Excel shows blank, not "-"
           }
