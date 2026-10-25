@@ -878,6 +878,147 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     return row;
   };
 
+  /** Build employee export row WITH CALCULATED VALUES (for Download XLSX) */
+  const buildEmployeeExportRowCalculated = (
+    emp: Employee,
+    sections: TemplateSection[],
+  ): Record<string, string | number> => {
+    const managerId =
+      (Array.isArray(emp.assignedManagers)
+        ? emp.assignedManagers[0]
+        : emp.assignedManager) ?? "";
+    const tmpl = getTemplateForManagerId(managerId);
+
+    // Build context progressively — sourced from the SELECTED month's data.
+    const s = getMonthlySalary(emp);
+    const totalDaysVal = Number((s as any).totalDays ?? 30);
+    const paidDaysVal = Number((s as any).paidDays ?? totalDaysVal);
+    const presentDays = Number((s as any).presentDays ?? paidDaysVal);
+    const absentDays = Number(
+      (s as any).absentDays ?? Math.max(0, totalDaysVal - paidDaysVal),
+    );
+    const ctx: Record<string, unknown> = {
+      name: emp.fullName ?? "",
+      employee_id: emp.employeeId ?? "",
+      designation: (emp as any).designation ?? "",
+      department: (emp as any).department ?? "",
+      father_name: (emp as any).fatherName ?? "",
+      dob: formatDate((emp as any).dob),
+      joining_date: formatDate((emp as any).joinDate),
+      esic_no: emp.esicNo ?? "",
+      uan: emp.uan ?? "",
+      epf_no: (emp as any).epfNo ?? "",
+      hq_location: (emp as any).hqLocation ?? "",
+      bank_account: (emp as any).bankAccount ?? "",
+      ifsc_code: (emp as any).ifscCode ?? "",
+      basic: Number((s as any).basic ?? (s as any).base ?? 0),
+      da: Number((s as any).da ?? 0),
+      total_days: totalDaysVal,
+      paid_days: paidDaysVal,
+      present_days: presentDays,
+      absent_days: absentDays,
+      half_days: Number((s as any).halfDayDays ?? 0),
+      half_day_days: Number((s as any).halfDayDays ?? 0),
+      leave_days: Number((s as any).leaveDays ?? 0),
+      paid_leave_days: Number((s as any).paidLeaveDays ?? 0),
+      working_holiday_days: Number((s as any).workingHolidayDays ?? 0),
+      unmarked_days: Number((s as any).unmarkedDays ?? 0),
+      hra: Number((s as any).hra ?? 0),
+      gross_rate_pm: Number((s as any).grossRatePM ?? 0),
+      rate_gross_pm: Number((s as any).grossRatePM ?? 0),
+      gross_earning: Number((s as any).totalGrossEarning ?? 0),
+      ot_rate: Number((s as any).otRatePerHour ?? 0),
+      single_ot_hours: Number((s as any).singleOTHours ?? 0),
+      double_ot_hours: Number((s as any).doubleOTHours ?? 0),
+      ot_amount: Number((s as any).otAmount ?? 0),
+      difference: Number((s as any).difference ?? 0),
+      total_gross: Number((s as any).totalGrossEarning ?? 0),
+      professional_tax: Number((s as any).professionalTax ?? 0),
+      esic_employee: Number((s as any).esicEmployee ?? 0),
+      pf_base: Number((s as any).pfBase ?? 0),
+      pf_employee: Number((s as any).pfEmployee ?? 0),
+      advance: Number((s as any).advance ?? 0),
+      total_deduction: Number((s as any).totalDeduction ?? 0),
+      net_salary: Number((s as any).netSalary ?? 0),
+      esic_employer: Number((s as any).esicEmployer ?? 0),
+      pf_employer: Number((s as any).pfEmployer ?? 0),
+      mlwf_employer: Number((s as any).mlwfEmployer ?? 0),
+      ctc_per_month: Number((s as any).ctcPerMonth ?? 0),
+      employee_type: (emp as any).employeeType ?? "",
+    };
+
+    // Pre-populate ALL stored values (non-formula columns)
+    for (const sec of sections) {
+      for (const col of sec.columns) {
+        if (!col.formula?.expression) {
+          const storedValue = (s as Record<string, unknown>)[col.key] ?? (emp as any).salaryOverrides?.[col.key];
+          if (storedValue !== undefined && storedValue !== null && storedValue !== "" && storedValue !== "-") {
+            // Keep original type
+            if (typeof storedValue === 'number') {
+              ctx[col.key] = storedValue;
+            } else if (typeof storedValue === 'string') {
+              const parsed = Number(storedValue);
+              ctx[col.key] = isNaN(parsed) ? storedValue : parsed;
+            } else {
+              ctx[col.key] = storedValue;
+            }
+          }
+        }
+      }
+    }
+
+    const row: Record<string, string | number> = {};
+
+    // Evaluate all sections/columns in order
+    const evalSections = tmpl
+      ? [...tmpl.sections]
+          .sort((a, b) => a.order - b.order)
+          .map((sec) => ({ ...sec, columns: [...sec.columns].sort((a, b) => a.order - b.order) }))
+      : sections.map((sec) => ({ ...sec, columns: [...sec.columns].sort((a, b) => a.order - b.order) }));
+
+    for (const sec of evalSections) {
+      for (const col of sec.columns) {
+        let val: string | number | undefined;
+        
+        if (col.formula?.expression) {
+          // Calculate the formula value
+          const result = evaluateTemplateFormula(col.formula.expression, ctx);
+          if (typeof result === "number") {
+            ctx[col.key] = result;
+            val = Math.round(result * 100) / 100; // Show calculated value with 2 decimals
+          } else {
+            val = "";
+          }
+        } else {
+          // Use value from context (either pre-populated or direct)
+          const ctxVal = ctx[col.key];
+          if (ctxVal === undefined || ctxVal === null || ctxVal === "" || ctxVal === "-") {
+            val = "";
+          } else if (typeof ctxVal === "number") {
+            val = Math.round(ctxVal * 100) / 100;
+          } else {
+            val = ctxVal as string;
+          }
+        }
+        
+        // Only include columns that exist in the union sections
+        const inUnion = sections.some((s) => s.columns.some((c) => c.key === col.key));
+        if (inUnion || tmpl) {
+          row[col.label] = val;
+        }
+      }
+    }
+
+    // Fill empty string for any union columns not in this employee's template
+    for (const sec of sections) {
+      for (const col of sec.columns) {
+        if (!(col.label in row)) row[col.label] = "";
+      }
+    }
+
+    return row;
+  };
+
   const getExportData = () => {
     const sections = getActiveExportSections();
 
@@ -924,108 +1065,10 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
       return hasBasicOrBase || hasPaidDays || hasTotalDays;
     });
 
-    const data = employeesWithData.map((emp, index) => {
-      const managerId =
-        (Array.isArray(emp.assignedManagers)
-          ? emp.assignedManagers[0]
-          : emp.assignedManager) ?? "";
-      const tmpl = getTemplateForManagerId(managerId);
-      const s = getMonthlySalary(emp);
-      
-      // Build context with all stored values
-      const totalDaysVal = Number((s as any).totalDays ?? 30);
-      const paidDaysVal = Number((s as any).paidDays ?? totalDaysVal);
-      
-      const ctx: Record<string, unknown> = {
-        name: emp.fullName ?? "",
-        employee_id: emp.employeeId ?? "",
-        designation: (emp as any).designation ?? "",
-        department: (emp as any).department ?? "",
-        father_name: (emp as any).fatherName ?? "",
-        dob: formatDate((emp as any).dob),
-        joining_date: formatDate((emp as any).joinDate),
-        esic_no: emp.esicNo ?? "",
-        uan: emp.uan ?? "",
-        epf_no: (emp as any).epfNo ?? "",
-        hq_location: (emp as any).hqLocation ?? "",
-        basic: Number((s as any).basic ?? (s as any).base ?? 0),
-        da: Number((s as any).da ?? 0),
-        total_days: totalDaysVal,
-        paid_days: paidDaysVal,
-        single_ot_hours: Number((s as any).singleOTHours ?? 0),
-        double_ot_hours: Number((s as any).doubleOTHours ?? 0),
-        difference: Number((s as any).difference ?? 0),
-        advance: Number((s as any).advance ?? 0),
-      };
-
-      // Pre-populate stored values (non-formula columns)
-      for (const sec of sections) {
-        for (const col of sec.columns) {
-          if (!col.formula?.expression) {
-            const storedValue = (s as Record<string, unknown>)[col.key];
-            if (storedValue !== undefined && storedValue !== null && storedValue !== "" && storedValue !== "-") {
-              // Keep the original type - don't force convert to number
-              if (typeof storedValue === 'number') {
-                ctx[col.key] = storedValue;
-              } else if (typeof storedValue === 'string') {
-                // Try to parse as number only if it looks like a number
-                const parsed = Number(storedValue);
-                ctx[col.key] = isNaN(parsed) ? storedValue : parsed;
-              } else {
-                ctx[col.key] = storedValue;
-              }
-            }
-            // Don't set anything if no value - leave it undefined for empty cells
-          }
-        }
-      }
-
-      // Evaluate all formulas in order
-      const evalSections = tmpl
-        ? [...tmpl.sections]
-            .sort((a, b) => a.order - b.order)
-            .map((sec) => ({ ...sec, columns: [...sec.columns].sort((a, b) => a.order - b.order) }))
-        : sections.map((sec) => ({ ...sec, columns: [...sec.columns].sort((a, b) => a.order - b.order) }));
-
-      for (const sec of evalSections) {
-        for (const col of sec.columns) {
-          if (col.formula?.expression) {
-            const result = evaluateTemplateFormula(col.formula.expression, ctx);
-            ctx[col.key] = typeof result === "number" ? result : 0;
-          }
-        }
-      }
-
-      // Build the output row with calculated values
-      const row: Record<string, string | number> = {
-        "SR. NO.": index + 1,
-      };
-
-      for (const sec of sections) {
-        for (const col of sec.columns) {
-          const val = ctx[col.key];
-          if (val === undefined || val === null || val === "") {
-            // Truly empty - leave blank
-            row[col.label] = "";
-          } else if (typeof val === "number") {
-            // Real number (including 0) - show it with 2 decimals
-            // But if it's 0 and the column had no original value, make it empty
-            if (val === 0 && !((s as Record<string, unknown>)[col.key])) {
-              row[col.label] = "";
-            } else {
-              row[col.label] = Math.round(val * 100) / 100;
-            }
-          } else if (typeof val === "string") {
-            row[col.label] = val;
-          } else {
-            // For any other type, convert to string or use empty
-            row[col.label] = String(val) || "";
-          }
-        }
-      }
-
-      return row;
-    });
+    const data = employeesWithData.map((emp, index) => ({
+      "SR. NO.": index + 1,
+      ...buildEmployeeExportRowCalculated(emp, sections),
+    }));
 
     if (!data || data.length === 0) {
       setAlert({ type: "error", message: "No data to export" });
