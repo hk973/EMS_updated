@@ -990,8 +990,11 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
             row[col.label] = "";
           } else if (typeof val === "number") {
             row[col.label] = Math.round(val * 100) / 100; // Round to 2 decimals
-          } else {
+          } else if (typeof val === "string") {
             row[col.label] = val;
+          } else {
+            // For any other type (object, array, etc.), convert to string or use empty
+            row[col.label] = String(val) || "";
           }
         }
       }
