@@ -653,6 +653,9 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
         isEmployeeIncludedForMonth(emp, selectedYear, selectedMonth)
       );
 
+      // Get active sections for proper formula evaluation
+      const sections = getActiveExportSections();
+
       // Process each active employee
       const updates = activeEmployees.map(async (emp) => {
         const byMonth = (emp as any).salaryByMonth || {};
@@ -674,8 +677,8 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           }
         });
 
-        // IMPORTANT: Recalculate all dependent values (HRA, gross, deductions, CTC, etc.)
-        // Build a temporary salary data object with the copied values
+        // IMPORTANT: Recalculate all dependent values
+        // First, calculate standard salary fields (HRA, gross, deductions, CTC, etc.)
         const salaryData: any = {
           esicNo: emp.esicNo || "",
           uan: emp.uan || "",
@@ -701,14 +704,93 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           mlwfEmployerAmount: editData.mlwfEmployerAmount,
         };
 
-        // Recalculate everything
+        // Recalculate standard fields
         const recalculated = calculateFullSalary(salaryData);
         
-        // Merge: keep copied fields + recalculated fields
-        const finalData = {
+        // Merge copied fields with recalculated standard fields
+        const mergedData = {
           ...currentMonthData,
           ...recalculated,
         };
+
+        // Now evaluate template-specific formula columns
+        const managerId = (Array.isArray(emp.assignedManagers) ? emp.assignedManagers[0] : emp.assignedManager) ?? "";
+        const tmpl = getTemplateForManagerId(managerId);
+        
+        if (tmpl) {
+          // Build evaluation context with all available data
+          const ctx: Record<string, unknown> = {
+            name: emp.fullName ?? "",
+            employee_id: emp.employeeId ?? "",
+            designation: (emp as any).designation ?? "",
+            department: (emp as any).department ?? "",
+            father_name: (emp as any).fatherName ?? "",
+            dob: formatDate((emp as any).dob),
+            joining_date: formatDate((emp as any).joinDate),
+            esic_no: emp.esicNo ?? "",
+            uan: emp.uan ?? "",
+            epf_no: (emp as any).epfNo ?? "",
+            hq_location: (emp as any).hqLocation ?? "",
+            bank_account: (emp as any).bankAccount ?? "",
+            ifsc_code: (emp as any).ifscCode ?? "",
+            basic: Number(mergedData.basic ?? 0),
+            da: Number(mergedData.da ?? 0),
+            hra: Number(mergedData.hra ?? 0),
+            total_days: Number(mergedData.totalDays ?? 30),
+            paid_days: Number(mergedData.paidDays ?? 30),
+            present_days: Number(mergedData.presentDays ?? 0),
+            absent_days: Number(mergedData.absentDays ?? 0),
+            gross_rate_pm: Number(mergedData.grossRatePM ?? 0),
+            rate_gross_pm: Number(mergedData.grossRatePM ?? 0),
+            gross_earning: Number(mergedData.totalGrossEarning ?? 0),
+            total_gross: Number(mergedData.totalGrossEarning ?? 0),
+            ot_rate: Number(mergedData.otRatePerHour ?? 0),
+            single_ot_hours: Number(mergedData.singleOTHours ?? 0),
+            double_ot_hours: Number(mergedData.doubleOTHours ?? 0),
+            ot_amount: Number(mergedData.otAmount ?? 0),
+            difference: Number(mergedData.difference ?? 0),
+            professional_tax: Number(mergedData.professionalTax ?? 0),
+            esic_employee: Number(mergedData.esicEmployee ?? 0),
+            pf_base: Number(mergedData.pfBase ?? 0),
+            pf_employee: Number(mergedData.pfEmployee ?? 0),
+            advance: Number(mergedData.advance ?? 0),
+            total_deduction: Number(mergedData.totalDeduction ?? 0),
+            net_salary: Number(mergedData.netSalary ?? 0),
+            esic_employer: Number(mergedData.esicEmployer ?? 0),
+            pf_employer: Number(mergedData.pfEmployer ?? 0),
+            mlwf_employer: Number(mergedData.mlwfEmployer ?? 0),
+            ctc_per_month: Number(mergedData.ctcPerMonth ?? 0),
+          };
+
+          // Pre-populate non-formula stored values
+          for (const sec of tmpl.sections) {
+            for (const col of sec.columns) {
+              if (!col.formula?.expression && mergedData[col.key] !== undefined) {
+                ctx[col.key] = mergedData[col.key];
+              }
+            }
+          }
+
+          // Evaluate all formula columns in order
+          const evalSections = [...tmpl.sections]
+            .sort((a, b) => a.order - b.order)
+            .map((sec) => ({ ...sec, columns: [...sec.columns].sort((a, b) => a.order - b.order) }));
+
+          for (const sec of evalSections) {
+            for (const col of sec.columns) {
+              if (col.formula?.expression) {
+                const result = evaluateTemplateFormula(col.formula.expression, ctx);
+                if (typeof result === "number") {
+                  ctx[col.key] = result;
+                  mergedData[col.key] = result;
+                }
+              }
+            }
+          }
+        }
+
+        // Final data with all calculations
+        const finalData = mergedData;
 
         // Update Firestore
         await updateDoc(doc(db, "employees", emp.id), {
@@ -835,16 +917,38 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
       employee_type: (emp as any).employeeType ?? "",
     };
 
-    const row: Record<string, string | number> = {};
-
-    // Evaluate all sections/columns in order, building ctx as we go
-    // Sort columns within each section by order so formula dependencies resolve correctly
+    // PRE-POPULATE ALL stored template column values into context
+    // This ensures custom template columns are available for formula evaluation
     const evalSections = tmpl
       ? [...tmpl.sections]
           .sort((a, b) => a.order - b.order)
           .map((sec) => ({ ...sec, columns: [...sec.columns].sort((a, b) => a.order - b.order) }))
       : sections.map((sec) => ({ ...sec, columns: [...sec.columns].sort((a, b) => a.order - b.order) }));
 
+    for (const sec of evalSections) {
+      for (const col of sec.columns) {
+        // Pre-populate stored values for ALL columns (formula and non-formula)
+        const storedValue = (s as Record<string, unknown>)[col.key];
+        if (storedValue !== undefined && storedValue !== null && storedValue !== "" && storedValue !== "-") {
+          // Don't overwrite if already in context with a better value
+          if (ctx[col.key] === undefined || ctx[col.key] === 0) {
+            if (typeof storedValue === 'number') {
+              ctx[col.key] = storedValue;
+            } else if (typeof storedValue === 'string') {
+              const parsed = Number(storedValue);
+              ctx[col.key] = isNaN(parsed) ? storedValue : parsed;
+            } else {
+              ctx[col.key] = storedValue;
+            }
+          }
+        }
+      }
+    }
+
+    const row: Record<string, string | number> = {};
+
+    // Evaluate all sections/columns in order, building ctx as we go
+    // Sort columns within each section by order so formula dependencies resolve correctly
     for (const sec of evalSections) {
       for (const col of sec.columns) {
         let val: string | number = "-";
