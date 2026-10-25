@@ -914,7 +914,17 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     }
 
     // Build data with ALL values calculated (same as what's displayed in the table)
-    const data = filteredEmployees.map((emp, index) => {
+    // Only include employees that have salary data
+    const employeesWithData = filteredEmployees.filter(emp => {
+      const s = getMonthlySalary(emp);
+      // Check if employee has any meaningful salary data
+      const hasBasicOrBase = Number((s as any).basic ?? (s as any).base ?? 0) > 0;
+      const hasPaidDays = Number((s as any).paidDays ?? 0) > 0;
+      const hasTotalDays = Number((s as any).totalDays ?? 0) > 0;
+      return hasBasicOrBase || hasPaidDays || hasTotalDays;
+    });
+
+    const data = employeesWithData.map((emp, index) => {
       const managerId =
         (Array.isArray(emp.assignedManagers)
           ? emp.assignedManagers[0]
