@@ -964,10 +964,18 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           if (!col.formula?.expression) {
             const storedValue = (s as Record<string, unknown>)[col.key];
             if (storedValue !== undefined && storedValue !== null && storedValue !== "" && storedValue !== "-") {
-              ctx[col.key] = typeof storedValue === 'number' ? storedValue : Number(storedValue) || storedValue;
-            } else {
-              ctx[col.key] = 0;
+              // Keep the original type - don't force convert to number
+              if (typeof storedValue === 'number') {
+                ctx[col.key] = storedValue;
+              } else if (typeof storedValue === 'string') {
+                // Try to parse as number only if it looks like a number
+                const parsed = Number(storedValue);
+                ctx[col.key] = isNaN(parsed) ? storedValue : parsed;
+              } else {
+                ctx[col.key] = storedValue;
+              }
             }
+            // Don't set anything if no value - leave it undefined for empty cells
           }
         }
       }
@@ -997,13 +1005,20 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
         for (const col of sec.columns) {
           const val = ctx[col.key];
           if (val === undefined || val === null || val === "") {
+            // Truly empty - leave blank
             row[col.label] = "";
           } else if (typeof val === "number") {
-            row[col.label] = Math.round(val * 100) / 100; // Round to 2 decimals
+            // Real number (including 0) - show it with 2 decimals
+            // But if it's 0 and the column had no original value, make it empty
+            if (val === 0 && !((s as Record<string, unknown>)[col.key])) {
+              row[col.label] = "";
+            } else {
+              row[col.label] = Math.round(val * 100) / 100;
+            }
           } else if (typeof val === "string") {
             row[col.label] = val;
           } else {
-            // For any other type (object, array, etc.), convert to string or use empty
+            // For any other type, convert to string or use empty
             row[col.label] = String(val) || "";
           }
         }
