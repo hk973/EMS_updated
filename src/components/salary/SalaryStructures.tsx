@@ -904,43 +904,95 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     }));
   };
 
-  // Export to XLSX — RAW DATA ONLY (no formulas, only true stored values)
+  // Export to XLSX — CALCULATED DATA (shows what you see in the table, with all formulas evaluated)
   const handleExportXLSX = () => {
     const sections = getActiveExportSections();
 
-    // Build raw data export - only stored values, no formula evaluation
+    if (sections.length === 0) {
+      setAlert({ type: "error", message: "No templates available" });
+      return;
+    }
+
+    // Build data with ALL values calculated (same as what's displayed in the table)
     const data = filteredEmployees.map((emp, index) => {
+      const managerId =
+        (Array.isArray(emp.assignedManagers)
+          ? emp.assignedManagers[0]
+          : emp.assignedManager) ?? "";
+      const tmpl = getTemplateForManagerId(managerId);
       const s = getMonthlySalary(emp);
-      const row: Record<string, string | number> = {
-        "SR. NO.": index + 1,
-        "Name": emp.fullName || "",
-        "Employee ID": emp.employeeId || "",
-        "ESIC No": emp.esicNo || "",
-        "UAN": emp.uan || "",
+      
+      // Build context with all stored values
+      const totalDaysVal = Number((s as any).totalDays ?? 30);
+      const paidDaysVal = Number((s as any).paidDays ?? totalDaysVal);
+      
+      const ctx: Record<string, unknown> = {
+        name: emp.fullName ?? "",
+        employee_id: emp.employeeId ?? "",
+        designation: (emp as any).designation ?? "",
+        department: (emp as any).department ?? "",
+        father_name: (emp as any).fatherName ?? "",
+        dob: formatDate((emp as any).dob),
+        joining_date: formatDate((emp as any).joinDate),
+        esic_no: emp.esicNo ?? "",
+        uan: emp.uan ?? "",
+        epf_no: (emp as any).epfNo ?? "",
+        hq_location: (emp as any).hqLocation ?? "",
+        basic: Number((s as any).basic ?? (s as any).base ?? 0),
+        da: Number((s as any).da ?? 0),
+        total_days: totalDaysVal,
+        paid_days: paidDaysVal,
+        single_ot_hours: Number((s as any).singleOTHours ?? 0),
+        double_ot_hours: Number((s as any).doubleOTHours ?? 0),
+        difference: Number((s as any).difference ?? 0),
+        advance: Number((s as any).advance ?? 0),
       };
 
-      // Add all sections and columns from template
+      // Pre-populate stored values (non-formula columns)
       for (const sec of sections) {
         for (const col of sec.columns) {
-          let val: string | number = "";
-
-          // For fixed info columns
-          const directKeys = ["name", "employee_id", "esic_no", "uan", "epf_no", "father_name", "designation", "department", "dob", "joining_date", "hq_location"];
-          if (directKeys.includes(col.key)) {
-            const empData: Record<string, any> = emp as any;
-            val = empData[col.key.replace(/_/g, '')] || empData[col.key] || "";
-          }
-          // For basic stored values (no formulas)
-          else {
+          if (!col.formula?.expression) {
             const storedValue = (s as Record<string, unknown>)[col.key];
             if (storedValue !== undefined && storedValue !== null && storedValue !== "" && storedValue !== "-") {
-              val = storedValue as string | number;
+              ctx[col.key] = typeof storedValue === 'number' ? storedValue : Number(storedValue) || storedValue;
             } else {
-              val = ""; // Empty cell if no data
+              ctx[col.key] = 0;
             }
           }
+        }
+      }
 
-          row[col.label] = val;
+      // Evaluate all formulas in order
+      const evalSections = tmpl
+        ? [...tmpl.sections]
+            .sort((a, b) => a.order - b.order)
+            .map((sec) => ({ ...sec, columns: [...sec.columns].sort((a, b) => a.order - b.order) }))
+        : sections.map((sec) => ({ ...sec, columns: [...sec.columns].sort((a, b) => a.order - b.order) }));
+
+      for (const sec of evalSections) {
+        for (const col of sec.columns) {
+          if (col.formula?.expression) {
+            const result = evaluateTemplateFormula(col.formula.expression, ctx);
+            ctx[col.key] = typeof result === "number" ? result : 0;
+          }
+        }
+      }
+
+      // Build the output row with calculated values
+      const row: Record<string, string | number> = {
+        "SR. NO.": index + 1,
+      };
+
+      for (const sec of sections) {
+        for (const col of sec.columns) {
+          const val = ctx[col.key];
+          if (val === undefined || val === null || val === "") {
+            row[col.label] = "";
+          } else if (typeof val === "number") {
+            row[col.label] = Math.round(val * 100) / 100; // Round to 2 decimals
+          } else {
+            row[col.label] = val;
+          }
         }
       }
 
@@ -956,11 +1008,11 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     const colCount = Object.keys(data[0] || {}).length;
     ws["!cols"] = Array(colCount).fill({ wch: 16 });
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Raw Data");
+    XLSX.utils.book_append_sheet(wb, ws, "Salary Data");
     const { month, year } = getExportPeriodLabel();
-    const filename = `${month}-${year}_RAW_DATA.xlsx`;
+    const filename = `${month}-${year}_WAGES_UPDATE.xlsx`;
     XLSX.writeFile(wb, filename);
-    setAlert({ type: "success", message: `Downloaded ${filename}` });
+    setAlert({ type: "success", message: `Downloaded ${filename} with calculated values` });
   };
 
   // Export to CSV
@@ -3221,7 +3273,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           onClick={handleExportXLSX}
           sx={{ borderRadius: 2 }}
         >
-          Download Raw Data
+          Download XLSX
         </Button>
 
         <Button
