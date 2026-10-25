@@ -904,34 +904,63 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     }));
   };
 
-  // Export to XLSX
+  // Export to XLSX — RAW DATA ONLY (no formulas, only true stored values)
   const handleExportXLSX = () => {
-    const data = getExportData().map((row) => {
-      const sanitized: Record<string, string | number> = {};
-      Object.entries(row).forEach(([key, value]) => {
-        sanitized[key] =
-          String(value) === "-" ? "" : (value as string | number);
-      });
-      return sanitized;
+    const sections = getActiveExportSections();
+
+    // Build raw data export - only stored values, no formula evaluation
+    const data = filteredEmployees.map((emp, index) => {
+      const s = getMonthlySalary(emp);
+      const row: Record<string, string | number> = {
+        "SR. NO.": index + 1,
+        "Name": emp.fullName || "",
+        "Employee ID": emp.employeeId || "",
+        "ESIC No": emp.esicNo || "",
+        "UAN": emp.uan || "",
+      };
+
+      // Add all sections and columns from template
+      for (const sec of sections) {
+        for (const col of sec.columns) {
+          let val: string | number = "";
+
+          // For fixed info columns
+          const directKeys = ["name", "employee_id", "esic_no", "uan", "epf_no", "father_name", "designation", "department", "dob", "joining_date", "hq_location"];
+          if (directKeys.includes(col.key)) {
+            const empData: Record<string, any> = emp as any;
+            val = empData[col.key.replace(/_/g, '')] || empData[col.key] || "";
+          }
+          // For basic stored values (no formulas)
+          else {
+            const storedValue = (s as Record<string, unknown>)[col.key];
+            if (storedValue !== undefined && storedValue !== null && storedValue !== "" && storedValue !== "-") {
+              val = storedValue as string | number;
+            } else {
+              val = ""; // Empty cell if no data
+            }
+          }
+
+          row[col.label] = val;
+        }
+      }
+
+      return row;
     });
+
     if (!data || data.length === 0) {
       setAlert({ type: "error", message: "No data to export" });
       return;
     }
-    // Embed month/year so upload always writes to the correct month
-    const dataWithMeta = data.map((row) => ({
-      __month__: selectedMonth,
-      __year__: selectedYear,
-      ...row,
-    }));
-    const ws = XLSX.utils.json_to_sheet(dataWithMeta);
-    const colCount = Object.keys(dataWithMeta[0] || {}).length;
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const colCount = Object.keys(data[0] || {}).length;
     ws["!cols"] = Array(colCount).fill({ wch: 16 });
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Wages");
-    const filename = `${getExportFilename()}.xlsx`;
+    XLSX.utils.book_append_sheet(wb, ws, "Raw Data");
+    const { month, year } = getExportPeriodLabel();
+    const filename = `${month}-${year}_RAW_DATA.xlsx`;
     XLSX.writeFile(wb, filename);
-    setAlert({ type: "success", message: `XLSX downloaded: ${filename}` });
+    setAlert({ type: "success", message: `Downloaded ${filename}` });
   };
 
   // Export to CSV
@@ -970,7 +999,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     });
   };
 
-  // Download sample file — columns match the active template
+  // Download sample file — WITH ACTUAL EMPLOYEE DATA for editing and re-uploading
   const downloadSampleFile = () => {
     const sections =
       selectedManagerId === "all"
@@ -982,45 +1011,39 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
               : getUnionSections();
           })();
 
-    // Build one sample row with all column labels
-    const sampleRow: Record<string, string | number> = {};
-    for (const sec of sections) {
-      for (const col of sec.columns) {
-        const directKeys = [
-          "name",
-          "employee_id",
-          "esic_no",
-          "uan",
-          "basic",
-          "da",
-          "total_days",
-          "paid_days",
-        ];
-        if (directKeys.includes(col.key)) {
-          const defaults: Record<string, string | number> = {
-            name: "John Doe",
-            employee_id: "EMP001",
-            esic_no: "1234567890",
-            uan: "123456789012",
-            basic: 15000,
-            da: 775,
-            total_days: 30,
-            paid_days: 30,
-          };
-          sampleRow[col.label] = defaults[col.key] ?? "";
-        } else {
-          sampleRow[col.label] = col.formula ? "(auto-calculated)" : 0;
-        }
-      }
+    if (sections.length === 0) {
+      setAlert({ type: "error", message: "No templates available" });
+      return;
     }
 
-    const worksheet = XLSX.utils.json_to_sheet([sampleRow]);
-    const colCount = Object.keys(sampleRow).length;
+    // Build rows with ACTUAL employee data (same as handleExportXLSX but with template structure)
+    const data = filteredEmployees.map((emp, index) => ({
+      "SR. NO.": index + 1,
+      ...buildEmployeeExportRow(emp, sections),
+    }));
+
+    if (data.length === 0) {
+      setAlert({ type: "error", message: "No employees to export" });
+      return;
+    }
+
+    // Embed month/year for re-upload
+    const dataWithMeta = data.map((row) => ({
+      __month__: selectedMonth,
+      __year__: selectedYear,
+      ...row,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataWithMeta);
+    const colCount = Object.keys(dataWithMeta[0] || {}).length;
     worksheet["!cols"] = Array(colCount).fill({ wch: 18 });
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Sample");
-    XLSX.writeFile(workbook, "salary_template_sample.xlsx");
-    setAlert({ type: "success", message: "Sample file downloaded" });
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Salary Data");
+    
+    const { month, year } = getExportPeriodLabel();
+    const filename = `${month}-${year}_SALARY_DATA.xlsx`;
+    XLSX.writeFile(workbook, filename);
+    setAlert({ type: "success", message: `Downloaded ${filename} with ${data.length} employees` });
   };
   const { currentUser } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -3156,7 +3179,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           onClick={downloadSampleFile}
           sx={{ borderRadius: 2 }}
         >
-          Download Sample
+          Download for Edit
         </Button>
 
         <Button
@@ -3198,7 +3221,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           onClick={handleExportXLSX}
           sx={{ borderRadius: 2 }}
         >
-          Download XLSX
+          Download Raw Data
         </Button>
 
         <Button
