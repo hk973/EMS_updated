@@ -204,29 +204,92 @@ export default function EmployeeSettings() {
         alignItems="center"
         minHeight="400px"
       >
-        <CircularProgress />
+        <CircularProgress sx={{ color: "#6366f1" }} />
       </Box>
     );
   }
 
-  return (
-    <Box>
-      <Typography variant="h4" gutterBottom sx={{ color: "#ffffff" }}>
-        Profile Settings
-      </Typography>
+  const formFieldSx = {
+    "& .MuiOutlinedInput-root": {
+      backgroundColor: "rgba(255, 255, 255, 0.03)",
+      backdropFilter: "blur(10px)",
+      borderRadius: "12px",
+      "& fieldset": {
+        borderColor: "rgba(255, 255, 255, 0.1)",
+      },
+      "&:hover fieldset": {
+        borderColor: isEditing ? "rgba(99, 102, 241, 0.4)" : "rgba(255, 255, 255, 0.1)",
+      },
+      "&.Mui-focused fieldset": {
+        borderColor: "#6366f1",
+        boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.1)",
+      },
+      "&.Mui-disabled fieldset": {
+        borderColor: "rgba(255, 255, 255, 0.05)",
+      },
+    },
+    "& .MuiInputLabel-root": {
+      color: "#94a3b8",
+    },
+    "& .MuiInputBase-input": {
+      color: "#f1f5f9",
+    },
+    "& .MuiInputBase-input.Mui-disabled": {
+      WebkitTextFillColor: "#64748b",
+    },
+  };
 
-      <Typography variant="body1" sx={{ color: "#b0b0b0", mb: 3 }}>
-        Update your personal information and contact details
-      </Typography>
+  return (
+    <Box sx={{ p: { xs: 2, sm: 3 } }}>
+      {/* Header */}
+      <Box sx={{ mb: 3 }}>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 700,
+            fontSize: { xs: "1.5rem", sm: "1.875rem" },
+            letterSpacing: "-0.02em",
+            background: "linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            mb: 0.5,
+          }}
+        >
+          Profile Settings
+        </Typography>
+        <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+          Update your personal information and contact details
+        </Typography>
+      </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert
+          severity="error"
+          sx={{
+            mb: 3,
+            backgroundColor: "rgba(239, 68, 68, 0.1)",
+            border: "1px solid rgba(239, 68, 68, 0.25)",
+            color: "#fca5a5",
+            borderRadius: "14px",
+          }}
+          onClose={() => setError("")}
+        >
           {error}
         </Alert>
       )}
 
       {success && (
-        <Alert severity="success" sx={{ mb: 2 }}>
+        <Alert
+          severity="success"
+          sx={{
+            mb: 3,
+            backgroundColor: "rgba(16, 185, 129, 0.1)",
+            border: "1px solid rgba(16, 185, 129, 0.25)",
+            color: "#6ee7b7",
+            borderRadius: "14px",
+          }}
+          onClose={() => setSuccess("")}
+        >
           {success}
         </Alert>
       )}
@@ -235,35 +298,51 @@ export default function EmployeeSettings() {
         {/* Profile Overview */}
         {/* @ts-ignore */}
         <Grid item xs={12} md={4}>
-          <Card sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}>
-            <CardContent sx={{ textAlign: "center" }}>
+          <Card
+            elevation={0}
+            sx={{
+              background: "rgba(255, 255, 255, 0.03)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: "16px",
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+              height: "100%",
+            }}
+          >
+            <CardContent sx={{ textAlign: "center", p: 3 }}>
               <Avatar
                 sx={{
-                  width: 80,
-                  height: 80,
+                  width: 88,
+                  height: 88,
                   mx: "auto",
                   mb: 2,
-                  backgroundColor: "#2196f3",
-                  fontSize: "2rem",
+                  background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+                  boxShadow:
+                    "0 8px 24px rgba(99, 102, 241, 0.45), inset 2px 2px 4px rgba(255, 255, 255, 0.25)",
+                  border: "2px solid rgba(255, 255, 255, 0.15)",
+                  fontSize: "2.25rem",
+                  fontWeight: 700,
+                  color: "#ffffff",
                 }}
               >
                 {employeeData?.fullName?.charAt(0).toUpperCase() || "E"}
               </Avatar>
 
-              <Typography variant="h6" sx={{ color: "#ffffff", mb: 1 }}>
+              <Typography variant="h6" sx={{ color: "#f1f5f9", fontWeight: 600, mb: 1 }}>
                 {employeeData?.fullName}
               </Typography>
 
-              <Typography variant="body2" sx={{ color: "#b0b0b0", mb: 2 }}>
+              <Typography variant="body2" sx={{ color: "#818cf8", mb: 2, fontWeight: 500 }}>
                 Employee ID: {employeeData?.employeeId}
               </Typography>
 
-              <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
-                Department: {employeeData?.department}
+              <Typography variant="body2" sx={{ color: "#94a3b8", mb: 0.5 }}>
+                Department: {employeeData?.department || "N/A"}
               </Typography>
 
               {employeeData?.joiningDate && (
-                <Typography variant="body2" sx={{ color: "#b0b0b0", mt: 1 }}>
+                <Typography variant="body2" sx={{ color: "#94a3b8", mt: 1 }}>
                   Joined:{" "}
                   {new Date(
                     employeeData.joiningDate.seconds * 1000,
@@ -277,15 +356,27 @@ export default function EmployeeSettings() {
         {/* Edit Form */}
         {/* @ts-ignore */}
         <Grid item xs={12} md={8}>
-          <Card sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}>
-            <CardContent>
+          <Card
+            elevation={0}
+            sx={{
+              background: "rgba(255, 255, 255, 0.03)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: "16px",
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
               <Box
                 display="flex"
                 justifyContent="space-between"
                 alignItems="center"
+                flexWrap="wrap"
+                gap={2}
                 mb={3}
               >
-                <Typography variant="h6" sx={{ color: "#ffffff" }}>
+                <Typography variant="h6" sx={{ color: "#f1f5f9", fontWeight: 600 }}>
                   Personal Information
                 </Typography>
 
@@ -295,28 +386,42 @@ export default function EmployeeSettings() {
                     startIcon={<Edit />}
                     onClick={() => setIsEditing(true)}
                     sx={{
-                      color: "#2196f3",
-                      borderColor: "#2196f3",
+                      borderRadius: "12px",
+                      borderColor: "rgba(99, 102, 241, 0.4)",
+                      color: "#a5b4fc",
+                      backgroundColor: "rgba(99, 102, 241, 0.08)",
+                      px: 2.5,
+                      py: 0.8,
+                      fontWeight: 500,
+                      textTransform: "none",
                       "&:hover": {
-                        borderColor: "#1976d2",
-                        backgroundColor: "rgba(33, 150, 243, 0.1)",
+                        borderColor: "rgba(99, 102, 241, 0.6)",
+                        backgroundColor: "rgba(99, 102, 241, 0.15)",
+                        transform: "translateY(-1px)",
                       },
+                      transition: "all 0.2s ease",
                     }}
                   >
                     Edit Profile
                   </Button>
                 ) : (
-                  <Box display="flex" gap={1}>
+                  <Box display="flex" gap={1.5} alignItems="center">
                     <Button
                       variant="outlined"
                       onClick={handleCancel}
                       disabled={saving}
                       sx={{
-                        color: "#f44336",
-                        borderColor: "#f44336",
+                        borderRadius: "12px",
+                        borderColor: "rgba(239, 68, 68, 0.3)",
+                        color: "#f87171",
+                        backgroundColor: "rgba(239, 68, 68, 0.06)",
+                        px: 2,
+                        py: 0.8,
+                        textTransform: "none",
+                        fontWeight: 500,
                         "&:hover": {
-                          borderColor: "#d32f2f",
-                          backgroundColor: "rgba(244, 67, 54, 0.1)",
+                          borderColor: "rgba(239, 68, 68, 0.5)",
+                          backgroundColor: "rgba(239, 68, 68, 0.12)",
                         },
                       }}
                     >
@@ -327,16 +432,35 @@ export default function EmployeeSettings() {
                       onClick={handleSubmit(onSubmit)}
                       disabled={saving || !isDirty}
                       startIcon={
-                        saving ? <CircularProgress size={16} /> : <Save />
+                        saving ? <CircularProgress size={16} sx={{ color: "#ffffff" }} /> : <Save />
                       }
                       sx={{
-                        backgroundColor: "#2196f3",
+                        borderRadius: "12px",
+                        px: 2.5,
+                        py: 0.8,
+                        fontWeight: 600,
+                        textTransform: "none",
+                        background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+                        color: "#ffffff",
+                        boxShadow:
+                          "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
                         "&:hover": {
-                          backgroundColor: "#1976d2",
+                          background: "linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)",
+                          boxShadow:
+                            "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.2)",
+                          transform: "translateY(-1px)",
                         },
-                        "&:disabled": {
-                          backgroundColor: "#666",
+                        "&:active": {
+                          boxShadow:
+                            "2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)",
+                          transform: "translateY(0)",
                         },
+                        "&.Mui-disabled": {
+                          background: "rgba(255, 255, 255, 0.05)",
+                          color: "#64748b",
+                          boxShadow: "none",
+                        },
+                        transition: "all 0.2s ease",
                       }}
                     >
                       {saving ? "Saving..." : "Save Changes"}
@@ -346,7 +470,7 @@ export default function EmployeeSettings() {
               </Box>
 
               <form onSubmit={handleSubmit(onSubmit)}>
-                <Grid container spacing={3}>
+                <Grid container spacing={2.5}>
                   {/* @ts-ignore */}
                   <Grid item xs={12} sm={6}>
                     <Controller
@@ -362,28 +486,10 @@ export default function EmployeeSettings() {
                           helperText={errors.fullName?.message}
                           InputProps={{
                             startAdornment: (
-                              <Person sx={{ color: "#666", mr: 1 }} />
+                              <Person sx={{ color: isEditing ? "#818cf8" : "#64748b", mr: 1 }} />
                             ),
                           }}
-                          sx={{
-                            "& .MuiOutlinedInput-root": {
-                              "& fieldset": {
-                                borderColor: "#444",
-                              },
-                              "&:hover fieldset": {
-                                borderColor: isEditing ? "#2196f3" : "#444",
-                              },
-                              "&.Mui-focused fieldset": {
-                                borderColor: "#2196f3",
-                              },
-                            },
-                            "& .MuiInputLabel-root": {
-                              color: "#b0b0b0",
-                            },
-                            "& .MuiInputBase-input": {
-                              color: "#ffffff",
-                            },
-                          }}
+                          sx={formFieldSx}
                         />
                       )}
                     />
@@ -402,28 +508,10 @@ export default function EmployeeSettings() {
                           disabled
                           InputProps={{
                             startAdornment: (
-                              <Email sx={{ color: "#666", mr: 1 }} />
+                              <Email sx={{ color: "#64748b", mr: 1 }} />
                             ),
                           }}
-                          sx={{
-                            "& .MuiOutlinedInput-root": {
-                              "& fieldset": {
-                                borderColor: "#444",
-                              },
-                              "&:hover fieldset": {
-                                borderColor: isEditing ? "#2196f3" : "#444",
-                              },
-                              "&.Mui-focused fieldset": {
-                                borderColor: "#2196f3",
-                              },
-                            },
-                            "& .MuiInputLabel-root": {
-                              color: "#b0b0b0",
-                            },
-                            "& .MuiInputBase-input": {
-                              color: "#ffffff",
-                            },
-                          }}
+                          sx={formFieldSx}
                         />
                       )}
                     />
@@ -443,28 +531,10 @@ export default function EmployeeSettings() {
                           helperText={errors.mobile?.message}
                           InputProps={{
                             startAdornment: (
-                              <Phone sx={{ color: "#666", mr: 1 }} />
+                              <Phone sx={{ color: isEditing ? "#818cf8" : "#64748b", mr: 1 }} />
                             ),
                           }}
-                          sx={{
-                            "& .MuiOutlinedInput-root": {
-                              "& fieldset": {
-                                borderColor: "#444",
-                              },
-                              "&:hover fieldset": {
-                                borderColor: isEditing ? "#2196f3" : "#444",
-                              },
-                              "&.Mui-focused fieldset": {
-                                borderColor: "#2196f3",
-                              },
-                            },
-                            "& .MuiInputLabel-root": {
-                              color: "#b0b0b0",
-                            },
-                            "& .MuiInputBase-input": {
-                              color: "#ffffff",
-                            },
-                          }}
+                          sx={formFieldSx}
                         />
                       )}
                     />
@@ -487,29 +557,11 @@ export default function EmployeeSettings() {
                           InputProps={{
                             startAdornment: (
                               <LocationOn
-                                sx={{ color: "#666", mr: 1, mt: 1 }}
+                                sx={{ color: isEditing ? "#818cf8" : "#64748b", mr: 1, mt: 1 }}
                               />
                             ),
                           }}
-                          sx={{
-                            "& .MuiOutlinedInput-root": {
-                              "& fieldset": {
-                                borderColor: "#444",
-                              },
-                              "&:hover fieldset": {
-                                borderColor: isEditing ? "#2196f3" : "#444",
-                              },
-                              "&.Mui-focused fieldset": {
-                                borderColor: "#2196f3",
-                              },
-                            },
-                            "& .MuiInputLabel-root": {
-                              color: "#b0b0b0",
-                            },
-                            "& .MuiInputBase-input": {
-                              color: "#ffffff",
-                            },
-                          }}
+                          sx={formFieldSx}
                         />
                       )}
                     />

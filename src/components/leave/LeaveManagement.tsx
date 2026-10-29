@@ -49,10 +49,10 @@ import { Employee } from '@/types';
 // Manual leave types
 const now = new Date();
 const MANUAL_LEAVE_TYPES: LeaveType[] = [
-    { id: 'casual', name: 'Casual Leave', color: '#2196f3', code: 'CL', maxDaysPerYear: 12, carryForward: false, isActive: true, createdAt: now, updatedAt: now },
-    { id: 'sick', name: 'Sick Leave', color: '#4caf50', code: 'SL', maxDaysPerYear: 8, carryForward: false, isActive: true, createdAt: now, updatedAt: now },
-    { id: 'earned', name: 'Earned Leave', color: '#ff9800', code: 'EL', maxDaysPerYear: 15, carryForward: true, isActive: true, createdAt: now, updatedAt: now },
-    { id: 'other', name: 'Other', color: '#9e9e9e', code: 'OT', maxDaysPerYear: 0, carryForward: false, isActive: true, createdAt: now, updatedAt: now },
+    { id: 'casual', name: 'Casual Leave', color: '#6366f1', code: 'CL', maxDaysPerYear: 12, carryForward: false, isActive: true, createdAt: now, updatedAt: now },
+    { id: 'sick', name: 'Sick Leave', color: '#10b981', code: 'SL', maxDaysPerYear: 8, carryForward: false, isActive: true, createdAt: now, updatedAt: now },
+    { id: 'earned', name: 'Earned Leave', color: '#f59e0b', code: 'EL', maxDaysPerYear: 15, carryForward: true, isActive: true, createdAt: now, updatedAt: now },
+    { id: 'other', name: 'Other', color: '#94a3b8', code: 'OT', maxDaysPerYear: 0, carryForward: false, isActive: true, createdAt: now, updatedAt: now },
 ];
 
 interface TabPanelProps {
@@ -71,7 +71,7 @@ function TabPanel(props: TabPanelProps) {
             aria-labelledby={`leave-tab-${index}`}
             {...other}
         >
-            {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+            {value === index && <Box sx={{ pt: 2.5, pb: 2 }}>{children}</Box>}
         </div>
     );
 }
@@ -109,7 +109,7 @@ export default function LeaveManagement() {
         maxDaysPerYear: 0,
         carryForward: false,
         maxCarryForwardDays: 0,
-        color: '#2196f3',
+        color: '#6366f1',
     });
 
     const [holidayForm, setHolidayForm] = useState({
@@ -320,7 +320,7 @@ export default function LeaveManagement() {
                 maxDaysPerYear: 0,
                 carryForward: false,
                 maxCarryForwardDays: 0,
-                color: '#2196f3',
+                color: '#6366f1',
             });
             loadData();
         } catch (error) {
@@ -361,6 +361,36 @@ export default function LeaveManagement() {
         }
     };
 
+    const getStatusChipProps = (status: string) => {
+        switch (status) {
+            case 'approved':
+                return {
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    color: '#34d399',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                };
+            case 'rejected':
+                return {
+                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                    color: '#f87171',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                };
+            case 'pending':
+                return {
+                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                    color: '#fbbf24',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                };
+            case 'cancelled':
+            default:
+                return {
+                    backgroundColor: 'rgba(148, 163, 184, 0.15)',
+                    color: '#94a3b8',
+                    border: '1px solid rgba(148, 163, 184, 0.3)',
+                };
+        }
+    };
+
     const getLeaveTypeName = (leaveTypeId: string) => {
         const leaveType = leaveTypes.find(type => type.id === leaveTypeId);
         return leaveType?.name || 'Unknown';
@@ -373,22 +403,94 @@ export default function LeaveManagement() {
 
     return (
         <Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h4" sx={{ color: '#2196f3', fontWeight: 600 }}>
-                    Leave Management
-                </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, mb: 3.5, flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
+                <Box>
+                    <Typography
+                        variant="h4"
+                        sx={{
+                            fontWeight: 700,
+                            fontSize: { xs: '1.5rem', sm: '1.875rem' },
+                            letterSpacing: '-0.02em',
+                            background: 'linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            mb: 0.5,
+                        }}
+                    >
+                        Leave Management
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+                        Track leave balances, submit requests, and manage company holidays
+                    </Typography>
+                </Box>
                 <Button
                     variant="outlined"
                     startIcon={<Refresh />}
                     onClick={loadData}
-                    sx={{ borderColor: '#2196f3', color: '#2196f3' }}
+                    sx={{
+                        borderRadius: '12px',
+                        borderColor: 'rgba(99, 102, 241, 0.35)',
+                        backgroundColor: 'rgba(99, 102, 241, 0.06)',
+                        color: '#a5b4fc',
+                        fontWeight: 600,
+                        px: 2,
+                        py: 1,
+                        textTransform: 'none',
+                        backdropFilter: 'blur(10px)',
+                        '&:hover': {
+                            borderColor: 'rgba(99, 102, 241, 0.6)',
+                            backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                            transform: 'translateY(-1px)',
+                        },
+                        transition: 'all 0.2s ease',
+                    }}
                 >
                     Refresh
                 </Button>
             </Box>
 
-            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-                <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
+            <Box
+                sx={{
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                    mb: 3,
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    borderRadius: '14px',
+                    p: 0.5,
+                    backdropFilter: 'blur(10px)',
+                    WebkitBackdropFilter: 'blur(10px)',
+                }}
+            >
+                <Tabs
+                    value={tabValue}
+                    onChange={(e, newValue) => setTabValue(newValue)}
+                    sx={{
+                        minHeight: 48,
+                        '& .MuiTab-root': {
+                            color: '#94a3b8',
+                            fontWeight: 500,
+                            fontSize: '0.875rem',
+                            textTransform: 'none',
+                            minHeight: 44,
+                            borderRadius: '10px',
+                            px: 2.5,
+                            transition: 'all 0.2s ease',
+                            '&:hover': {
+                                color: '#c7d2fe',
+                                backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                            },
+                        },
+                        '& .Mui-selected': {
+                            color: '#a5b4fc !important',
+                            fontWeight: 600,
+                            backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                        },
+                        '& .MuiTabs-indicator': {
+                            backgroundColor: '#6366f1',
+                            height: 3,
+                            borderRadius: '3px 3px 0 0',
+                        },
+                    }}
+                >
                     {currentUser?.role !== 'admin' && <Tab label="My Leaves" />}
                     {currentUser?.role !== 'admin' && <Tab label="Leave Balance" />}
                     {currentUser?.role !== 'employee' && <Tab label="All Applications" />}
@@ -400,133 +502,326 @@ export default function LeaveManagement() {
             {/* My Leaves Tab - Employees and Managers Only */}
             {currentUser?.role !== 'admin' && (
                 <TabPanel value={tabValue} index={0}>
-                    <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="h6">My Leave Applications</Typography>
+                    <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                        <Typography variant="h6" sx={{ color: '#f1f5f9', fontWeight: 600 }}>
+                            My Leave Applications
+                        </Typography>
                         <Button
                             variant="contained"
                             startIcon={<Add />}
                             onClick={() => setShowApplicationDialog(true)}
-                            sx={{ backgroundColor: '#2196f3' }}
+                            sx={{
+                                borderRadius: '12px',
+                                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                                color: '#ffffff',
+                                fontWeight: 600,
+                                px: 2.5,
+                                py: 1,
+                                textTransform: 'none',
+                                boxShadow: '6px 6px 14px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.2)',
+                                '&:hover': {
+                                    background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                                    boxShadow: '4px 4px 10px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.25)',
+                                    transform: 'translateY(-1px)',
+                                },
+                                '&:active': {
+                                    boxShadow: '2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)',
+                                    transform: 'translateY(0)',
+                                },
+                                transition: 'all 0.2s ease',
+                            }}
                         >
                             Apply for Leave
                         </Button>
                     </Box>
 
-                <TableContainer component={Paper}>
-                    <Table>
-                        <TableHead>
-                            <TableRow>
-                                <TableCell>Leave Type</TableCell>
-                                <TableCell>Start Date</TableCell>
-                                <TableCell>End Date</TableCell>
-                                <TableCell>Days</TableCell>
-                                <TableCell>Status</TableCell>
-                                <TableCell>Applied On</TableCell>
-                                <TableCell>Actions</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {leaveApplications
-                                .filter(app => app.employeeId === (currentUser?.employeeId || currentUser?.uid))
-                                .map((application) => (
-                                    <TableRow key={application.id}>
-                                        <TableCell>{getLeaveTypeName(application.leaveTypeId)}</TableCell>
-                                        <TableCell>{application.startDate?.toLocaleDateString()}</TableCell>
-                                        <TableCell>{application.endDate?.toLocaleDateString()}</TableCell>
-                                        <TableCell>{application.totalDays}</TableCell>
-                                        <TableCell>
-                                            <Chip
-                                                label={application.status}
-                                                color={getStatusColor(application.status) as any}
-                                                size="small"
-                                            />
-                                        </TableCell>
-                                        <TableCell>{application.appliedAt?.toLocaleDateString()}</TableCell>
-                                        <TableCell>
-                                            <IconButton 
-                                                size="small"
-                                                onClick={() => {
-                                                    setSelectedApplication(application);
-                                                    setShowViewDialog(true);
-                                                }}
-                                            >
-                                                <Visibility />
-                                            </IconButton>
-                                            {application.status === 'pending' && (
-                                                <IconButton size="small" color="error">
-                                                    <Cancel />
-                                                </IconButton>
-                                            )}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            </TabPanel>
+                    <TableContainer
+                        component={Paper}
+                        elevation={0}
+                        sx={{
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            backdropFilter: 'blur(20px)',
+                            WebkitBackdropFilter: 'blur(20px)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            borderRadius: '16px',
+                            overflow: 'hidden',
+                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
+                        }}
+                    >
+                        <Table>
+                            <TableHead
+                                sx={{
+                                    '& .MuiTableCell-root': {
+                                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                                        color: '#94a3b8',
+                                        fontWeight: 600,
+                                        fontSize: '0.75rem',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.05em',
+                                        py: 1.75,
+                                    },
+                                }}
+                            >
+                                <TableRow>
+                                    <TableCell>Leave Type</TableCell>
+                                    <TableCell>Start Date</TableCell>
+                                    <TableCell>End Date</TableCell>
+                                    <TableCell>Days</TableCell>
+                                    <TableCell>Status</TableCell>
+                                    <TableCell>Applied On</TableCell>
+                                    <TableCell align="center">Actions</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {leaveApplications
+                                    .filter(app => app.employeeId === (currentUser?.employeeId || currentUser?.uid))
+                                    .map((application) => (
+                                        <TableRow
+                                            key={application.id}
+                                            sx={{
+                                                '&:hover': {
+                                                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                                },
+                                                '& .MuiTableCell-root': {
+                                                    borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                                                    color: '#f1f5f9',
+                                                    py: 1.5,
+                                                },
+                                            }}
+                                        >
+                                            <TableCell sx={{ fontWeight: 500 }}>
+                                                {getLeaveTypeName(application.leaveTypeId)}
+                                            </TableCell>
+                                            <TableCell>{application.startDate?.toLocaleDateString()}</TableCell>
+                                            <TableCell>{application.endDate?.toLocaleDateString()}</TableCell>
+                                            <TableCell>{application.totalDays}</TableCell>
+                                            <TableCell>
+                                                <Chip
+                                                    label={application.status}
+                                                    size="small"
+                                                    sx={{
+                                                        fontWeight: 600,
+                                                        fontSize: '0.75rem',
+                                                        textTransform: 'capitalize',
+                                                        backdropFilter: 'blur(10px)',
+                                                        ...getStatusChipProps(application.status),
+                                                    }}
+                                                />
+                                            </TableCell>
+                                            <TableCell>{application.appliedAt?.toLocaleDateString()}</TableCell>
+                                            <TableCell align="center">
+                                                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                                                    <IconButton 
+                                                        size="small"
+                                                        onClick={() => {
+                                                            setSelectedApplication(application);
+                                                            setShowViewDialog(true);
+                                                        }}
+                                                        sx={{
+                                                            color: '#a5b4fc',
+                                                            backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                                                            border: '1px solid rgba(99, 102, 241, 0.2)',
+                                                            borderRadius: '8px',
+                                                            p: 0.75,
+                                                            '&:hover': {
+                                                                backgroundColor: 'rgba(99, 102, 241, 0.18)',
+                                                                borderColor: 'rgba(99, 102, 241, 0.4)',
+                                                            },
+                                                        }}
+                                                    >
+                                                        <Visibility sx={{ fontSize: 18 }} />
+                                                    </IconButton>
+                                                    {application.status === 'pending' && (
+                                                        <IconButton
+                                                            size="small"
+                                                            sx={{
+                                                                color: '#f87171',
+                                                                backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                                                border: '1px solid rgba(239, 68, 68, 0.2)',
+                                                                borderRadius: '8px',
+                                                                p: 0.75,
+                                                                '&:hover': {
+                                                                    backgroundColor: 'rgba(239, 68, 68, 0.18)',
+                                                                    borderColor: 'rgba(239, 68, 68, 0.4)',
+                                                                },
+                                                            }}
+                                                        >
+                                                            <Cancel sx={{ fontSize: 18 }} />
+                                                        </IconButton>
+                                                    )}
+                                                </Box>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                </TabPanel>
             )}
 
             {/* Leave Balance Tab - Employees and Managers Only */}
             {currentUser?.role !== 'admin' && (
                 <TabPanel value={tabValue} index={1}>
-                    <Typography variant="h6" sx={{ mb: 3 }}>Leave Balance</Typography>
-                <Box
-                    sx={{
-                        display: 'grid',
-                        gridTemplateColumns: {
-                            xs: '1fr',
-                            sm: 'repeat(2, 1fr)',
-                            md: 'repeat(3, 1fr)',
-                        },
-                        gap: 3,
-                    }}
-                >
-                    {leaveTypes.map((leaveType) => {
-                        const balance = leaveBalances.find(b => b.leaveTypeId === leaveType.id && b.employeeId === (currentUser?.employeeId || currentUser?.uid));
-                        return (
-                            <Box key={leaveType.id}>
-                                <Card>
-                                    <CardContent>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h6" sx={{ mb: 3, color: '#f1f5f9', fontWeight: 600 }}>
+                        Leave Balance
+                    </Typography>
+                    <Box
+                        sx={{
+                            display: 'grid',
+                            gridTemplateColumns: {
+                                xs: '1fr',
+                                sm: 'repeat(2, 1fr)',
+                                md: 'repeat(3, 1fr)',
+                            },
+                            gap: 3,
+                        }}
+                    >
+                        {leaveTypes.map((leaveType) => {
+                            const balance = leaveBalances.find(b => b.leaveTypeId === leaveType.id && b.employeeId === (currentUser?.employeeId || currentUser?.uid));
+                            const allocated = balance?.allocated || leaveType.maxDaysPerYear;
+                            const used = balance?.used || 0;
+                            const pending = balance?.pending || 0;
+                            const remaining = balance?.remaining || leaveType.maxDaysPerYear;
+                            return (
+                                <Box key={leaveType.id}>
+                                    <Card
+                                        elevation={0}
+                                        sx={{
+                                            background: 'rgba(255, 255, 255, 0.03)',
+                                            backdropFilter: 'blur(20px)',
+                                            WebkitBackdropFilter: 'blur(20px)',
+                                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                                            borderRadius: '16px',
+                                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+                                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            position: 'relative',
+                                            overflow: 'hidden',
+                                            '&:hover': {
+                                                transform: 'translateY(-3px)',
+                                                borderColor: 'rgba(99, 102, 241, 0.35)',
+                                                boxShadow: '0 14px 40px rgba(0, 0, 0, 0.35)',
+                                            },
+                                            '&::before': {
+                                                content: '""',
+                                                position: 'absolute',
+                                                top: 0,
+                                                left: 0,
+                                                right: 0,
+                                                height: '2px',
+                                                background: `linear-gradient(90deg, transparent, ${leaveType.color || '#6366f1'}, transparent)`,
+                                                opacity: 0.85,
+                                            },
+                                        }}
+                                    >
+                                        <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                                                    <Box
+                                                        sx={{
+                                                            width: 12,
+                                                            height: 12,
+                                                            borderRadius: '50%',
+                                                            backgroundColor: leaveType.color || '#6366f1',
+                                                            boxShadow: `0 0 10px ${leaveType.color || '#6366f1'}`,
+                                                        }}
+                                                    />
+                                                    <Typography variant="h6" sx={{ color: '#f1f5f9', fontWeight: 600 }}>
+                                                        {leaveType.name}
+                                                    </Typography>
+                                                </Box>
+                                                <Chip
+                                                    label={leaveType.code}
+                                                    size="small"
+                                                    sx={{
+                                                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                                        color: '#94a3b8',
+                                                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                                                        fontWeight: 600,
+                                                        fontSize: '0.75rem',
+                                                    }}
+                                                />
+                                            </Box>
+                                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                    <Typography variant="body2" sx={{ color: '#94a3b8' }}>Allocated:</Typography>
+                                                    <Typography variant="body2" sx={{ color: '#f1f5f9', fontWeight: 500 }}>{allocated} days</Typography>
+                                                </Box>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                    <Typography variant="body2" sx={{ color: '#94a3b8' }}>Used:</Typography>
+                                                    <Typography variant="body2" sx={{ color: '#f1f5f9', fontWeight: 500 }}>{used} days</Typography>
+                                                </Box>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                    <Typography variant="body2" sx={{ color: '#94a3b8' }}>Pending:</Typography>
+                                                    <Typography variant="body2" sx={{ color: '#f1f5f9', fontWeight: 500 }}>{pending} days</Typography>
+                                                </Box>
+                                            </Box>
                                             <Box
                                                 sx={{
-                                                    width: 12,
-                                                    height: 12,
-                                                    borderRadius: '50%',
-                                                    backgroundColor: leaveType.color,
-                                                    mr: 1,
+                                                    pt: 1.5,
+                                                    borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'baseline',
                                                 }}
-                                            />
-                                            <Typography variant="h6">{leaveType.name}</Typography>
-                                        </Box>
-                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                            Allocated: {balance?.allocated || leaveType.maxDaysPerYear} days
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                            Used: {balance?.used || 0} days
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                            Pending: {balance?.pending || 0} days
-                                        </Typography>
-                                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2196f3' }}>
-                                            Remaining: {balance?.remaining || leaveType.maxDaysPerYear} days
-                                        </Typography>
-                                    </CardContent>
-                                </Card>
-                            </Box>
-                        );
-                    })}
-                </Box>
-            </TabPanel>
+                                            >
+                                                <Typography variant="body2" sx={{ color: '#94a3b8', fontWeight: 600 }}>
+                                                    Remaining:
+                                                </Typography>
+                                                <Typography
+                                                    variant="h5"
+                                                    sx={{
+                                                        fontWeight: 700,
+                                                        color: '#6366f1',
+                                                        letterSpacing: '-0.02em',
+                                                    }}
+                                                >
+                                                    {remaining} <Typography component="span" variant="body2" sx={{ color: '#94a3b8', fontWeight: 400 }}>days</Typography>
+                                                </Typography>
+                                            </Box>
+                                        </CardContent>
+                                    </Card>
+                                </Box>
+                            );
+                        })}
+                    </Box>
+                </TabPanel>
             )}
 
             {/* All Applications Tab (Admin/Manager) */}
             {currentUser?.role !== 'employee' && (
                 <TabPanel value={tabValue} index={currentUser?.role === 'admin' ? 0 : 2}>
-                    <Typography variant="h6" sx={{ mb: 3 }}>All Leave Applications</Typography>
-                    <TableContainer component={Paper}>
+                    <Typography variant="h6" sx={{ mb: 3, color: '#f1f5f9', fontWeight: 600 }}>
+                        All Leave Applications
+                    </Typography>
+                    <TableContainer
+                        component={Paper}
+                        elevation={0}
+                        sx={{
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            backdropFilter: 'blur(20px)',
+                            WebkitBackdropFilter: 'blur(20px)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            borderRadius: '16px',
+                            overflow: 'hidden',
+                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
+                        }}
+                    >
                         <Table>
-                            <TableHead>
+                            <TableHead
+                                sx={{
+                                    '& .MuiTableCell-root': {
+                                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                                        color: '#94a3b8',
+                                        fontWeight: 600,
+                                        fontSize: '0.75rem',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.05em',
+                                        py: 1.75,
+                                    },
+                                }}
+                            >
                                 <TableRow>
                                     <TableCell>Employee</TableCell>
                                     <TableCell>Leave Type</TableCell>
@@ -534,13 +829,27 @@ export default function LeaveManagement() {
                                     <TableCell>End Date</TableCell>
                                     <TableCell>Days</TableCell>
                                     <TableCell>Status</TableCell>
-                                    <TableCell>Actions</TableCell>
+                                    <TableCell align="center">Actions</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {leaveApplications.map((application) => (
-                                    <TableRow key={application.id}>
-                                        <TableCell>{getEmployeeName(application.employeeId)}</TableCell>
+                                    <TableRow
+                                        key={application.id}
+                                        sx={{
+                                            '&:hover': {
+                                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                            },
+                                            '& .MuiTableCell-root': {
+                                                borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                                                color: '#f1f5f9',
+                                                py: 1.5,
+                                            },
+                                        }}
+                                    >
+                                        <TableCell sx={{ fontWeight: 500 }}>
+                                            {getEmployeeName(application.employeeId)}
+                                        </TableCell>
                                         <TableCell>{getLeaveTypeName(application.leaveTypeId)}</TableCell>
                                         <TableCell>{application.startDate?.toLocaleDateString()}</TableCell>
                                         <TableCell>{application.endDate?.toLocaleDateString()}</TableCell>
@@ -548,38 +857,77 @@ export default function LeaveManagement() {
                                         <TableCell>
                                             <Chip
                                                 label={application.status}
-                                                color={getStatusColor(application.status) as any}
                                                 size="small"
+                                                sx={{
+                                                    fontWeight: 600,
+                                                    fontSize: '0.75rem',
+                                                    textTransform: 'capitalize',
+                                                    backdropFilter: 'blur(10px)',
+                                                    ...getStatusChipProps(application.status),
+                                                }}
                                             />
                                         </TableCell>
-                                        <TableCell>
-                                            {currentUser?.role === 'admin' && application.status === 'pending' && (
-                                                <>
-                                                    <IconButton
-                                                        size="small"
-                                                        color="success"
-                                                        onClick={() => handleApproveReject(application.id, 'approved')}
-                                                    >
-                                                        <CheckCircle />
-                                                    </IconButton>
-                                                    <IconButton
-                                                        size="small"
-                                                        color="error"
-                                                        onClick={() => handleApproveReject(application.id, 'rejected', 'Rejected by admin')}
-                                                    >
-                                                        <Cancel />
-                                                    </IconButton>
-                                                </>
-                                            )}
-                                            <IconButton 
-                                                size="small"
-                                                onClick={() => {
-                                                    setSelectedApplication(application);
-                                                    setShowViewDialog(true);
-                                                }}
-                                            >
-                                                <Visibility />
-                                            </IconButton>
+                                        <TableCell align="center">
+                                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                                                {currentUser?.role === 'admin' && application.status === 'pending' && (
+                                                    <>
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => handleApproveReject(application.id, 'approved')}
+                                                            sx={{
+                                                                color: '#34d399',
+                                                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                                                border: '1px solid rgba(16, 185, 129, 0.25)',
+                                                                borderRadius: '8px',
+                                                                p: 0.75,
+                                                                '&:hover': {
+                                                                    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                                                                    borderColor: 'rgba(16, 185, 129, 0.4)',
+                                                                },
+                                                            }}
+                                                        >
+                                                            <CheckCircle sx={{ fontSize: 18 }} />
+                                                        </IconButton>
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => handleApproveReject(application.id, 'rejected', 'Rejected by admin')}
+                                                            sx={{
+                                                                color: '#f87171',
+                                                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                                                borderRadius: '8px',
+                                                                p: 0.75,
+                                                                '&:hover': {
+                                                                    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                                                                    borderColor: 'rgba(239, 68, 68, 0.4)',
+                                                                },
+                                                            }}
+                                                        >
+                                                            <Cancel sx={{ fontSize: 18 }} />
+                                                        </IconButton>
+                                                    </>
+                                                )}
+                                                <IconButton 
+                                                    size="small"
+                                                    onClick={() => {
+                                                        setSelectedApplication(application);
+                                                        setShowViewDialog(true);
+                                                    }}
+                                                    sx={{
+                                                        color: '#a5b4fc',
+                                                        backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                                                        border: '1px solid rgba(99, 102, 241, 0.2)',
+                                                        borderRadius: '8px',
+                                                        p: 0.75,
+                                                        '&:hover': {
+                                                            backgroundColor: 'rgba(99, 102, 241, 0.18)',
+                                                            borderColor: 'rgba(99, 102, 241, 0.4)',
+                                                        },
+                                                    }}
+                                                >
+                                                    <Visibility sx={{ fontSize: 18 }} />
+                                                </IconButton>
+                                            </Box>
                                         </TableCell>
                                     </TableRow>
                                 ))}
@@ -592,13 +940,34 @@ export default function LeaveManagement() {
             {/* Leave Types Tab (Admin) */}
             {currentUser?.role === 'admin' && (
                 <TabPanel value={tabValue} index={1}>
-                    <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="h6">Leave Types</Typography>
+                    <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                        <Typography variant="h6" sx={{ color: '#f1f5f9', fontWeight: 600 }}>
+                            Leave Types
+                        </Typography>
                         <Button
                             variant="contained"
                             startIcon={<Add />}
                             onClick={() => setShowLeaveTypeDialog(true)}
-                            sx={{ backgroundColor: '#2196f3' }}
+                            sx={{
+                                borderRadius: '12px',
+                                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                                color: '#ffffff',
+                                fontWeight: 600,
+                                px: 2.5,
+                                py: 1,
+                                textTransform: 'none',
+                                boxShadow: '6px 6px 14px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.2)',
+                                '&:hover': {
+                                    background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                                    boxShadow: '4px 4px 10px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.25)',
+                                    transform: 'translateY(-1px)',
+                                },
+                                '&:active': {
+                                    boxShadow: '2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)',
+                                    transform: 'translateY(0)',
+                                },
+                                transition: 'all 0.2s ease',
+                            }}
                         >
                             Add Leave Type
                         </Button>
@@ -617,38 +986,90 @@ export default function LeaveManagement() {
                     >
                         {leaveTypes.map((leaveType) => (
                             <Box key={leaveType.id}>
-                                <Card>
-                                    <CardContent>
+                                <Card
+                                    elevation={0}
+                                    sx={{
+                                        background: 'rgba(255, 255, 255, 0.03)',
+                                        backdropFilter: 'blur(20px)',
+                                        WebkitBackdropFilter: 'blur(20px)',
+                                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                                        borderRadius: '16px',
+                                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                        position: 'relative',
+                                        overflow: 'hidden',
+                                        '&:hover': {
+                                            transform: 'translateY(-3px)',
+                                            borderColor: 'rgba(99, 102, 241, 0.35)',
+                                            boxShadow: '0 14px 40px rgba(0, 0, 0, 0.35)',
+                                        },
+                                        '&::before': {
+                                            content: '""',
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            right: 0,
+                                            height: '2px',
+                                            background: `linear-gradient(90deg, transparent, ${leaveType.color || '#6366f1'}, transparent)`,
+                                            opacity: 0.85,
+                                        },
+                                    }}
+                                >
+                                    <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
                                                 <Box
                                                     sx={{
                                                         width: 12,
                                                         height: 12,
                                                         borderRadius: '50%',
-                                                        backgroundColor: leaveType.color,
-                                                        mr: 1,
+                                                        backgroundColor: leaveType.color || '#6366f1',
+                                                        boxShadow: `0 0 10px ${leaveType.color || '#6366f1'}`,
                                                     }}
                                                 />
-                                                <Typography variant="h6">{leaveType.name}</Typography>
+                                                <Typography variant="h6" sx={{ color: '#f1f5f9', fontWeight: 600 }}>
+                                                    {leaveType.name}
+                                                </Typography>
                                             </Box>
-                                            <Box>
-                                                <IconButton size="small">
-                                                    <Edit />
+                                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                                <IconButton
+                                                    size="small"
+                                                    sx={{
+                                                        color: '#a5b4fc',
+                                                        backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                                                        borderRadius: '8px',
+                                                        p: 0.75,
+                                                        '&:hover': {
+                                                            backgroundColor: 'rgba(99, 102, 241, 0.18)',
+                                                        },
+                                                    }}
+                                                >
+                                                    <Edit sx={{ fontSize: 18 }} />
                                                 </IconButton>
-                                                <IconButton size="small" color="error">
-                                                    <Delete />
+                                                <IconButton
+                                                    size="small"
+                                                    sx={{
+                                                        color: '#f87171',
+                                                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                                        borderRadius: '8px',
+                                                        p: 0.75,
+                                                        '&:hover': {
+                                                            backgroundColor: 'rgba(239, 68, 68, 0.18)',
+                                                        },
+                                                    }}
+                                                >
+                                                    <Delete sx={{ fontSize: 18 }} />
                                                 </IconButton>
                                             </Box>
                                         </Box>
-                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                            Code: {leaveType.code}
+                                        <Typography variant="body2" sx={{ color: '#94a3b8', mb: 1 }}>
+                                            Code: <strong style={{ color: '#f1f5f9' }}>{leaveType.code}</strong>
                                         </Typography>
-                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                            Max Days: {leaveType.maxDaysPerYear} per year
+                                        <Typography variant="body2" sx={{ color: '#94a3b8', mb: 1 }}>
+                                            Max Days: <strong style={{ color: '#f1f5f9' }}>{leaveType.maxDaysPerYear}</strong> per year
                                         </Typography>
-                                        <Typography variant="body2" color="text.secondary">
-                                            Carry Forward: {leaveType.carryForward ? 'Yes' : 'No'}
+                                        <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+                                            Carry Forward: <strong style={{ color: '#f1f5f9' }}>{leaveType.carryForward ? 'Yes' : 'No'}</strong>
                                         </Typography>
                                     </CardContent>
                                 </Card>
@@ -661,45 +1082,137 @@ export default function LeaveManagement() {
             {/* Holidays Tab (Admin) */}
             {currentUser?.role === 'admin' && (
                 <TabPanel value={tabValue} index={2}>
-                    <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="h6">Holidays</Typography>
+                    <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                        <Typography variant="h6" sx={{ color: '#f1f5f9', fontWeight: 600 }}>
+                            Holidays
+                        </Typography>
                         <Button
                             variant="contained"
                             startIcon={<CalendarToday />}
                             onClick={() => setShowHolidayDialog(true)}
-                            sx={{ backgroundColor: '#2196f3' }}
+                            sx={{
+                                borderRadius: '12px',
+                                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                                color: '#ffffff',
+                                fontWeight: 600,
+                                px: 2.5,
+                                py: 1,
+                                textTransform: 'none',
+                                boxShadow: '6px 6px 14px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.2)',
+                                '&:hover': {
+                                    background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                                    boxShadow: '4px 4px 10px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.25)',
+                                    transform: 'translateY(-1px)',
+                                },
+                                '&:active': {
+                                    boxShadow: '2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)',
+                                    transform: 'translateY(0)',
+                                },
+                                transition: 'all 0.2s ease',
+                            }}
                         >
                             Add Holiday
                         </Button>
                     </Box>
 
-                    <TableContainer component={Paper}>
+                    <TableContainer
+                        component={Paper}
+                        elevation={0}
+                        sx={{
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            backdropFilter: 'blur(20px)',
+                            WebkitBackdropFilter: 'blur(20px)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            borderRadius: '16px',
+                            overflow: 'hidden',
+                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
+                        }}
+                    >
                         <Table>
-                            <TableHead>
+                            <TableHead
+                                sx={{
+                                    '& .MuiTableCell-root': {
+                                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                                        color: '#94a3b8',
+                                        fontWeight: 600,
+                                        fontSize: '0.75rem',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.05em',
+                                        py: 1.75,
+                                    },
+                                }}
+                            >
                                 <TableRow>
                                     <TableCell>Holiday Name</TableCell>
                                     <TableCell>Date</TableCell>
                                     <TableCell>Type</TableCell>
                                     <TableCell>Optional</TableCell>
-                                    <TableCell>Actions</TableCell>
+                                    <TableCell align="center">Actions</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {holidays.map((holiday) => (
-                                    <TableRow key={holiday.id}>
-                                        <TableCell>{holiday.name}</TableCell>
+                                    <TableRow
+                                        key={holiday.id}
+                                        sx={{
+                                            '&:hover': {
+                                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                            },
+                                            '& .MuiTableCell-root': {
+                                                borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                                                color: '#f1f5f9',
+                                                py: 1.5,
+                                            },
+                                        }}
+                                    >
+                                        <TableCell sx={{ fontWeight: 500 }}>{holiday.name}</TableCell>
                                         <TableCell>{holiday.date?.toLocaleDateString()}</TableCell>
                                         <TableCell>
-                                            <Chip label={holiday.type} size="small" />
+                                            <Chip
+                                                label={holiday.type}
+                                                size="small"
+                                                sx={{
+                                                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                                                    color: '#a5b4fc',
+                                                    border: '1px solid rgba(99, 102, 241, 0.25)',
+                                                    fontWeight: 500,
+                                                    textTransform: 'capitalize',
+                                                }}
+                                            />
                                         </TableCell>
                                         <TableCell>{holiday.isOptional ? 'Yes' : 'No'}</TableCell>
-                                        <TableCell>
-                                            <IconButton size="small">
-                                                <Edit />
-                                            </IconButton>
-                                            <IconButton size="small" color="error">
-                                                <Delete />
-                                            </IconButton>
+                                        <TableCell align="center">
+                                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                                                <IconButton
+                                                    size="small"
+                                                    sx={{
+                                                        color: '#a5b4fc',
+                                                        backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                                                        borderRadius: '8px',
+                                                        p: 0.75,
+                                                        '&:hover': {
+                                                            backgroundColor: 'rgba(99, 102, 241, 0.18)',
+                                                        },
+                                                    }}
+                                                >
+                                                    <Edit sx={{ fontSize: 18 }} />
+                                                </IconButton>
+                                                <IconButton
+                                                    size="small"
+                                                    sx={{
+                                                        color: '#f87171',
+                                                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                                        borderRadius: '8px',
+                                                        p: 0.75,
+                                                        '&:hover': {
+                                                            backgroundColor: 'rgba(239, 68, 68, 0.18)',
+                                                        },
+                                                    }}
+                                                >
+                                                    <Delete sx={{ fontSize: 18 }} />
+                                                </IconButton>
+                                            </Box>
                                         </TableCell>
                                     </TableRow>
                                 ))}
@@ -710,75 +1223,204 @@ export default function LeaveManagement() {
             )}
 
             {/* View Leave Details Dialog */}
-            <Dialog open={showViewDialog} onClose={() => setShowViewDialog(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>Leave Application Details</DialogTitle>
-                <DialogContent>
+            <Dialog
+                open={showViewDialog}
+                onClose={() => setShowViewDialog(false)}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        background: 'rgba(15, 23, 42, 0.95)',
+                        backdropFilter: 'blur(40px)',
+                        WebkitBackdropFilter: 'blur(40px)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '20px',
+                        boxShadow: '0 25px 60px rgba(0, 0, 0, 0.5)',
+                        color: '#f1f5f9',
+                    },
+                }}
+            >
+                <DialogTitle sx={{ color: '#f1f5f9', fontWeight: 600, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', pb: 2 }}>
+                    Leave Application Details
+                </DialogTitle>
+                <DialogContent sx={{ pt: 3 }}>
                     {selectedApplication && (
-                        <Box sx={{ mt: 2 }}>
-                            <Typography variant="body1" sx={{ mb: 2 }}>
-                                <strong>Employee:</strong> {getEmployeeName(selectedApplication.employeeId)}
-                            </Typography>
-                            <Typography variant="body1" sx={{ mb: 2 }}>
-                                <strong>Leave Type:</strong> {getLeaveTypeName(selectedApplication.leaveTypeId)}
-                            </Typography>
-                            <Typography variant="body1" sx={{ mb: 2 }}>
-                                <strong>Start Date:</strong> {selectedApplication.startDate?.toLocaleDateString()}
-                            </Typography>
-                            <Typography variant="body1" sx={{ mb: 2 }}>
-                                <strong>End Date:</strong> {selectedApplication.endDate?.toLocaleDateString()}
-                            </Typography>
-                            <Typography variant="body1" sx={{ mb: 2 }}>
-                                <strong>Total Days:</strong> {selectedApplication.totalDays}
-                            </Typography>
-                            <Typography variant="body1" sx={{ mb: 2 }}>
-                                <strong>Reason:</strong> {selectedApplication.reason || 'N/A'}
-                            </Typography>
-                            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography variant="body1" component="span">
-                                    <strong>Status:</strong>
+                        <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <Typography variant="body2" sx={{ color: '#94a3b8' }}>Employee:</Typography>
+                                <Typography variant="body2" sx={{ color: '#f1f5f9', fontWeight: 600 }}>
+                                    {getEmployeeName(selectedApplication.employeeId)}
                                 </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <Typography variant="body2" sx={{ color: '#94a3b8' }}>Leave Type:</Typography>
+                                <Typography variant="body2" sx={{ color: '#f1f5f9', fontWeight: 500 }}>
+                                    {getLeaveTypeName(selectedApplication.leaveTypeId)}
+                                </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <Typography variant="body2" sx={{ color: '#94a3b8' }}>Start Date:</Typography>
+                                <Typography variant="body2" sx={{ color: '#f1f5f9', fontWeight: 500 }}>
+                                    {selectedApplication.startDate?.toLocaleDateString()}
+                                </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <Typography variant="body2" sx={{ color: '#94a3b8' }}>End Date:</Typography>
+                                <Typography variant="body2" sx={{ color: '#f1f5f9', fontWeight: 500 }}>
+                                    {selectedApplication.endDate?.toLocaleDateString()}
+                                </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <Typography variant="body2" sx={{ color: '#94a3b8' }}>Total Days:</Typography>
+                                <Typography variant="body2" sx={{ color: '#f1f5f9', fontWeight: 600 }}>
+                                    {selectedApplication.totalDays}
+                                </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <Typography variant="body2" sx={{ color: '#94a3b8' }}>Reason:</Typography>
+                                <Typography variant="body2" sx={{ color: '#f1f5f9', maxWidth: '60%', textAlign: 'right' }}>
+                                    {selectedApplication.reason || 'N/A'}
+                                </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography variant="body2" sx={{ color: '#94a3b8' }}>Status:</Typography>
                                 <Chip 
                                     label={selectedApplication.status} 
-                                    color={getStatusColor(selectedApplication.status) as any}
                                     size="small"
+                                    sx={{
+                                        fontWeight: 600,
+                                        fontSize: '0.75rem',
+                                        textTransform: 'capitalize',
+                                        ...getStatusChipProps(selectedApplication.status),
+                                    }}
                                 />
                             </Box>
-                            <Typography variant="body1" sx={{ mb: 2 }}>
-                                <strong>Applied On:</strong> {selectedApplication.appliedAt?.toLocaleDateString()}
-                            </Typography>
-                            {selectedApplication.approvedAt && (
-                                <Typography variant="body1" sx={{ mb: 2 }}>
-                                    <strong>Approved/Rejected On:</strong> {selectedApplication.approvedAt?.toLocaleDateString()}
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <Typography variant="body2" sx={{ color: '#94a3b8' }}>Applied On:</Typography>
+                                <Typography variant="body2" sx={{ color: '#f1f5f9' }}>
+                                    {selectedApplication.appliedAt?.toLocaleDateString()}
                                 </Typography>
+                            </Box>
+                            {selectedApplication.approvedAt && (
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <Typography variant="body2" sx={{ color: '#94a3b8' }}>Approved/Rejected On:</Typography>
+                                    <Typography variant="body2" sx={{ color: '#f1f5f9' }}>
+                                        {selectedApplication.approvedAt?.toLocaleDateString()}
+                                    </Typography>
+                                </Box>
                             )}
                             {selectedApplication.rejectionReason && (
-                                <Typography variant="body1" sx={{ mb: 2 }}>
-                                    <strong>Rejection Reason:</strong> {selectedApplication.rejectionReason}
-                                </Typography>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <Typography variant="body2" sx={{ color: '#f87171' }}>Rejection Reason:</Typography>
+                                    <Typography variant="body2" sx={{ color: '#f87171' }}>
+                                        {selectedApplication.rejectionReason}
+                                    </Typography>
+                                </Box>
                             )}
                             {selectedApplication.isHalfDay && (
-                                <Typography variant="body1" sx={{ mb: 2 }}>
-                                    <strong>Half Day:</strong> {selectedApplication.halfDayType === 'first-half' ? 'First Half' : 'Second Half'}
-                                </Typography>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <Typography variant="body2" sx={{ color: '#94a3b8' }}>Half Day:</Typography>
+                                    <Typography variant="body2" sx={{ color: '#f1f5f9' }}>
+                                        {selectedApplication.halfDayType === 'first-half' ? 'First Half' : 'Second Half'}
+                                    </Typography>
+                                </Box>
                             )}
                         </Box>
                     )}
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setShowViewDialog(false)}>Close</Button>
+                <DialogActions sx={{ p: 2.5, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                    <Button
+                        onClick={() => setShowViewDialog(false)}
+                        sx={{
+                            color: '#94a3b8',
+                            borderRadius: '10px',
+                            px: 2.5,
+                            textTransform: 'none',
+                            '&:hover': {
+                                color: '#f1f5f9',
+                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            },
+                        }}
+                    >
+                        Close
+                    </Button>
                 </DialogActions>
             </Dialog>
 
             {/* Apply Leave Dialog */}
-            <Dialog open={showApplicationDialog} onClose={() => setShowApplicationDialog(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>Apply for Leave</DialogTitle>
-                <DialogContent>
-                    <FormControl fullWidth sx={{ mt: 2, mb: 2 }}>
+            <Dialog
+                open={showApplicationDialog}
+                onClose={() => setShowApplicationDialog(false)}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        background: 'rgba(15, 23, 42, 0.95)',
+                        backdropFilter: 'blur(40px)',
+                        WebkitBackdropFilter: 'blur(40px)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '20px',
+                        boxShadow: '0 25px 60px rgba(0, 0, 0, 0.5)',
+                        color: '#f1f5f9',
+                    },
+                }}
+            >
+                <DialogTitle sx={{ color: '#f1f5f9', fontWeight: 600, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', pb: 2 }}>
+                    Apply for Leave
+                </DialogTitle>
+                <DialogContent sx={{ pt: 3 }}>
+                    <FormControl
+                        fullWidth
+                        sx={{
+                            mt: 2,
+                            mb: 2.5,
+                            '& .MuiOutlinedInput-root': {
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                backdropFilter: 'blur(10px)',
+                                borderRadius: '12px',
+                                color: '#f1f5f9',
+                                '& fieldset': {
+                                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                                },
+                                '&:hover fieldset': {
+                                    borderColor: 'rgba(99, 102, 241, 0.35)',
+                                },
+                                '&.Mui-focused fieldset': {
+                                    borderColor: '#6366f1',
+                                    boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.15)',
+                                },
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: '#94a3b8',
+                                '&.Mui-focused': { color: '#818cf8' },
+                            },
+                            '& .MuiSelect-icon': { color: '#94a3b8' },
+                        }}
+                    >
                         <InputLabel>Leave Type</InputLabel>
                         <Select
                             value={applicationForm.leaveTypeId}
                             onChange={(e) => setApplicationForm({ ...applicationForm, leaveTypeId: e.target.value })}
                             label="Leave Type"
+                            MenuProps={{
+                                PaperProps: {
+                                    sx: {
+                                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                                        backdropFilter: 'blur(24px)',
+                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        borderRadius: '12px',
+                                        '& .MuiMenuItem-root': {
+                                            color: '#f1f5f9',
+                                            '&:hover': {
+                                                backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                                            },
+                                            '&.Mui-selected': {
+                                                backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                                            },
+                                        },
+                                    },
+                                },
+                            }}
                         >
                             {leaveTypes.map((type) => (
                                 <MenuItem key={type.id} value={type.id}>
@@ -794,7 +1436,21 @@ export default function LeaveManagement() {
                             label="Custom Leave Type"
                             value={customLeaveType}
                             onChange={(e) => setCustomLeaveType(e.target.value)}
-                            sx={{ mb: 2 }}
+                            sx={{
+                                mb: 2.5,
+                                '& .MuiOutlinedInput-root': {
+                                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                    borderRadius: '12px',
+                                    color: '#f1f5f9',
+                                    '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.1)' },
+                                    '&:hover fieldset': { borderColor: 'rgba(99, 102, 241, 0.35)' },
+                                    '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                                },
+                                '& .MuiInputLabel-root': {
+                                    color: '#94a3b8',
+                                    '&.Mui-focused': { color: '#818cf8' },
+                                },
+                            }}
                         />
                     )}
 
@@ -804,7 +1460,21 @@ export default function LeaveManagement() {
                         label="Start Date"
                         value={applicationForm.startDate}
                         onChange={(e) => setApplicationForm({ ...applicationForm, startDate: e.target.value, endDate: '' })}
-                        sx={{ mb: 2 }}
+                        sx={{
+                            mb: 2.5,
+                            '& .MuiOutlinedInput-root': {
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                borderRadius: '12px',
+                                color: '#f1f5f9',
+                                '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.1)' },
+                                '&:hover fieldset': { borderColor: 'rgba(99, 102, 241, 0.35)' },
+                                '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: '#94a3b8',
+                                '&.Mui-focused': { color: '#818cf8' },
+                            },
+                        }}
                         InputLabelProps={{ shrink: true }}
                         inputProps={{
                             min: new Date().toISOString().split('T')[0]
@@ -817,7 +1487,22 @@ export default function LeaveManagement() {
                         label="End Date"
                         value={applicationForm.endDate}
                         onChange={(e) => setApplicationForm({ ...applicationForm, endDate: e.target.value })}
-                        sx={{ mb: 2 }}
+                        sx={{
+                            mb: 2.5,
+                            '& .MuiOutlinedInput-root': {
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                borderRadius: '12px',
+                                color: '#f1f5f9',
+                                '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.1)' },
+                                '&:hover fieldset': { borderColor: 'rgba(99, 102, 241, 0.35)' },
+                                '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: '#94a3b8',
+                                '&.Mui-focused': { color: '#818cf8' },
+                            },
+                            '& .MuiFormHelperText-root': { color: '#94a3b8' },
+                        }}
                         InputLabelProps={{ shrink: true }}
                         disabled={!applicationForm.startDate}
                         inputProps={{
@@ -833,36 +1518,122 @@ export default function LeaveManagement() {
                         label="Reason"
                         value={applicationForm.reason}
                         onChange={(e) => setApplicationForm({ ...applicationForm, reason: e.target.value })}
-                        sx={{ mb: 2 }}
+                        sx={{
+                            mb: 2.5,
+                            '& .MuiOutlinedInput-root': {
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                borderRadius: '12px',
+                                color: '#f1f5f9',
+                                '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.1)' },
+                                '&:hover fieldset': { borderColor: 'rgba(99, 102, 241, 0.35)' },
+                                '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: '#94a3b8',
+                                '&.Mui-focused': { color: '#818cf8' },
+                            },
+                        }}
                     />
 
                     {leaveBalanceError && (
-                        <Alert severity="error" sx={{ mb: 2 }}>
+                        <Alert
+                            severity="error"
+                            sx={{
+                                mb: 2,
+                                borderRadius: '12px',
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                color: '#fca5a5',
+                            }}
+                        >
                             {leaveBalanceError}
                         </Alert>
                     )}
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => {
-                        setShowApplicationDialog(false);
-                        setLeaveBalanceError('');
-                    }}>Cancel</Button>
-                    <Button onClick={handleApplyLeave} variant="contained">
+                <DialogActions sx={{ p: 2.5, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                    <Button
+                        onClick={() => {
+                            setShowApplicationDialog(false);
+                            setLeaveBalanceError('');
+                        }}
+                        sx={{
+                            color: '#94a3b8',
+                            borderRadius: '10px',
+                            px: 2,
+                            textTransform: 'none',
+                            '&:hover': {
+                                color: '#f1f5f9',
+                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            },
+                        }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleApplyLeave}
+                        variant="contained"
+                        sx={{
+                            borderRadius: '10px',
+                            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                            color: '#ffffff',
+                            fontWeight: 600,
+                            px: 2.5,
+                            py: 0.75,
+                            textTransform: 'none',
+                            boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                            '&:hover': {
+                                background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                            },
+                        }}
+                    >
                         Apply
                     </Button>
                 </DialogActions>
             </Dialog>
 
             {/* Add Leave Type Dialog */}
-            <Dialog open={showLeaveTypeDialog} onClose={() => setShowLeaveTypeDialog(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>Add Leave Type</DialogTitle>
-                <DialogContent>
+            <Dialog
+                open={showLeaveTypeDialog}
+                onClose={() => setShowLeaveTypeDialog(false)}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        background: 'rgba(15, 23, 42, 0.95)',
+                        backdropFilter: 'blur(40px)',
+                        WebkitBackdropFilter: 'blur(40px)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '20px',
+                        boxShadow: '0 25px 60px rgba(0, 0, 0, 0.5)',
+                        color: '#f1f5f9',
+                    },
+                }}
+            >
+                <DialogTitle sx={{ color: '#f1f5f9', fontWeight: 600, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', pb: 2 }}>
+                    Add Leave Type
+                </DialogTitle>
+                <DialogContent sx={{ pt: 3 }}>
                     <TextField
                         fullWidth
                         label="Leave Type Name"
                         value={leaveTypeForm.name}
                         onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, name: e.target.value })}
-                        sx={{ mt: 2, mb: 2 }}
+                        sx={{
+                            mt: 2,
+                            mb: 2.5,
+                            '& .MuiOutlinedInput-root': {
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                borderRadius: '12px',
+                                color: '#f1f5f9',
+                                '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.1)' },
+                                '&:hover fieldset': { borderColor: 'rgba(99, 102, 241, 0.35)' },
+                                '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: '#94a3b8',
+                                '&.Mui-focused': { color: '#818cf8' },
+                            },
+                        }}
                     />
 
                     <TextField
@@ -870,7 +1641,21 @@ export default function LeaveManagement() {
                         label="Code"
                         value={leaveTypeForm.code}
                         onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, code: e.target.value })}
-                        sx={{ mb: 2 }}
+                        sx={{
+                            mb: 2.5,
+                            '& .MuiOutlinedInput-root': {
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                borderRadius: '12px',
+                                color: '#f1f5f9',
+                                '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.1)' },
+                                '&:hover fieldset': { borderColor: 'rgba(99, 102, 241, 0.35)' },
+                                '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: '#94a3b8',
+                                '&.Mui-focused': { color: '#818cf8' },
+                            },
+                        }}
                     />
 
                     <TextField
@@ -879,7 +1664,21 @@ export default function LeaveManagement() {
                         label="Max Days Per Year"
                         value={leaveTypeForm.maxDaysPerYear}
                         onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, maxDaysPerYear: parseInt(e.target.value) })}
-                        sx={{ mb: 2 }}
+                        sx={{
+                            mb: 2.5,
+                            '& .MuiOutlinedInput-root': {
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                borderRadius: '12px',
+                                color: '#f1f5f9',
+                                '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.1)' },
+                                '&:hover fieldset': { borderColor: 'rgba(99, 102, 241, 0.35)' },
+                                '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: '#94a3b8',
+                                '&.Mui-focused': { color: '#818cf8' },
+                            },
+                        }}
                     />
 
                     <TextField
@@ -888,27 +1687,104 @@ export default function LeaveManagement() {
                         label="Color"
                         value={leaveTypeForm.color}
                         onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, color: e.target.value })}
-                        sx={{ mb: 2 }}
+                        sx={{
+                            mb: 2.5,
+                            '& .MuiOutlinedInput-root': {
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                borderRadius: '12px',
+                                color: '#f1f5f9',
+                                '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.1)' },
+                                '&:hover fieldset': { borderColor: 'rgba(99, 102, 241, 0.35)' },
+                                '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: '#94a3b8',
+                                '&.Mui-focused': { color: '#818cf8' },
+                            },
+                        }}
                     />
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setShowLeaveTypeDialog(false)}>Cancel</Button>
-                    <Button onClick={handleCreateLeaveType} variant="contained">
+                <DialogActions sx={{ p: 2.5, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                    <Button
+                        onClick={() => setShowLeaveTypeDialog(false)}
+                        sx={{
+                            color: '#94a3b8',
+                            borderRadius: '10px',
+                            px: 2,
+                            textTransform: 'none',
+                            '&:hover': {
+                                color: '#f1f5f9',
+                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            },
+                        }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleCreateLeaveType}
+                        variant="contained"
+                        sx={{
+                            borderRadius: '10px',
+                            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                            color: '#ffffff',
+                            fontWeight: 600,
+                            px: 2.5,
+                            py: 0.75,
+                            textTransform: 'none',
+                            boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                            '&:hover': {
+                                background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                            },
+                        }}
+                    >
                         Create
                     </Button>
                 </DialogActions>
             </Dialog>
 
             {/* Add Holiday Dialog */}
-            <Dialog open={showHolidayDialog} onClose={() => setShowHolidayDialog(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>Add Holiday</DialogTitle>
-                <DialogContent>
+            <Dialog
+                open={showHolidayDialog}
+                onClose={() => setShowHolidayDialog(false)}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        background: 'rgba(15, 23, 42, 0.95)',
+                        backdropFilter: 'blur(40px)',
+                        WebkitBackdropFilter: 'blur(40px)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '20px',
+                        boxShadow: '0 25px 60px rgba(0, 0, 0, 0.5)',
+                        color: '#f1f5f9',
+                    },
+                }}
+            >
+                <DialogTitle sx={{ color: '#f1f5f9', fontWeight: 600, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', pb: 2 }}>
+                    Add Holiday
+                </DialogTitle>
+                <DialogContent sx={{ pt: 3 }}>
                     <TextField
                         fullWidth
                         label="Holiday Name"
                         value={holidayForm.name}
                         onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })}
-                        sx={{ mt: 2, mb: 2 }}
+                        sx={{
+                            mt: 2,
+                            mb: 2.5,
+                            '& .MuiOutlinedInput-root': {
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                borderRadius: '12px',
+                                color: '#f1f5f9',
+                                '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.1)' },
+                                '&:hover fieldset': { borderColor: 'rgba(99, 102, 241, 0.35)' },
+                                '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: '#94a3b8',
+                                '&.Mui-focused': { color: '#818cf8' },
+                            },
+                        }}
                     />
 
                     <TextField
@@ -917,16 +1793,67 @@ export default function LeaveManagement() {
                         label="Date"
                         value={holidayForm.date}
                         onChange={(e) => setHolidayForm({ ...holidayForm, date: e.target.value })}
-                        sx={{ mb: 2 }}
+                        sx={{
+                            mb: 2.5,
+                            '& .MuiOutlinedInput-root': {
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                borderRadius: '12px',
+                                color: '#f1f5f9',
+                                '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.1)' },
+                                '&:hover fieldset': { borderColor: 'rgba(99, 102, 241, 0.35)' },
+                                '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: '#94a3b8',
+                                '&.Mui-focused': { color: '#818cf8' },
+                            },
+                        }}
                         InputLabelProps={{ shrink: true }}
                     />
 
-                    <FormControl fullWidth sx={{ mb: 2 }}>
+                    <FormControl
+                        fullWidth
+                        sx={{
+                            mb: 2.5,
+                            '& .MuiOutlinedInput-root': {
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                borderRadius: '12px',
+                                color: '#f1f5f9',
+                                '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.1)' },
+                                '&:hover fieldset': { borderColor: 'rgba(99, 102, 241, 0.35)' },
+                                '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: '#94a3b8',
+                                '&.Mui-focused': { color: '#818cf8' },
+                            },
+                            '& .MuiSelect-icon': { color: '#94a3b8' },
+                        }}
+                    >
                         <InputLabel>Type</InputLabel>
                         <Select
                             value={holidayForm.type}
                             onChange={(e) => setHolidayForm({ ...holidayForm, type: e.target.value as any })}
                             label="Type"
+                            MenuProps={{
+                                PaperProps: {
+                                    sx: {
+                                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                                        backdropFilter: 'blur(24px)',
+                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        borderRadius: '12px',
+                                        '& .MuiMenuItem-root': {
+                                            color: '#f1f5f9',
+                                            '&:hover': {
+                                                backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                                            },
+                                            '&.Mui-selected': {
+                                                backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                                            },
+                                        },
+                                    },
+                                },
+                            }}
                         >
                             <MenuItem value="national">National</MenuItem>
                             <MenuItem value="regional">Regional</MenuItem>
@@ -941,12 +1868,56 @@ export default function LeaveManagement() {
                         label="Description"
                         value={holidayForm.description}
                         onChange={(e) => setHolidayForm({ ...holidayForm, description: e.target.value })}
-                        sx={{ mb: 2 }}
+                        sx={{
+                            mb: 2.5,
+                            '& .MuiOutlinedInput-root': {
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                borderRadius: '12px',
+                                color: '#f1f5f9',
+                                '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.1)' },
+                                '&:hover fieldset': { borderColor: 'rgba(99, 102, 241, 0.35)' },
+                                '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                            },
+                            '& .MuiInputLabel-root': {
+                                color: '#94a3b8',
+                                '&.Mui-focused': { color: '#818cf8' },
+                            },
+                        }}
                     />
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setShowHolidayDialog(false)}>Cancel</Button>
-                    <Button onClick={handleCreateHoliday} variant="contained">
+                <DialogActions sx={{ p: 2.5, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                    <Button
+                        onClick={() => setShowHolidayDialog(false)}
+                        sx={{
+                            color: '#94a3b8',
+                            borderRadius: '10px',
+                            px: 2,
+                            textTransform: 'none',
+                            '&:hover': {
+                                color: '#f1f5f9',
+                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            },
+                        }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handleCreateHoliday}
+                        variant="contained"
+                        sx={{
+                            borderRadius: '10px',
+                            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                            color: '#ffffff',
+                            fontWeight: 600,
+                            px: 2.5,
+                            py: 0.75,
+                            textTransform: 'none',
+                            boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)',
+                            '&:hover': {
+                                background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                            },
+                        }}
+                    >
                         Create
                     </Button>
                 </DialogActions>

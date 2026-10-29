@@ -95,11 +95,11 @@ export default function DeletePasswordDialog({
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ color: "#f44336", pb: 1 }}>
+      <DialogTitle sx={{ color: "#ef4444", pb: 1, fontWeight: 600 }}>
         Confirm Delete: {entityLabel}
       </DialogTitle>
       <DialogContent>
-        <Typography variant="body2" sx={{ color: "#b0b0b0", mb: 2 }}>
+        <Typography variant="body2" sx={{ color: "#94a3b8", mb: 2 }}>
           {entityType === "manager"
             ? "Deleting this manager will permanently remove all assigned employees and their records (attendance, payroll, salary slips, notifications). This cannot be undone."
             : "Deleting employee(s) will permanently remove all their records (attendance, payroll, salary slips, notifications). This cannot be undone."}
@@ -145,8 +145,14 @@ export default function DeletePasswordDialog({
           variant="contained"
           isLoading={isLoading}
           sx={{
-            backgroundColor: "#b71c1c",
-            "&:hover": { backgroundColor: "#7f0000" },
+            background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+            borderRadius: "10px",
+            fontWeight: 600,
+            boxShadow: "0 4px 12px rgba(239, 68, 68, 0.3)",
+            "&:hover": {
+              background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)",
+              transform: "translateY(-1px)",
+            },
           }}
         >
           Delete

@@ -12,6 +12,7 @@ import {
   Container,
   InputAdornment,
   IconButton,
+  Link,
 } from '@mui/material';
 import { Visibility, VisibilityOff, Person } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
@@ -136,51 +137,65 @@ export default function ManagerPasswordSetup() {
     <Container component="main" maxWidth="sm">
       <Box
         sx={{
-          marginTop: 8,
+          paddingY: { xs: 4, sm: 8 },
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           minHeight: '100vh',
+          justifyContent: 'center',
         }}
       >
         <Paper
-          elevation={8}
+          elevation={0}
           sx={{
-            padding: 4,
+            padding: { xs: 3, sm: 4.5 },
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             width: '100%',
-            backgroundColor: '#2d2d2d',
-            border: '1px solid #333',
-            borderRadius: 3,
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 4,
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
           }}
         >
           <Box
             sx={{
               display: 'flex',
               alignItems: 'center',
-              gap: 2,
-              mb: 3,
+              gap: 2.5,
+              mb: 3.5,
             }}
           >
             <Box
               sx={{
-                width: 60,
-                height: 60,
-                borderRadius: '50%',
-                backgroundColor: '#2196f3',
+                width: 56,
+                height: 56,
+                borderRadius: '16px',
+                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
+                boxShadow: '0 8px 24px rgba(99, 102, 241, 0.35)',
               }}
             >
-              <Person sx={{ color: '#ffffff', fontSize: 30 }} />
+              <Person sx={{ color: '#ffffff', fontSize: 28 }} />
             </Box>
             <Box>
-              <Typography component="h1" variant="h4" sx={{ fontWeight: 700, color: '#ffffff' }}>
+              <Typography
+                component="h1"
+                variant="h4"
+                sx={{
+                  fontWeight: 700,
+                  fontSize: { xs: '1.5rem', sm: '1.75rem' },
+                  letterSpacing: '-0.02em',
+                  background: 'linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
                 Confirm Manager
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -195,8 +210,7 @@ export default function ManagerPasswordSetup() {
               sx={{ 
                 width: '100%', 
                 mb: 3,
-                borderRadius: 2,
-                border: '1px solid #f44336',
+                borderRadius: 2.5,
               }}
             >
               {error}
@@ -209,8 +223,7 @@ export default function ManagerPasswordSetup() {
               sx={{ 
                 width: '100%', 
                 mb: 3,
-                borderRadius: 2,
-                border: '1px solid #4caf50',
+                borderRadius: 2.5,
               }}
             >
               {success}
@@ -233,20 +246,6 @@ export default function ManagerPasswordSetup() {
                   autoFocus
                   error={!!errors.managerId}
                   helperText={errors.managerId?.message}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      '& fieldset': {
-                        borderColor: '#444',
-                      },
-                      '&:hover fieldset': {
-                        borderColor: '#666',
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: '#2196f3',
-                      },
-                    },
-                  }}
                 />
               )}
             />
@@ -274,9 +273,10 @@ export default function ManagerPasswordSetup() {
                           onClick={() => setShowPassword(!showPassword)}
                           edge="end"
                           sx={{
-                            color: '#b0b0b0',
+                            color: '#94a3b8',
                             '&:hover': {
-                              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                              color: '#e0e7ff',
                             },
                           }}
                         >
@@ -284,20 +284,6 @@ export default function ManagerPasswordSetup() {
                         </IconButton>
                       </InputAdornment>
                     ),
-                  }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      '& fieldset': {
-                        borderColor: '#444',
-                      },
-                      '&:hover fieldset': {
-                        borderColor: '#666',
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: '#2196f3',
-                      },
-                    },
                   }}
                 />
               )}
@@ -326,9 +312,10 @@ export default function ManagerPasswordSetup() {
                           onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                           edge="end"
                           sx={{
-                            color: '#b0b0b0',
+                            color: '#94a3b8',
                             '&:hover': {
-                              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                              color: '#e0e7ff',
                             },
                           }}
                         >
@@ -336,20 +323,6 @@ export default function ManagerPasswordSetup() {
                         </IconButton>
                       </InputAdornment>
                     ),
-                  }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      '& fieldset': {
-                        borderColor: '#444',
-                      },
-                      '&:hover fieldset': {
-                        borderColor: '#666',
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: '#2196f3',
-                      },
-                    },
                   }}
                 />
               )}
@@ -360,40 +333,49 @@ export default function ManagerPasswordSetup() {
               fullWidth
               variant="contained"
               sx={{ 
-                mt: 4, 
-                mb: 3,
-                py: 1.5,
-                borderRadius: 2,
-                fontSize: '1rem',
+                mt: 3.5, 
+                mb: 2.5,
+                py: 1.4,
+                borderRadius: '12px',
+                fontSize: '0.95rem',
                 fontWeight: 600,
-                backgroundColor: '#2196f3',
-                boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
+                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                boxShadow: '6px 6px 16px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)',
                 '&:hover': {
-                  backgroundColor: '#1976d2',
-                  boxShadow: '0 6px 16px rgba(33, 150, 243, 0.4)',
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                  boxShadow: '4px 4px 10px rgba(0, 0, 0, 0.45), inset 2px 2px 4px rgba(255, 255, 255, 0.2)',
                   transform: 'translateY(-1px)',
                 },
-                transition: 'all 0.2s ease-in-out',
+                '&:active': {
+                  boxShadow: '2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)',
+                  transform: 'translateY(0)',
+                },
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
               }}
               disabled={isSubmitting}
             >
               {isSubmitting ? <CircularProgress size={24} color="inherit" /> : 'SET PASSWORD'}
             </Button>
 
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography 
+            <Box sx={{ textAlign: 'center', mt: 1 }}>
+              <Link 
+                component="button"
+                type="button"
                 variant="body2" 
                 sx={{
-                  color: '#b0b0b0',
+                  color: '#818cf8',
+                  textDecoration: 'none',
+                  fontWeight: 500,
                   cursor: 'pointer',
                   '&:hover': {
-                    color: '#2196f3',
+                    color: '#a5b4fc',
+                    textDecoration: 'underline',
                   },
                 }}
                 onClick={() => router.push('/login')}
               >
                 Already have an account? Sign In
-              </Typography>
+              </Link>
             </Box>
           </Box>
         </Paper>

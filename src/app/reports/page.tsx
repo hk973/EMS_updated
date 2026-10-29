@@ -2,44 +2,30 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import Layout from '@/components/layout/Layout';
-import RouteGuard from '@/components/auth/RouteGuard';
-import Reports from '@/components/reports/Reports';
-import { Box, CircularProgress } from '@mui/material';
+import { Box, CircularProgress, Typography } from '@mui/material';
 
 export default function ReportsPage() {
-  const { currentUser, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !currentUser) {
-      router.push('/login');
-    }
-  }, [currentUser, loading, router]);
-
-  if (loading) {
-    return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="100vh"
-      >
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (!currentUser) {
-    return null;
-  }
+    // Reports section has been unified into the customized Admin BI Dashboard
+    router.replace('/dashboard');
+  }, [router]);
 
   return (
-    <RouteGuard allowedRoles={['admin', 'manager']}>
-      <Layout>
-        <Reports />
-      </Layout>
-    </RouteGuard>
+    <Box
+      display="flex"
+      flexDirection="column"
+      justifyContent="center"
+      alignItems="center"
+      minHeight="100vh"
+      gap={2}
+    >
+      <CircularProgress sx={{ color: '#6366f1' }} />
+      <Typography sx={{ color: '#94a3b8', fontSize: '0.9rem' }}>
+        Redirecting to Analytics Dashboard...
+      </Typography>
+    </Box>
   );
-} 
+}
+ 

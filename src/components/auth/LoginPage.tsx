@@ -88,12 +88,14 @@ export default function LoginPage() {
           <Typography
             variant="caption"
             sx={{
-              color: '#4caf50',
+              color: '#10b981',
               fontWeight: 600,
-              border: '1px solid #4caf50',
-              borderRadius: 1,
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              backdropFilter: 'blur(10px)',
+              borderRadius: 2,
               px: 1.5,
-              py: 0.5,
+              py: 0.6,
               fontSize: '0.75rem',
             }}
           >
@@ -105,14 +107,20 @@ export default function LoginPage() {
             startIcon={<Code sx={{ fontSize: 16 }} />}
             onClick={() => setDevDialogOpen(true)}
             sx={{
-              color: '#888',
+              color: '#94a3b8',
               fontSize: '0.75rem',
               textTransform: 'none',
-              border: '1px solid #444',
-              borderRadius: 1,
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+              backdropFilter: 'blur(10px)',
+              borderRadius: 2,
               px: 1.5,
               py: 0.5,
-              '&:hover': { borderColor: '#888', color: '#ccc' },
+              '&:hover': {
+                borderColor: 'rgba(99, 102, 241, 0.3)',
+                backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                color: '#e0e7ff',
+              },
             }}
           >
             Developer Mode
@@ -124,9 +132,17 @@ export default function LoginPage() {
       <Dialog
         open={devDialogOpen}
         onClose={() => { setDevDialogOpen(false); setDevPassword(''); setDevPasswordError(''); }}
-        PaperProps={{ sx: { backgroundColor: '#2d2d2d', border: '1px solid #444', borderRadius: 2 } }}
+        PaperProps={{
+          sx: {
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            backdropFilter: 'blur(30px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: 3,
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)',
+          },
+        }}
       >
-        <DialogTitle sx={{ color: '#ffffff' }}>Developer Mode</DialogTitle>
+        <DialogTitle sx={{ color: '#f1f5f9', fontWeight: 600 }}>Developer Mode</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
@@ -138,21 +154,24 @@ export default function LoginPage() {
             onKeyDown={(e) => e.key === 'Enter' && handleDevModeSubmit()}
             error={!!devPasswordError}
             helperText={devPasswordError}
-            sx={{
-              mt: 1,
-              '& .MuiOutlinedInput-root': {
-                '& fieldset': { borderColor: '#444' },
-                '&:hover fieldset': { borderColor: '#666' },
-                '&.Mui-focused fieldset': { borderColor: '#2196f3' },
-              },
-            }}
+            sx={{ mt: 1.5 }}
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => { setDevDialogOpen(false); setDevPassword(''); setDevPasswordError(''); }} sx={{ color: '#888' }}>
+          <Button
+            onClick={() => { setDevDialogOpen(false); setDevPassword(''); setDevPasswordError(''); }}
+            sx={{ color: '#94a3b8' }}
+          >
             Cancel
           </Button>
-          <Button onClick={handleDevModeSubmit} variant="contained" sx={{ backgroundColor: '#2196f3' }}>
+          <Button
+            onClick={handleDevModeSubmit}
+            variant="contained"
+            sx={{
+              background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+              borderRadius: '10px',
+            }}
+          >
             Unlock
           </Button>
         </DialogActions>
@@ -160,67 +179,80 @@ export default function LoginPage() {
 
       <Box
         sx={{
-          paddingY: 8,
+          paddingY: { xs: 4, sm: 8 },
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           minHeight: '100vh',
+          justifyContent: 'center',
         }}
       >
         <Paper
-          elevation={8}
+          elevation={0}
           sx={{
-            padding: 4,
+            padding: { xs: 3, sm: 4.5 },
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             width: '100%',
-            backgroundColor: '#2d2d2d',
-            border: '1px solid #333',
-            borderRadius: 3,
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 4,
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
           }}
         >
           <Box
             sx={{
               display: 'flex',
               alignItems: 'center',
-              gap: 2,
-              mb: 3,
+              gap: 2.5,
+              mb: 3.5,
             }}
           >
             <Box
               sx={{
-                width: 60,
-                height: 60,
-                borderRadius: '50%',
-                backgroundColor: '#2196f3',
+                width: 56,
+                height: 56,
+                borderRadius: '16px',
+                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
+                boxShadow: '0 8px 24px rgba(99, 102, 241, 0.35)',
               }}
             >
-              <Login sx={{ color: '#ffffff', fontSize: 30 }} />
+              <Login sx={{ color: '#ffffff', fontSize: 28 }} />
             </Box>
             <Box>
-              <Typography component="h1" variant="h4" sx={{ fontWeight: 700, color: '#ffffff' }}>
+              <Typography
+                component="h1"
+                variant="h4"
+                sx={{
+                  fontWeight: 700,
+                  fontSize: { xs: '1.5rem', sm: '1.75rem' },
+                  letterSpacing: '-0.02em',
+                  background: 'linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
                 Welcome Back
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Sign in to your account
+                Sign in to your EMS account
               </Typography>
             </Box>
           </Box>
 
           {error && (
-            <Alert 
-              severity="error" 
-              sx={{ 
-                width: '100%', 
+            <Alert
+              severity="error"
+              sx={{
+                width: '100%',
                 mb: 3,
-                borderRadius: 2,
-                border: '1px solid #f44336',
+                borderRadius: 2.5,
               }}
             >
               {error}
@@ -243,20 +275,6 @@ export default function LoginPage() {
                   autoFocus
                   error={!!errors.userId}
                   helperText={errors.userId?.message || "Enter your Employee ID, Manager ID, or Admin ID"}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      '& fieldset': {
-                        borderColor: '#444',
-                      },
-                      '&:hover fieldset': {
-                        borderColor: '#666',
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: '#2196f3',
-                      },
-                    },
-                  }}
                 />
               )}
             />
@@ -284,9 +302,10 @@ export default function LoginPage() {
                           onClick={() => setShowPassword(!showPassword)}
                           edge="end"
                           sx={{
-                            color: '#b0b0b0',
+                            color: '#94a3b8',
                             '&:hover': {
-                              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                              color: '#e0e7ff',
                             },
                           }}
                         >
@@ -294,20 +313,6 @@ export default function LoginPage() {
                         </IconButton>
                       </InputAdornment>
                     ),
-                  }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      '& fieldset': {
-                        borderColor: '#444',
-                      },
-                      '&:hover fieldset': {
-                        borderColor: '#666',
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: '#2196f3',
-                      },
-                    },
                   }}
                 />
               )}
@@ -317,53 +322,55 @@ export default function LoginPage() {
               type="submit"
               fullWidth
               variant="contained"
-              sx={{ 
-                mt: 4, 
-                mb: 3,
-                py: 1.5,
-                borderRadius: 2,
-                fontSize: '1rem',
+              sx={{
+                mt: 3.5,
+                mb: 2.5,
+                py: 1.4,
+                borderRadius: '12px',
+                fontSize: '0.95rem',
                 fontWeight: 600,
-                backgroundColor: '#2196f3',
-                boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
+                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                boxShadow: '6px 6px 16px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)',
                 '&:hover': {
-                  backgroundColor: '#1976d2',
-                  boxShadow: '0 6px 16px rgba(33, 150, 243, 0.4)',
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                  boxShadow: '4px 4px 10px rgba(0, 0, 0, 0.45), inset 2px 2px 4px rgba(255, 255, 255, 0.2)',
                   transform: 'translateY(-1px)',
                 },
-                transition: 'all 0.2s ease-in-out',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
               }}
               disabled={isSubmitting}
             >
               {isSubmitting ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
             </Button>
 
-            <Box sx={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Box sx={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 1.25, mt: 1 }}>
               {devUnlocked && (
                 <>
-                  <Link 
-                    href="/register" 
+                  <Link
+                    href="/register"
                     variant="body2"
                     sx={{
-                      color: '#2196f3',
+                      color: '#818cf8',
                       textDecoration: 'none',
                       fontWeight: 500,
                       '&:hover': {
+                        color: '#a5b4fc',
                         textDecoration: 'underline',
                       },
                     }}
                   >
                     {"Don't have an account? Sign Up"}
                   </Link>
-                  <Link 
-                    href="/company-registration" 
+                  <Link
+                    href="/company-registration"
                     variant="body2"
                     sx={{
-                      color: '#4caf50',
+                      color: '#34d399',
                       textDecoration: 'none',
                       fontWeight: 600,
                       fontSize: '0.95rem',
                       '&:hover': {
+                        color: '#6ee7b7',
                         textDecoration: 'underline',
                       },
                     }}
@@ -372,28 +379,30 @@ export default function LoginPage() {
                   </Link>
                 </>
               )}
-              <Link 
-                href="/employee-setup" 
+              <Link
+                href="/employee-setup"
                 variant="body2"
                 sx={{
-                  color: '#2196f3',
+                  color: '#818cf8',
                   textDecoration: 'none',
                   fontWeight: 500,
                   '&:hover': {
+                    color: '#a5b4fc',
                     textDecoration: 'underline',
                   },
                 }}
               >
                 {"New Employee? Set your password"}
               </Link>
-              <Link 
-                href="/manager-setup" 
+              <Link
+                href="/manager-setup"
                 variant="body2"
                 sx={{
-                  color: '#2196f3',
+                  color: '#818cf8',
                   textDecoration: 'none',
                   fontWeight: 500,
                   '&:hover': {
+                    color: '#a5b4fc',
                     textDecoration: 'underline',
                   },
                 }}
@@ -406,4 +415,4 @@ export default function LoginPage() {
       </Box>
     </Container>
   );
-} 
+}

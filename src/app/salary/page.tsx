@@ -48,20 +48,44 @@ export default function SalaryPage() {
         <Box>
           {/* Top-level tab switcher */}
           <Paper
+            elevation={0}
             sx={{
-              mb: 2,
-              backgroundColor: '#1e1e1e',
-              border: '1px solid #333',
-              borderRadius: 2,
+              mb: 3,
+              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '16px',
+              p: 0.75,
             }}
           >
             <Tabs
               value={tab}
               onChange={(_, v) => setTab(v)}
               sx={{
-                '& .MuiTab-root': { color: '#aaa', fontWeight: 600, fontSize: 14 },
-                '& .Mui-selected': { color: '#2196f3' },
-                '& .MuiTabs-indicator': { backgroundColor: '#2196f3' },
+                '& .MuiTab-root': {
+                  color: '#94a3b8',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  borderRadius: '12px',
+                  minHeight: 44,
+                  py: 1,
+                  px: 2.5,
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    color: '#f1f5f9',
+                    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                  },
+                },
+                '& .Mui-selected': {
+                  color: '#f1f5f9 !important',
+                  backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                },
+                '& .MuiTabs-indicator': {
+                  backgroundColor: '#6366f1',
+                  height: 3,
+                  borderRadius: '3px 3px 0 0',
+                },
               }}
             >
               <Tab label="Salary Calculations" />

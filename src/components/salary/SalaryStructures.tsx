@@ -25,6 +25,9 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Menu,
+  ListItemIcon,
+  ListItemText,
   Divider,
   Alert,
   Tabs,
@@ -41,6 +44,7 @@ import {
   Calculate,
   FileUpload,
   DeleteForever,
+  KeyboardArrowDown,
 } from "@mui/icons-material";
 import {
   collection,
@@ -1392,6 +1396,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
   const [uploadLoading, setUploadLoading] = useState(false);
   const [showDeleteMonthDialog, setShowDeleteMonthDialog] = useState(false);
   const [deleteMonthLoading, setDeleteMonthLoading] = useState(false);
+  const [actionMenuAnchorEl, setActionMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [configLoading, setConfigLoading] = useState(false);
   const [alert, setAlert] = useState<{
     type: "success" | "error";
@@ -3263,116 +3268,135 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
       <Box sx={{ mb: 3 }}>
         <Typography
           variant="h4"
-          sx={{ color: "#2196f3", fontWeight: 600, mb: 1 }}
+          sx={{
+            fontWeight: 700,
+            fontSize: { xs: "1.5rem", sm: "1.875rem" },
+            letterSpacing: "-0.02em",
+            background: "linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            mb: 0.5,
+          }}
         >
           Salary Structures & Calculations
         </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Comprehensive salary calculation system with automatic formula-based
-          computations
+        <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+          Comprehensive salary calculation system with automatic formula-based computations
         </Typography>
       </Box>
 
-      {/* Action Buttons */}
-      <Box
+      {/* Action Toolbar */}
+      <Paper
+        elevation={0}
         sx={{
           mb: 3,
+          p: 2.5,
+          background: "rgba(255, 255, 255, 0.03)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          borderRadius: "16px",
           display: "flex",
+          flexDirection: "column",
           gap: 2,
-          alignItems: "center",
-          flexWrap: "wrap",
         }}
       >
-        <TextField
-          placeholder="Search by Name, Email, or ID"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          InputProps={{
-            startAdornment: <Search sx={{ mr: 1, color: "text.secondary" }} />,
-          }}
+        {/* Row 1: Search & Filters */}
+        <Box
           sx={{
-            flex: 1,
-            minWidth: 300,
-            "& .MuiOutlinedInput-root": { borderRadius: 2 },
+            display: "flex",
+            gap: 2,
+            alignItems: "center",
+            flexWrap: "wrap",
           }}
-        />
+        >
+          <TextField
+            placeholder="Search by Name, Email, or ID"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: <Search sx={{ mr: 1, color: "#64748b" }} />,
+            }}
+            sx={{
+              flex: 1,
+              minWidth: 280,
+            }}
+          />
 
-        <FormControl sx={{ minWidth: 220 }}>
-          <InputLabel id="manager-filter-label">Manager</InputLabel>
-          <Select
-            labelId="manager-filter-label"
-            label="Manager"
-            value={selectedManagerId}
-            onChange={(e) => setSelectedManagerId(e.target.value)}
-            sx={{ borderRadius: 2 }}
-          >
-            <MenuItem value="all">All Managers</MenuItem>
-            {managers.map((manager) => (
-              <MenuItem key={manager.id} value={manager.id}>
-                {manager.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+          <FormControl sx={{ minWidth: 200 }}>
+            <InputLabel id="manager-filter-label">Manager</InputLabel>
+            <Select
+              labelId="manager-filter-label"
+              label="Manager"
+              value={selectedManagerId}
+              onChange={(e) => setSelectedManagerId(e.target.value)}
+            >
+              <MenuItem value="all">All Managers</MenuItem>
+              {managers.map((manager) => (
+                <MenuItem key={manager.id} value={manager.id}>
+                  {manager.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={showInactiveEmployees}
-              onChange={(e) => setShowInactiveEmployees(e.target.checked)}
-              sx={{
-                color: "#888",
-                '&.Mui-checked': {
-                  color: "#2196f3"
-                }
-              }}
-            />
-          }
-          label={
-            <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
-              Show Inactive
-            </Typography>
-          }
-        />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={showInactiveEmployees}
+                onChange={(e) => setShowInactiveEmployees(e.target.checked)}
+                sx={{
+                  color: "rgba(148, 163, 184, 0.4)",
+                  "&.Mui-checked": {
+                    color: "#6366f1",
+                  },
+                }}
+              />
+            }
+            label={
+              <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+                Show Inactive
+              </Typography>
+            }
+          />
 
-        <FormControl sx={{ minWidth: 150 }}>
-          <InputLabel id="attendance-period-month-label">Month</InputLabel>
-          <Select
-            labelId="attendance-period-month-label"
-            label="Month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(Number(e.target.value))}
-            sx={{ borderRadius: 2 }}
-          >
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-              <MenuItem key={m} value={m}>
-                {new Date(2000, m - 1, 1).toLocaleString("default", {
-                  month: "long",
-                })}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+          <FormControl sx={{ minWidth: 140 }}>
+            <InputLabel id="attendance-period-month-label">Month</InputLabel>
+            <Select
+              labelId="attendance-period-month-label"
+              label="Month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <MenuItem key={m} value={m}>
+                  {new Date(2000, m - 1, 1).toLocaleString("default", {
+                    month: "long",
+                  })}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
-        <FormControl sx={{ minWidth: 110 }}>
-          <InputLabel id="attendance-period-year-label">Year</InputLabel>
-          <Select
-            labelId="attendance-period-year-label"
-            label="Year"
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-            sx={{ borderRadius: 2 }}
-          >
-            {Array.from(
-              { length: 6 },
-              (_, i) => new Date().getFullYear() - 3 + i,
-            ).map((y) => (
-              <MenuItem key={y} value={y}>
-                {y}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+          <FormControl sx={{ minWidth: 110 }}>
+            <InputLabel id="attendance-period-year-label">Year</InputLabel>
+            <Select
+              labelId="attendance-period-year-label"
+              label="Year"
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+            >
+              {Array.from(
+                { length: 6 },
+                (_, i) => new Date().getFullYear() - 3 + i,
+              ).map((y) => (
+                <MenuItem key={y} value={y}>
+                  {y}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
 
         <input
           type="file"
@@ -3382,80 +3406,159 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
           style={{ display: "none" }}
         />
 
-        <Button
-          variant="outlined"
-          startIcon={<Download />}
-          onClick={downloadSampleFile}
-          sx={{ borderRadius: 2 }}
-        >
-          Download for Edit
-        </Button>
-
-        <Button
-          variant="contained"
-          startIcon={
-            uploadLoading ? <CircularProgress size={20} /> : <Upload />
-          }
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploadLoading}
+        {/* Row 2: Actions Bar */}
+        <Box
           sx={{
-            backgroundColor: "#4caf50",
-            "&:hover": { backgroundColor: "#45a049" },
-            borderRadius: 2,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 2,
+            pt: 1.5,
+            borderTop: "1px solid rgba(255, 255, 255, 0.06)",
           }}
         >
-          Upload Excel
-        </Button>
+          <Typography variant="body2" sx={{ color: "#94a3b8", fontSize: "0.8125rem" }}>
+            Salary data for{" "}
+            <span style={{ color: "#f1f5f9", fontWeight: 600 }}>
+              {new Date(2000, selectedMonth - 1, 1).toLocaleString("default", {
+                month: "long",
+              })}{" "}
+              {selectedYear}
+            </span>
+          </Typography>
 
-        <Button
-          variant="contained"
-          startIcon={<FileUpload />}
-          onClick={handleOpenBulkCopyDialog}
-          disabled={selectedManagerId === "all"}
-          sx={{
-            backgroundColor: selectedManagerId === "all" ? "#ccc" : "#ff9800",
-            "&:hover": { backgroundColor: selectedManagerId === "all" ? "#ccc" : "#f57c00" },
-            borderRadius: 2,
-          }}
-        >
-          <Tooltip title={selectedManagerId === "all" ? "Please select a specific manager to use bulk copy" : "Copy salary data from a previous month for all employees"}>
-            <span>Bulk Copy from Previous Month</span>
-          </Tooltip>
-        </Button>
+          <Box sx={{ display: "flex", gap: 1.5, alignItems: "center" }}>
+            <Button
+              variant="contained"
+              startIcon={
+                uploadLoading ? <CircularProgress size={18} color="inherit" /> : <Upload />
+              }
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadLoading}
+              sx={{
+                background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                borderRadius: "10px",
+                fontWeight: 600,
+                boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+                  transform: "translateY(-1px)",
+                },
+              }}
+            >
+              Upload Excel
+            </Button>
 
-        <Button
-          variant="contained"
-          color="success"
-          startIcon={<Download />}
-          onClick={handleExportXLSX}
-          sx={{ borderRadius: 2 }}
-        >
-          Download XLSX
-        </Button>
+            <Button
+              variant="outlined"
+              endIcon={<KeyboardArrowDown />}
+              onClick={(e) => setActionMenuAnchorEl(e.currentTarget)}
+              sx={{
+                borderRadius: "10px",
+                borderColor: "rgba(255, 255, 255, 0.15)",
+                color: "#f1f5f9",
+                backgroundColor: "rgba(255, 255, 255, 0.04)",
+                "&:hover": {
+                  borderColor: "rgba(99, 102, 241, 0.4)",
+                  backgroundColor: "rgba(99, 102, 241, 0.08)",
+                },
+              }}
+            >
+              More Actions
+            </Button>
 
-        <Button
-          variant="contained"
-          color="info"
-          startIcon={<Download />}
-          onClick={handleExportCSV}
-          sx={{ borderRadius: 2 }}
-        >
-          Download CSV
-        </Button>
+            <Menu
+              anchorEl={actionMenuAnchorEl}
+              open={Boolean(actionMenuAnchorEl)}
+              onClose={() => setActionMenuAnchorEl(null)}
+              transformOrigin={{ horizontal: "right", vertical: "top" }}
+              anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+              PaperProps={{
+                sx: {
+                  backgroundColor: "rgba(15, 23, 42, 0.95)",
+                  backdropFilter: "blur(24px)",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  borderRadius: "12px",
+                  minWidth: 240,
+                  p: 0.5,
+                },
+              }}
+            >
+              <MenuItem
+                onClick={() => {
+                  downloadSampleFile();
+                  setActionMenuAnchorEl(null);
+                }}
+                sx={{ py: 1.25, borderRadius: "8px" }}
+              >
+                <ListItemIcon sx={{ color: "#38bdf8", minWidth: 36 }}>
+                  <Download fontSize="small" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Download for Edit"
+                  primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: 500 }}
+                />
+              </MenuItem>
 
-        <Button
-          variant="contained"
-          color="error"
-          startIcon={<DeleteForever />}
-          onClick={() => setShowDeleteMonthDialog(true)}
-          sx={{ borderRadius: 2 }}
-        >
-          Delete Month Data
-        </Button>
-      </Box>
+              <MenuItem
+                onClick={() => {
+                  handleOpenBulkCopyDialog();
+                  setActionMenuAnchorEl(null);
+                }}
+                disabled={selectedManagerId === "all"}
+                sx={{ py: 1.25, borderRadius: "8px" }}
+              >
+                <ListItemIcon sx={{ color: "#fbbf24", minWidth: 36 }}>
+                  <FileUpload fontSize="small" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Bulk Copy from Previous Month"
+                  primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: 500 }}
+                  secondary={selectedManagerId === "all" ? "Select specific manager first" : undefined}
+                  secondaryTypographyProps={{ fontSize: "0.75rem", color: "#64748b" }}
+                />
+              </MenuItem>
+
+              <Divider sx={{ my: 0.5, borderColor: "rgba(255, 255, 255, 0.08)" }} />
+
+              <MenuItem
+                onClick={() => {
+                  setShowDeleteMonthDialog(true);
+                  setActionMenuAnchorEl(null);
+                }}
+                sx={{
+                  py: 1.25,
+                  borderRadius: "8px",
+                  color: "#f87171",
+                  "&:hover": { backgroundColor: "rgba(239, 68, 68, 0.1)" },
+                }}
+              >
+                <ListItemIcon sx={{ color: "#f87171", minWidth: 36 }}>
+                  <DeleteForever fontSize="small" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Delete Month Data"
+                  primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: 500, color: "#f87171" }}
+                />
+              </MenuItem>
+            </Menu>
+          </Box>
+        </Box>
+      </Paper>
 
       {/* Salary Structures Table — Template View only */}
-      <Paper sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}>
+      <Paper
+        elevation={0}
+        sx={{
+          backgroundColor: "rgba(255, 255, 255, 0.02)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          borderRadius: "16px",
+          overflow: "hidden",
+        }}
+      >
         <TemplateSalaryView
           employees={filteredEmployees}
           managers={managers}

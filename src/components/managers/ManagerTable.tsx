@@ -23,6 +23,9 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Menu,
+  ListItemIcon,
+  ListItemText,
   CircularProgress,
   Tooltip,
   Chip,
@@ -34,6 +37,8 @@ import {
   Search,
   FileUpload,
   FileDownload,
+  KeyboardArrowDown,
+  GroupAdd,
 } from "@mui/icons-material";
 import {
   collection,
@@ -119,6 +124,7 @@ export default function ManagerTable() {
   // Delete password dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [managerToDelete, setManagerToDelete] = useState<Manager | null>(null);
+  const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
 
   useEffect(() => {
     if (currentUser?.uid) {
@@ -660,95 +666,184 @@ export default function ManagerTable() {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: { xs: 2, sm: 3 } }}>
       {/* Header */}
       <Box sx={{ mb: 3 }}>
         <Typography
           variant="h4"
-          sx={{ color: "#2196f3", fontWeight: 600, mb: 1 }}
+          sx={{
+            fontWeight: 700,
+            fontSize: { xs: "1.5rem", sm: "1.875rem" },
+            letterSpacing: "-0.02em",
+            background: "linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            mb: 0.5,
+          }}
         >
           Manager Management
         </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Add, view, and manage system managers
+        <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+          Add, view, and oversee departmental managers and team assignments
         </Typography>
       </Box>
 
-      {/* Action Buttons */}
-      <Box sx={{ mb: 3, display: "flex", gap: 2, flexWrap: "wrap" }}>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setShowForm(true)}
-          sx={{
-            backgroundColor: "#2196f3",
-            "&:hover": { backgroundColor: "#1976d2" },
-          }}
-        >
-          ADD MANAGER
-        </Button>
-        <Button
-          variant="contained"
-          startIcon={<FileDownload />}
-          onClick={handleExportCSV}
-          sx={{
-            backgroundColor: "#4caf50",
-            "&:hover": { backgroundColor: "#388e3c" },
-          }}
-        >
-          EXPORT CSV
-        </Button>
-        <Button
-          variant="contained"
-          startIcon={<FileDownload />}
-          onClick={handleExportXLSX}
-          sx={{
-            backgroundColor: "#4caf50",
-            "&:hover": { backgroundColor: "#388e3c" },
-          }}
-        >
-          EXPORT XLSX
-        </Button>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setShowAssignDialog(true)}
-          sx={{
-            backgroundColor: "#ff9800",
-            "&:hover": { backgroundColor: "#f57c00" },
-          }}
-        >
-          ASSIGN EMPLOYEES
-        </Button>
-      </Box>
-
-      {/* Search Bar */}
-      <Box sx={{ mb: 3 }}>
+      {/* Action Toolbar */}
+      <Paper
+        elevation={0}
+        sx={{
+          mb: 3,
+          p: 2.5,
+          background: "rgba(255, 255, 255, 0.03)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          borderRadius: "16px",
+          display: "flex",
+          flexDirection: { xs: "column", md: "row" },
+          gap: 2,
+          alignItems: { xs: "stretch", md: "center" },
+          justifyContent: "space-between",
+        }}
+      >
         <TextField
-          fullWidth
           placeholder="Search by Name, Email, or Manager ID"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           InputProps={{
-            startAdornment: <Search sx={{ mr: 1, color: "text.secondary" }} />,
+            startAdornment: <Search sx={{ mr: 1, color: "#64748b" }} />,
           }}
           sx={{
-            "& .MuiOutlinedInput-root": {
-              borderRadius: 2,
-            },
+            flex: 1,
+            minWidth: { xs: "100%", md: 320 },
           }}
         />
-      </Box>
+
+        <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => setShowForm(true)}
+            sx={{
+              background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+              borderRadius: "10px",
+              fontWeight: 600,
+              boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)",
+              "&:hover": {
+                background: "linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)",
+                transform: "translateY(-1px)",
+              },
+            }}
+          >
+            Add Manager
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<GroupAdd />}
+            onClick={() => setShowAssignDialog(true)}
+            sx={{
+              borderRadius: "10px",
+              borderColor: "rgba(245, 158, 11, 0.3)",
+              color: "#fbbf24",
+              backgroundColor: "rgba(245, 158, 11, 0.08)",
+              "&:hover": {
+                borderColor: "rgba(245, 158, 11, 0.5)",
+                backgroundColor: "rgba(245, 158, 11, 0.15)",
+                transform: "translateY(-1px)",
+              },
+            }}
+          >
+            Assign Employees
+          </Button>
+
+          {/* Export Dropdown */}
+          <Button
+            variant="outlined"
+            startIcon={<FileDownload />}
+            endIcon={<KeyboardArrowDown />}
+            onClick={(e) => setExportAnchorEl(e.currentTarget)}
+            sx={{
+              borderRadius: "10px",
+              borderColor: "rgba(255, 255, 255, 0.15)",
+              color: "#f1f5f9",
+              backgroundColor: "rgba(255, 255, 255, 0.04)",
+              "&:hover": {
+                borderColor: "rgba(16, 185, 129, 0.4)",
+                backgroundColor: "rgba(16, 185, 129, 0.08)",
+              },
+            }}
+          >
+            Export
+          </Button>
+          <Menu
+            anchorEl={exportAnchorEl}
+            open={Boolean(exportAnchorEl)}
+            onClose={() => setExportAnchorEl(null)}
+            transformOrigin={{ horizontal: "right", vertical: "top" }}
+            anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+            PaperProps={{
+              sx: {
+                backgroundColor: "rgba(15, 23, 42, 0.95)",
+                backdropFilter: "blur(24px)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                borderRadius: "12px",
+                minWidth: 180,
+                p: 0.5,
+              },
+            }}
+          >
+            <MenuItem
+              onClick={() => {
+                handleExportXLSX();
+                setExportAnchorEl(null);
+              }}
+              sx={{ py: 1.25, borderRadius: "8px" }}
+            >
+              <ListItemIcon sx={{ color: "#34d399", minWidth: 36 }}>
+                <FileDownload fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary="Export to Excel (XLSX)"
+                primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: 500 }}
+              />
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                handleExportCSV();
+                setExportAnchorEl(null);
+              }}
+              sx={{ py: 1.25, borderRadius: "8px" }}
+            >
+              <ListItemIcon sx={{ color: "#60a5fa", minWidth: 36 }}>
+                <FileDownload fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary="Export to CSV"
+                primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: 500 }}
+              />
+            </MenuItem>
+          </Menu>
+        </Box>
+      </Paper>
 
       {/* Manager Table */}
       <Box sx={{ overflowX: "auto", maxWidth: "100%" }}>
         <TableContainer
           component={Paper}
-          sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}
+          elevation={0}
+          sx={{
+            backgroundColor: "rgba(255, 255, 255, 0.02)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            borderRadius: "16px",
+            overflow: "hidden",
+          }}
         >
           <Table>
             <TableHead>
-              <TableRow sx={{ backgroundColor: "#1e1e1e" }}>
+              <TableRow sx={{ backgroundColor: "rgba(255, 255, 255, 0.04)" }}>
                 {columns
                   .filter((col) => col.visible)
                   .map((column) => (

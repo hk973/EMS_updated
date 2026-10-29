@@ -892,8 +892,14 @@ export default function ManagerForm({
                   variant="contained"
                   sx={{
                     mt: 1,
-                    backgroundColor: "#2196f3",
-                    "&:hover": { backgroundColor: "#1976d2" },
+                    background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+                    borderRadius: "10px",
+                    fontWeight: 600,
+                    boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)",
+                    "&:hover": {
+                      background: "linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)",
+                      transform: "translateY(-1px)",
+                    },
                   }}
                   onClick={() =>
                     setMoreInfoFields([
@@ -918,8 +924,14 @@ export default function ManagerForm({
           variant="contained"
           isLoading={isLoading}
           sx={{
-            backgroundColor: "#2196f3",
-            "&:hover": { backgroundColor: "#1976d2" },
+            background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+            borderRadius: "10px",
+            fontWeight: 600,
+            boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)",
+            "&:hover": {
+              background: "linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)",
+              transform: "translateY(-1px)",
+            },
           }}
         >
           {manager ? "Update" : "Create"}

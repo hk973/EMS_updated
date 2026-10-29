@@ -45,21 +45,40 @@ export default function Settings() {
           <AdminCompanySettings />
         ) : (
           <Box>
-            <Typography variant="h4" gutterBottom sx={{ color: "#ffffff" }}>
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 700,
+                fontSize: { xs: "1.5rem", sm: "1.875rem" },
+                letterSpacing: "-0.02em",
+                background: "linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                mb: 1,
+              }}
+            >
               System Settings
             </Typography>
 
             <Paper
+              elevation={0}
               sx={{
                 p: 3,
                 mt: 2,
-                backgroundColor: "#2d2d2d",
-                border: "1px solid #333",
+                backgroundColor: "rgba(255, 255, 255, 0.03)",
+                backdropFilter: "blur(20px)",
+                WebkitBackdropFilter: "blur(20px)",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
+                borderRadius: "16px",
               }}
             >
               <Alert
                 severity="info"
-                sx={{ backgroundColor: "#1e3a8a", color: "#ffffff" }}
+                sx={{
+                  backgroundColor: "rgba(59, 130, 246, 0.1)",
+                  border: "1px solid rgba(59, 130, 246, 0.2)",
+                  color: "#93c5fd",
+                }}
               >
                 System settings and configuration features are coming soon. This
                 will include:

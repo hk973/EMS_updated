@@ -1684,8 +1684,8 @@ export default function SalarySlips() {
             }
           };
 
-          const [hbr, hbg, hbb] = hexToRgb(te.headerBgColor ?? "#2196f3");
-          const [htR, htG, htB] = hexToRgb(te.headerTextColor ?? "#ffffff");
+          const [hbr, hbg, hbb] = hexToRgb(te.headerBgColor ?? "#6366f1");
+          const [htR, htG, htB] = hexToRgb(te.headerTextColor ?? "#f1f5f9");
           const [brR, brG, brB] = hexToRgb(te.borderColor ?? "#cccccc");
 
           // Build head and body from the cell grid
@@ -2275,7 +2275,7 @@ export default function SalarySlips() {
         alignItems="center"
         minHeight="400px"
       >
-        <CircularProgress />
+        <CircularProgress sx={{ color: "#6366f1" }} />
       </Box>
     );
   }
@@ -2286,11 +2286,11 @@ export default function SalarySlips() {
       <Box sx={{ mb: 3 }}>
         <Typography
           variant="h4"
-          sx={{ color: "#2196f3", fontWeight: 600, mb: 1 }}
+          sx={{ color: "#6366f1", fontWeight: 700, mb: 1, letterSpacing: "-0.02em" }}
         >
           Salary Slips
         </Typography>
-        <Typography variant="body1" color="text.secondary">
+        <Typography variant="body1" sx={{ color: "#94a3b8" }}>
           {isEmployee
             ? "View and download your generated salary slips"
             : "Generate and manage salary slips for employees"}
@@ -2299,26 +2299,80 @@ export default function SalarySlips() {
 
       {/* Alerts */}
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+        <Alert
+          severity="error"
+          sx={{
+            mb: 2,
+            borderRadius: "14px",
+            backdropFilter: "blur(20px)",
+            background: "rgba(239, 68, 68, 0.12)",
+            border: "1px solid rgba(239, 68, 68, 0.25)",
+            color: "#fca5a5",
+            "& .MuiAlert-icon": { color: "#ef4444" },
+          }}
+          onClose={() => setError("")}
+        >
           {error}
         </Alert>
       )}
 
       {success && (
-        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess("")}>
+        <Alert
+          severity="success"
+          sx={{
+            mb: 2,
+            borderRadius: "14px",
+            backdropFilter: "blur(20px)",
+            background: "rgba(16, 185, 129, 0.12)",
+            border: "1px solid rgba(16, 185, 129, 0.25)",
+            color: "#6ee7b7",
+            "& .MuiAlert-icon": { color: "#10b981" },
+          }}
+          onClose={() => setSuccess("")}
+        >
           {success}
         </Alert>
       )}
 
       {/* Month/Year Selection and Stats */}
-      <Card sx={{ mb: 3, backgroundColor: "#2d2d2d" }}>
-        <CardContent>
-          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 3 }}>
+      <Card
+        sx={{
+          mb: 3,
+          background: "rgba(255, 255, 255, 0.03)",
+          backdropFilter: "blur(20px)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          borderRadius: "16px",
+          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+        }}
+      >
+        <CardContent sx={{ p: { xs: 2, md: 3 }, "&:last-child": { pb: { xs: 2, md: 3 } } }}>
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 2fr" }, gap: 3, alignItems: "center" }}>
             <Box>
               <Box
                 sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}
               >
-                <FormControl fullWidth>
+                <FormControl
+                  fullWidth
+                  sx={{
+                    "& .MuiInputLabel-root": {
+                      color: "#94a3b8",
+                      "&.Mui-focused": { color: "#6366f1" },
+                    },
+                    "& .MuiOutlinedInput-root": {
+                      backgroundColor: "rgba(255, 255, 255, 0.03)",
+                      backdropFilter: "blur(10px)",
+                      borderRadius: "12px",
+                      color: "#f1f5f9",
+                      "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                      "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                      "&.Mui-focused fieldset": {
+                        borderColor: "#6366f1",
+                        boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.15)",
+                      },
+                      "& .MuiSelect-icon": { color: "#94a3b8" },
+                    },
+                  }}
+                >
                   <InputLabel>Month</InputLabel>
                   <Select
                     value={selectedMonth}
@@ -2333,7 +2387,28 @@ export default function SalarySlips() {
                   </Select>
                 </FormControl>
 
-                <FormControl fullWidth>
+                <FormControl
+                  fullWidth
+                  sx={{
+                    "& .MuiInputLabel-root": {
+                      color: "#94a3b8",
+                      "&.Mui-focused": { color: "#6366f1" },
+                    },
+                    "& .MuiOutlinedInput-root": {
+                      backgroundColor: "rgba(255, 255, 255, 0.03)",
+                      backdropFilter: "blur(10px)",
+                      borderRadius: "12px",
+                      color: "#f1f5f9",
+                      "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                      "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                      "&.Mui-focused fieldset": {
+                        borderColor: "#6366f1",
+                        boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.15)",
+                      },
+                      "& .MuiSelect-icon": { color: "#94a3b8" },
+                    },
+                  }}
+                >
                   <InputLabel>Year</InputLabel>
                   <Select
                     value={selectedYear}
@@ -2355,8 +2430,22 @@ export default function SalarySlips() {
                 onClick={loadData}
                 sx={{
                   mt: 2,
-                  backgroundColor: "#2196f3",
-                  "&:hover": { backgroundColor: "#1976d2" },
+                  backgroundColor: "#6366f1",
+                  color: "#f1f5f9",
+                  borderRadius: "12px",
+                  fontWeight: 600,
+                  textTransform: "none",
+                  boxShadow: "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.1)",
+                  "&:hover": {
+                    backgroundColor: "#4f46e5",
+                    boxShadow: "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+                    transform: "translateY(-1px)",
+                  },
+                  "&:active": {
+                    boxShadow: "2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)",
+                    transform: "translateY(0)",
+                  },
+                  transition: "all 0.2s ease",
                 }}
               >
                 Refresh
@@ -2367,39 +2456,110 @@ export default function SalarySlips() {
               <Box
                 sx={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(4, 1fr)",
+                  gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(4, 1fr)" },
                   gap: 2,
                 }}
               >
-                <Box sx={{ textAlign: "center" }}>
-                  <Typography variant="h6" sx={{ color: "#ffffff" }}>
+                {/* Total Employees */}
+                <Box
+                  sx={{
+                    p: 2,
+                    textAlign: "center",
+                    background: "linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.04) 100%)",
+                    backdropFilter: "blur(20px)",
+                    border: "1px solid rgba(99, 102, 241, 0.25)",
+                    borderRadius: "14px",
+                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)",
+                    transition: "all 0.3s ease",
+                    "&:hover": {
+                      transform: "translateY(-3px)",
+                      boxShadow: "0 12px 32px rgba(99, 102, 241, 0.25)",
+                      borderColor: "rgba(99, 102, 241, 0.4)",
+                    },
+                  }}
+                >
+                  <Typography variant="h5" sx={{ color: "#f1f5f9", fontWeight: 700, mb: 0.5 }}>
                     {employees.length}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 500, letterSpacing: "0.02em" }}>
                     Total Employees
                   </Typography>
                 </Box>
-                <Box sx={{ textAlign: "center" }}>
-                  <Typography variant="h6" sx={{ color: "#ffffff" }}>
+
+                {/* Payroll Records */}
+                <Box
+                  sx={{
+                    p: 2,
+                    textAlign: "center",
+                    background: "linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(139, 92, 246, 0.04) 100%)",
+                    backdropFilter: "blur(20px)",
+                    border: "1px solid rgba(139, 92, 246, 0.25)",
+                    borderRadius: "14px",
+                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)",
+                    transition: "all 0.3s ease",
+                    "&:hover": {
+                      transform: "translateY(-3px)",
+                      boxShadow: "0 12px 32px rgba(139, 92, 246, 0.25)",
+                      borderColor: "rgba(139, 92, 246, 0.4)",
+                    },
+                  }}
+                >
+                  <Typography variant="h5" sx={{ color: "#f1f5f9", fontWeight: 700, mb: 0.5 }}>
                     {payrolls.length}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 500, letterSpacing: "0.02em" }}>
                     Payroll Records
                   </Typography>
                 </Box>
-                <Box sx={{ textAlign: "center" }}>
-                  <Typography variant="h6" sx={{ color: "#ffffff" }}>
+
+                {/* Generated Slips */}
+                <Box
+                  sx={{
+                    p: 2,
+                    textAlign: "center",
+                    background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.04) 100%)",
+                    backdropFilter: "blur(20px)",
+                    border: "1px solid rgba(16, 185, 129, 0.25)",
+                    borderRadius: "14px",
+                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)",
+                    transition: "all 0.3s ease",
+                    "&:hover": {
+                      transform: "translateY(-3px)",
+                      boxShadow: "0 12px 32px rgba(16, 185, 129, 0.25)",
+                      borderColor: "rgba(16, 185, 129, 0.4)",
+                    },
+                  }}
+                >
+                  <Typography variant="h5" sx={{ color: "#f1f5f9", fontWeight: 700, mb: 0.5 }}>
                     {salarySlips.length}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 500, letterSpacing: "0.02em" }}>
                     Generated Slips
                   </Typography>
                 </Box>
-                <Box sx={{ textAlign: "center" }}>
-                  <Typography variant="h6" sx={{ color: "#ffffff" }}>
+
+                {/* Paid Slips */}
+                <Box
+                  sx={{
+                    p: 2,
+                    textAlign: "center",
+                    background: "linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.04) 100%)",
+                    backdropFilter: "blur(20px)",
+                    border: "1px solid rgba(245, 158, 11, 0.25)",
+                    borderRadius: "14px",
+                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)",
+                    transition: "all 0.3s ease",
+                    "&:hover": {
+                      transform: "translateY(-3px)",
+                      boxShadow: "0 12px 32px rgba(245, 158, 11, 0.25)",
+                      borderColor: "rgba(245, 158, 11, 0.4)",
+                    },
+                  }}
+                >
+                  <Typography variant="h5" sx={{ color: "#f1f5f9", fontWeight: 700, mb: 0.5 }}>
                     {payrolls.length - salarySlips.length}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 500, letterSpacing: "0.02em" }}>
                     Paid Slips
                   </Typography>
                 </Box>
@@ -2415,12 +2575,33 @@ export default function SalarySlips() {
           sx={{
             mb: 3,
             display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
+            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr 1fr" },
             gap: 2,
             alignItems: "flex-end",
           }}
         >
-          <FormControl fullWidth>
+          <FormControl
+            fullWidth
+            sx={{
+              "& .MuiInputLabel-root": {
+                color: "#94a3b8",
+                "&.Mui-focused": { color: "#6366f1" },
+              },
+              "& .MuiOutlinedInput-root": {
+                backgroundColor: "rgba(255, 255, 255, 0.03)",
+                backdropFilter: "blur(10px)",
+                borderRadius: "12px",
+                color: "#f1f5f9",
+                "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                "&.Mui-focused fieldset": {
+                  borderColor: "#6366f1",
+                  boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.15)",
+                },
+                "& .MuiSelect-icon": { color: "#94a3b8" },
+              },
+            }}
+          >
             <InputLabel>Filter by Manager</InputLabel>
             <Select
               value={selectedManager}
@@ -2442,12 +2623,21 @@ export default function SalarySlips() {
             onChange={(e) => setSearchTerm(e.target.value)}
             InputProps={{
               startAdornment: (
-                <Search sx={{ mr: 1, color: "text.secondary" }} />
+                <Search sx={{ mr: 1, color: "#94a3b8" }} />
               ),
             }}
             sx={{
               "& .MuiOutlinedInput-root": {
-                borderRadius: 2,
+                backgroundColor: "rgba(255, 255, 255, 0.03)",
+                backdropFilter: "blur(10px)",
+                borderRadius: "12px",
+                color: "#f1f5f9",
+                "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                "&.Mui-focused fieldset": {
+                  borderColor: "#6366f1",
+                  boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.15)",
+                },
               },
             }}
           />
@@ -2461,14 +2651,33 @@ export default function SalarySlips() {
               !selectedManager
             }
             sx={{
-              backgroundColor: "#2196f3",
-              "&:hover": { backgroundColor: "#1976d2" },
+              backgroundColor: "#6366f1",
+              color: "#f1f5f9",
               height: "56px",
-              borderRadius: "15px",
+              borderRadius: "12px",
+              fontWeight: 600,
+              textTransform: "none",
+              letterSpacing: "0.02em",
+              boxShadow: "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.1)",
+              "&:hover": {
+                backgroundColor: "#4f46e5",
+                boxShadow: "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+                transform: "translateY(-2px)",
+              },
+              "&:active": {
+                boxShadow: "2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)",
+                transform: "translateY(0)",
+              },
+              "&.Mui-disabled": {
+                backgroundColor: "rgba(255, 255, 255, 0.05)",
+                color: "rgba(255, 255, 255, 0.3)",
+                boxShadow: "none",
+              },
+              transition: "all 0.2s ease",
             }}
           >
             {generatingPdf ? (
-              <CircularProgress size={20} />
+              <CircularProgress size={20} sx={{ color: "#f1f5f9" }} />
             ) : (
               "GENERATE ALL SLIPS"
             )}
@@ -2481,49 +2690,46 @@ export default function SalarySlips() {
         <Card
           sx={{
             mb: 3,
-            backgroundColor: "#2d2d2d",
-            border: "1px solid #ff9800",
+            background: "rgba(255, 255, 255, 0.03)",
+            backdropFilter: "blur(20px)",
+            border: "1px solid rgba(245, 158, 11, 0.25)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
           }}
         >
-          <CardContent>
-            <Typography variant="h6" sx={{ color: "#ff9800", mb: 2 }}>
+          <CardContent sx={{ p: { xs: 2, md: 3 }, "&:last-child": { pb: { xs: 2, md: 3 } } }}>
+            <Typography variant="h6" sx={{ color: "#f59e0b", fontWeight: 600, mb: 2 }}>
               Paid Salary Slips ({payrolls.length})
             </Typography>
             <Box sx={{ overflowX: "auto" }}>
               <TableContainer
                 component={Paper}
-                sx={{ backgroundColor: "#3d3d3d", border: "1px solid #333" }}
+                sx={{
+                  background: "rgba(255, 255, 255, 0.02)",
+                  backdropFilter: "blur(20px)",
+                  border: "1px solid rgba(255, 255, 255, 0.06)",
+                  borderRadius: "14px",
+                  overflow: "hidden",
+                }}
               >
                 <Table size="small">
-                  <TableHead>
-                    <TableRow sx={{ backgroundColor: "#1e1e1e" }}>
-                      <MuiTableCell
-                        sx={{
-                          fontWeight: 600,
-                          color: "#ffffff",
-                          borderBottom: "2px solid #333",
-                        }}
-                      >
-                        Employee Name
-                      </MuiTableCell>
-                      <MuiTableCell
-                        sx={{
-                          fontWeight: 600,
-                          color: "#ffffff",
-                          borderBottom: "2px solid #333",
-                        }}
-                      >
-                        Employee ID
-                      </MuiTableCell>
-                      <MuiTableCell
-                        sx={{
-                          fontWeight: 600,
-                          color: "#ffffff",
-                          borderBottom: "2px solid #333",
-                        }}
-                      >
-                        Actions
-                      </MuiTableCell>
+                  <TableHead
+                    sx={{
+                      "& .MuiTableCell-root": {
+                        backgroundColor: "rgba(255, 255, 255, 0.04)",
+                        borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                        color: "#94a3b8",
+                        fontWeight: 600,
+                        fontSize: "0.75rem",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                      },
+                    }}
+                  >
+                    <TableRow>
+                      <MuiTableCell>Employee Name</MuiTableCell>
+                      <MuiTableCell>Employee ID</MuiTableCell>
+                      <MuiTableCell>Actions</MuiTableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -2552,42 +2758,46 @@ export default function SalarySlips() {
                         return (
                           <TableRow
                             key={payroll.id}
-                            sx={{ "&:hover": { backgroundColor: "#4d4d4d" } }}
+                            sx={{
+                              transition: "background-color 0.2s ease",
+                              "&:hover": {
+                                backgroundColor: "rgba(255, 255, 255, 0.03)",
+                              },
+                              "& .MuiTableCell-root": {
+                                borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
+                                color: "#f1f5f9",
+                              },
+                            }}
                           >
-                            <MuiTableCell
-                              sx={{
-                                borderBottom: "1px solid #333",
-                                color: "#ffffff",
-                              }}
-                            >
+                            <MuiTableCell>
                               {employee?.fullName || "Unknown"}
                             </MuiTableCell>
-                            <MuiTableCell
-                              sx={{
-                                borderBottom: "1px solid #333",
-                                color: "#ffffff",
-                              }}
-                            >
+                            <MuiTableCell>
                               {employee?.employeeId || "Unknown"}
                             </MuiTableCell>
-                            <MuiTableCell
-                              sx={{
-                                borderBottom: "1px solid #333",
-                                color: "#ffffff",
-                              }}
-                            >
+                            <MuiTableCell>
                               <Box sx={{ display: "flex", gap: 1 }}>
                                 <Tooltip title="Generate Slip">
                                   <IconButton
                                     size="small"
-                                    sx={{ color: "#ff9800" }}
+                                    sx={{
+                                      color: "#f59e0b",
+                                      backgroundColor: "rgba(245, 158, 11, 0.1)",
+                                      border: "1px solid rgba(245, 158, 11, 0.2)",
+                                      borderRadius: "8px",
+                                      transition: "all 0.2s ease",
+                                      "&:hover": {
+                                        backgroundColor: "rgba(245, 158, 11, 0.2)",
+                                        transform: "scale(1.05)",
+                                      },
+                                    }}
                                     onClick={() =>
                                       employee &&
                                       generateSalarySlipPDF(employee, payroll)
                                     }
                                     disabled={generatingPdf}
                                   >
-                                    <PictureAsPdf />
+                                    <PictureAsPdf fontSize="small" />
                                   </IconButton>
                                 </Tooltip>
                               </Box>
@@ -2614,11 +2824,20 @@ export default function SalarySlips() {
           value={searchTermGenerated}
           onChange={(e) => setSearchTermGenerated(e.target.value)}
           InputProps={{
-            startAdornment: <Search sx={{ mr: 1, color: "text.secondary" }} />,
+            startAdornment: <Search sx={{ mr: 1, color: "#94a3b8" }} />,
           }}
           sx={{
             "& .MuiOutlinedInput-root": {
-              borderRadius: 2,
+              backgroundColor: "rgba(255, 255, 255, 0.03)",
+              backdropFilter: "blur(10px)",
+              borderRadius: "12px",
+              color: "#f1f5f9",
+              "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+              "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+              "&.Mui-focused fieldset": {
+                borderColor: "#6366f1",
+                boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.15)",
+              },
             },
           }}
         />
@@ -2628,74 +2847,37 @@ export default function SalarySlips() {
       <Box sx={{ overflowX: "auto", maxWidth: "100%" }}>
         <TableContainer
           component={Paper}
-          sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}
+          sx={{
+            background: "rgba(255, 255, 255, 0.02)",
+            backdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.06)",
+            borderRadius: "16px",
+            overflow: "hidden",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+          }}
         >
           <Table>
-            <TableHead>
-              <TableRow sx={{ backgroundColor: "#1e1e1e" }}>
-                <MuiTableCell
-                  sx={{
-                    fontWeight: 600,
-                    color: "#ffffff",
-                    borderBottom: "2px solid #333",
-                  }}
-                >
-                  Employee Name
-                </MuiTableCell>
-                <MuiTableCell
-                  sx={{
-                    fontWeight: 600,
-                    color: "#ffffff",
-                    borderBottom: "2px solid #333",
-                  }}
-                >
-                  Employee ID
-                </MuiTableCell>
-                <MuiTableCell
-                  sx={{
-                    fontWeight: 600,
-                    color: "#ffffff",
-                    borderBottom: "2px solid #333",
-                  }}
-                >
-                  Month/Year
-                </MuiTableCell>
-                <MuiTableCell
-                  sx={{
-                    fontWeight: 600,
-                    color: "#ffffff",
-                    borderBottom: "2px solid #333",
-                  }}
-                >
-                  Net Salary
-                </MuiTableCell>
-                <MuiTableCell
-                  sx={{
-                    fontWeight: 600,
-                    color: "#ffffff",
-                    borderBottom: "2px solid #333",
-                  }}
-                >
-                  Status
-                </MuiTableCell>
-                <MuiTableCell
-                  sx={{
-                    fontWeight: 600,
-                    color: "#ffffff",
-                    borderBottom: "2px solid #333",
-                  }}
-                >
-                  Generated On
-                </MuiTableCell>
-                <MuiTableCell
-                  sx={{
-                    fontWeight: 600,
-                    color: "#ffffff",
-                    borderBottom: "2px solid #333",
-                  }}
-                >
-                  Actions
-                </MuiTableCell>
+            <TableHead
+              sx={{
+                "& .MuiTableCell-root": {
+                  backgroundColor: "rgba(255, 255, 255, 0.04)",
+                  borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                  color: "#94a3b8",
+                  fontWeight: 600,
+                  fontSize: "0.75rem",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                },
+              }}
+            >
+              <TableRow>
+                <MuiTableCell>Employee Name</MuiTableCell>
+                <MuiTableCell>Employee ID</MuiTableCell>
+                <MuiTableCell>Month/Year</MuiTableCell>
+                <MuiTableCell>Net Salary</MuiTableCell>
+                <MuiTableCell>Status</MuiTableCell>
+                <MuiTableCell>Generated On</MuiTableCell>
+                <MuiTableCell>Actions</MuiTableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -2715,39 +2897,26 @@ export default function SalarySlips() {
                   return (
                     <TableRow
                       key={slip.id}
-                      sx={{ "&:hover": { backgroundColor: "#3d3d3d" } }}
+                      sx={{
+                        transition: "background-color 0.2s ease",
+                        "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.03)" },
+                        "& .MuiTableCell-root": {
+                          borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
+                          color: "#f1f5f9",
+                        },
+                      }}
                     >
-                      <MuiTableCell
-                        sx={{
-                          borderBottom: "1px solid #333",
-                          color: "#ffffff",
-                        }}
-                      >
+                      <MuiTableCell>
                         {employee?.fullName || "Unknown"}
                       </MuiTableCell>
-                      <MuiTableCell
-                        sx={{
-                          borderBottom: "1px solid #333",
-                          color: "#ffffff",
-                        }}
-                      >
+                      <MuiTableCell>
                         {employee?.employeeId || "Unknown"}
                       </MuiTableCell>
-                      <MuiTableCell
-                        sx={{
-                          borderBottom: "1px solid #333",
-                          color: "#ffffff",
-                        }}
-                      >
+                      <MuiTableCell>
                         {months.find((m) => m.value === slip.month)?.label}{" "}
                         {slip.year}
                       </MuiTableCell>
-                      <MuiTableCell
-                        sx={{
-                          borderBottom: "1px solid #333",
-                          color: "#ffffff",
-                        }}
-                      >
+                      <MuiTableCell sx={{ fontWeight: 600 }}>
                         ₹
                         {String(
                           (
@@ -2759,47 +2928,47 @@ export default function SalarySlips() {
                             "0.00",
                         )}
                       </MuiTableCell>
-                      <MuiTableCell
-                        sx={{
-                          borderBottom: "1px solid #333",
-                          color: "#ffffff",
-                        }}
-                      >
+                      <MuiTableCell>
                         <Chip
                           label="Generated"
-                          color="success"
                           size="small"
-                          sx={{ backgroundColor: "#4caf50" }}
+                          sx={{
+                            backgroundColor: "rgba(16, 185, 129, 0.15)",
+                            color: "#34d399",
+                            border: "1px solid rgba(16, 185, 129, 0.25)",
+                            backdropFilter: "blur(10px)",
+                            fontWeight: 600,
+                          }}
                         />
                       </MuiTableCell>
-                      <MuiTableCell
-                        sx={{
-                          borderBottom: "1px solid #333",
-                          color: "#ffffff",
-                        }}
-                      >
+                      <MuiTableCell>
                         {slip.generatedAt instanceof Date
                           ? slip.generatedAt.toLocaleDateString()
                           : (slip.generatedAt as any)
                               ?.toDate?.()
                               ?.toLocaleDateString() || "Unknown"}
                       </MuiTableCell>
-                      <MuiTableCell
-                        sx={{
-                          borderBottom: "1px solid #333",
-                          color: "#ffffff",
-                        }}
-                      >
+                      <MuiTableCell>
                         <Box sx={{ display: "flex", gap: 1 }}>
                           <Tooltip title="Download">
                             <IconButton
                               size="small"
-                              sx={{ color: "#4caf50" }}
+                              sx={{
+                                color: "#10b981",
+                                backgroundColor: "rgba(16, 185, 129, 0.1)",
+                                border: "1px solid rgba(16, 185, 129, 0.2)",
+                                borderRadius: "8px",
+                                transition: "all 0.2s ease",
+                                "&:hover": {
+                                  backgroundColor: "rgba(16, 185, 129, 0.2)",
+                                  transform: "scale(1.05)",
+                                },
+                              }}
                               onClick={() => {
                                 void downloadGeneratedSlip(slip);
                               }}
                             >
-                              <Download />
+                              <Download fontSize="small" />
                             </IconButton>
                           </Tooltip>
                         </Box>
@@ -2824,9 +2993,16 @@ export default function SalarySlips() {
           setPage(0);
         }}
         sx={{
-          color: "#ffffff",
+          color: "#94a3b8",
+          borderTop: "1px solid rgba(255, 255, 255, 0.06)",
           "& .MuiTablePagination-selectIcon": {
-            color: "#ffffff",
+            color: "#94a3b8",
+          },
+          "& .MuiTablePagination-actions button": {
+            color: "#94a3b8",
+            "&:hover": {
+              backgroundColor: "rgba(255, 255, 255, 0.05)",
+            },
           },
         }}
       />
@@ -2839,13 +3015,22 @@ export default function SalarySlips() {
         onClose={() => setShowPreviewDialog(false)}
         maxWidth="md"
         fullWidth
+        PaperProps={{
+          sx: {
+            background: "rgba(15, 23, 42, 0.95)",
+            backdropFilter: "blur(30px)",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: "20px",
+            boxShadow: "0 25px 60px rgba(0, 0, 0, 0.5)",
+          },
+        }}
       >
-        <DialogTitle>
-          <Typography variant="h5" component="span" sx={{ color: "#ffffff" }}>
+        <DialogTitle sx={{ borderBottom: "1px solid rgba(255, 255, 255, 0.08)", pb: 2 }}>
+          <Typography variant="h5" component="span" sx={{ color: "#f1f5f9", fontWeight: 600 }}>
             Salary Slip Preview - {previewData?.employee?.fullName}
           </Typography>
         </DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ p: 3, pt: "20px !important" }}>
           {previewData && (() => {
             const canvasTmpl = getSlipTemplateForEmployee(previewData.employee, previewData.payroll);
 
@@ -2868,7 +3053,7 @@ export default function SalarySlips() {
               const sorted = [...canvasTmpl.elements].sort((a, b) => a.zIndex - b.zIndex);
 
               return (
-                <Box sx={{ mt: 2, overflowX: "auto", display: "flex", justifyContent: "center" }}>
+                <Box sx={{ mt: 2, overflowX: "auto", display: "flex", justifyContent: "center", p: 2, backgroundColor: "rgba(0, 0, 0, 0.2)", borderRadius: "14px" }}>
                   <Box sx={{
                     position: "relative",
                     width: CW,
@@ -2939,7 +3124,7 @@ export default function SalarySlips() {
                             <Box key={el.id} sx={{ ...base }}>
                               {logoUrl
                                 ? <Box component="img" src={logoUrl} sx={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                                : <Box sx={{ ...base, left: 0, top: 0, backgroundColor: "#e3f2fd", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #2196f3", fontSize: 11, color: "#2196f3" }}>Logo</Box>}
+                                : <Box sx={{ ...base, left: 0, top: 0, backgroundColor: "rgba(99, 102, 241, 0.08)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #6366f1", fontSize: 11, color: "#6366f1" }}>Logo</Box>}
                             </Box>
                           );
                         }
@@ -2978,7 +3163,7 @@ export default function SalarySlips() {
                                 const isHdr = te.hasHeaderRow && ri === 0;
                                 const isAlt = te.alternateRowColor && !isHdr && ri % 2 === 0;
                                 return (
-                                  <Box key={ri} sx={{ display: "flex", height: tableRowHeightAt(te, ri),
+                                   <Box key={ri} sx={{ display: "flex", height: tableRowHeightAt(te, ri),
                                     backgroundColor: isHdr ? te.headerBgColor : isAlt ? "rgba(0,0,0,0.04)" : "transparent" }}>
                                     {row.map((cell, ci) => {
                                       const cellVal =
@@ -3030,7 +3215,7 @@ export default function SalarySlips() {
               attendanceDeductionByEmployee[previewData.employee.id ?? ""],
             );
             return (
-              <Box sx={{ mt: 2, backgroundColor: "#f3f5f8", p: 2 }}>
+              <Box sx={{ mt: 2, backgroundColor: "#f3f5f8", p: 2, borderRadius: "14px" }}>
                 <Box sx={{ maxWidth: 980, mx: "auto", bgcolor: "#fff", border: "2px solid #1f2937", boxShadow: "0 12px 30px rgba(0,0,0,0.12)" }}>
                   {/* Header */}
                   <Box sx={{ textAlign: "center", px: 2, py: 1.5, borderBottom: "2px solid #1f2937", position: "relative" }}>
@@ -3095,8 +3280,18 @@ export default function SalarySlips() {
             );
           })()}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowPreviewDialog(false)}>Close</Button>
+        <DialogActions sx={{ borderTop: "1px solid rgba(255, 255, 255, 0.08)", px: 3, py: 2 }}>
+          <Button
+            onClick={() => setShowPreviewDialog(false)}
+            sx={{
+              color: "#94a3b8",
+              textTransform: "none",
+              fontWeight: 500,
+              "&:hover": { color: "#f1f5f9", backgroundColor: "rgba(255, 255, 255, 0.05)" },
+            }}
+          >
+            Close
+          </Button>
           <Button
             onClick={() => {
               if (previewData) {
@@ -3123,8 +3318,22 @@ export default function SalarySlips() {
             variant="contained"
             startIcon={<Download />}
             sx={{
-              backgroundColor: "#2196f3",
-              "&:hover": { backgroundColor: "#1976d2" },
+              backgroundColor: "#6366f1",
+              color: "#f1f5f9",
+              borderRadius: "12px",
+              fontWeight: 600,
+              textTransform: "none",
+              boxShadow: "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.1)",
+              "&:hover": {
+                backgroundColor: "#4f46e5",
+                boxShadow: "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+                transform: "translateY(-1px)",
+              },
+              "&:active": {
+                boxShadow: "2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)",
+                transform: "translateY(0)",
+              },
+              transition: "all 0.2s ease",
             }}
           >
             Download PDF

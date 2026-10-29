@@ -64,25 +64,28 @@ export default function RegistrationSuccessDialog({
       fullWidth
       PaperProps={{
         sx: {
-          backgroundColor: '#1e1e1e',
-          borderRadius: 3,
-          border: '1px solid #333',
+          backgroundColor: 'rgba(15, 23, 42, 0.95)',
+          backdropFilter: 'blur(40px)',
+          WebkitBackdropFilter: 'blur(40px)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          borderRadius: 4,
+          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.5)',
         }
       }}
     >
       <DialogTitle sx={{ 
-        pb: 1,
-        borderBottom: '1px solid #333',
-        backgroundColor: '#1e1e1e'
+        pb: 1.5,
+        borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+        backgroundColor: 'transparent'
       }}>
         <Box display="flex" alignItems="center" gap={2}>
-          <CheckCircle sx={{ color: '#4caf50', fontSize: 28 }} />
+          <CheckCircle sx={{ color: '#10b981', fontSize: 28 }} />
           <Typography 
             variant="h5" 
             sx={{ 
-              color: '#ffffff',
+              color: '#f1f5f9',
               fontWeight: 600,
-              fontSize: '1.5rem'
+              fontSize: '1.4rem'
             }}
           >
             Registration Successful!
@@ -90,24 +93,25 @@ export default function RegistrationSuccessDialog({
         </Box>
       </DialogTitle>
       
-      <DialogContent sx={{ p: 3, backgroundColor: '#1e1e1e' }}>
+      <DialogContent sx={{ p: 3, backgroundColor: 'transparent' }}>
         {/* Main Success Box */}
         <Paper
           elevation={0}
           sx={{
             p: 3,
             mb: 3,
-            backgroundColor: '#e8f5e8',
-            border: '2px solid #4caf50',
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(16, 185, 129, 0.04) 100%)',
+            border: '1px solid rgba(16, 185, 129, 0.25)',
             borderRadius: 3,
-            boxShadow: '0 4px 12px rgba(76, 175, 80, 0.15)',
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
           }}
         >
           <Typography 
             variant="body1" 
             sx={{ 
               mb: 2,
-              color: '#2e7d32',
+              color: '#34d399',
               fontSize: '1rem',
               fontWeight: 500,
               lineHeight: 1.5
@@ -120,8 +124,8 @@ export default function RegistrationSuccessDialog({
             variant="body1" 
             sx={{ 
               mb: 2,
-              color: '#2e7d32',
-              fontSize: '1rem',
+              color: '#6ee7b7',
+              fontSize: '0.95rem',
               fontWeight: 600
             }}
           >
@@ -137,19 +141,21 @@ export default function RegistrationSuccessDialog({
               InputProps={{
                 readOnly: true,
                 sx: {
-                  backgroundColor: '#ffffff',
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
                   fontWeight: 'bold',
-                  fontSize: '1.1rem',
-                  color: '#2e7d32',
+                  fontSize: '1.15rem',
+                  letterSpacing: '0.05em',
+                  color: '#34d399',
+                  borderRadius: '12px',
                   '& .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#4caf50',
-                    borderWidth: '2px',
+                    borderColor: 'rgba(16, 185, 129, 0.4)',
+                    borderWidth: '1.5px',
                   },
                   '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#45a049',
+                    borderColor: '#10b981',
                   },
                   '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#4caf50',
+                    borderColor: '#10b981',
                   },
                 },
               }}
@@ -159,11 +165,16 @@ export default function RegistrationSuccessDialog({
               sx={{ 
                 minWidth: 48,
                 height: 48,
-                backgroundColor: copied ? '#4caf50' : '#f5f5f5',
-                color: copied ? '#ffffff' : '#4caf50',
-                border: '2px solid #4caf50',
+                borderRadius: '12px',
+                backgroundColor: copied ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                color: copied ? '#34d399' : '#94a3b8',
+                border: '1px solid',
+                borderColor: copied ? 'rgba(16, 185, 129, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+                backdropFilter: 'blur(10px)',
                 '&:hover': {
-                  backgroundColor: copied ? '#45a049' : '#e8f5e8',
+                  backgroundColor: copied ? 'rgba(16, 185, 129, 0.35)' : 'rgba(99, 102, 241, 0.1)',
+                  borderColor: copied ? '#10b981' : 'rgba(99, 102, 241, 0.3)',
+                  color: copied ? '#6ee7b7' : '#e0e7ff',
                 },
                 transition: 'all 0.2s ease-in-out',
               }}
@@ -173,7 +184,7 @@ export default function RegistrationSuccessDialog({
           </Box>
           
           {copyError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
               {copyError}
             </Alert>
           )}
@@ -181,8 +192,8 @@ export default function RegistrationSuccessDialog({
           <Typography 
             variant="body2" 
             sx={{ 
-              color: '#2e7d32',
-              fontSize: '0.9rem',
+              color: '#a7f3d0',
+              fontSize: '0.875rem',
               fontWeight: 500,
               lineHeight: 1.4
             }}
@@ -194,22 +205,13 @@ export default function RegistrationSuccessDialog({
         {/* Important Alert Box */}
         <Alert 
           severity="info" 
-          icon={<Info sx={{ color: '#2196f3' }} />}
+          icon={<Info sx={{ color: '#60a5fa' }} />}
           sx={{ 
             mb: 3,
-            backgroundColor: '#1a237e',
-            color: '#ffffff',
-            border: '1px solid #3f51b5',
-            borderRadius: 2,
-            '& .MuiAlert-message': {
-              color: '#ffffff',
-            },
-            '& .MuiAlert-icon': {
-              color: '#2196f3',
-            }
+            borderRadius: 2.5,
           }}
         >
-          <Typography variant="body2" sx={{ color: '#ffffff', fontWeight: 500 }}>
+          <Typography variant="body2" sx={{ color: '#93c5fd', fontWeight: 500 }}>
             <strong>Important:</strong> Please note down your UserID and password in a secure location. 
             You will need these credentials to log in to the system.
           </Typography>
@@ -219,7 +221,7 @@ export default function RegistrationSuccessDialog({
         <Typography 
           variant="body2" 
           sx={{ 
-            color: '#b0b0b0',
+            color: '#94a3b8',
             fontSize: '0.9rem',
             lineHeight: 1.5,
             textAlign: 'center',
@@ -233,27 +235,32 @@ export default function RegistrationSuccessDialog({
       
       <DialogActions sx={{ 
         p: 3, 
-        pt: 0,
-        backgroundColor: '#1e1e1e',
-        borderTop: '1px solid #333',
+        pt: 2,
+        backgroundColor: 'transparent',
+        borderTop: '1px solid rgba(255, 255, 255, 0.06)',
         justifyContent: 'flex-end'
       }}>
         <Button 
           onClick={handleClose} 
           variant="contained" 
           sx={{
-            backgroundColor: '#2196f3',
+            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
             color: '#ffffff',
-            px: 4,
-            py: 1.5,
-            borderRadius: 2,
+            px: 3.5,
+            py: 1.25,
+            borderRadius: '12px',
             fontWeight: 600,
             fontSize: '0.95rem',
             textTransform: 'none',
-            boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
+            boxShadow: '6px 6px 16px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)',
             '&:hover': {
-              backgroundColor: '#1976d2',
-              boxShadow: '0 6px 16px rgba(33, 150, 243, 0.4)',
+              background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+              boxShadow: '4px 4px 10px rgba(0, 0, 0, 0.45), inset 2px 2px 4px rgba(255, 255, 255, 0.2)',
+              transform: 'translateY(-1px)',
+            },
+            '&:active': {
+              boxShadow: '2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)',
+              transform: 'translateY(0)',
             },
             transition: 'all 0.2s ease-in-out',
           }}

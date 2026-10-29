@@ -151,6 +151,15 @@ export default function EmployeeProfile() {
     fetchEmployeeData();
   }, [currentUser]);
 
+  const glassCardSx = {
+    background: "rgba(255, 255, 255, 0.03)",
+    backdropFilter: "blur(20px)",
+    WebkitBackdropFilter: "blur(20px)",
+    border: "1px solid rgba(255, 255, 255, 0.08)",
+    borderRadius: "16px",
+    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+  };
+
   if (loading) {
     return (
       <Box
@@ -159,14 +168,23 @@ export default function EmployeeProfile() {
         alignItems="center"
         minHeight="400px"
       >
-        <CircularProgress />
+        <CircularProgress sx={{ color: "#6366f1" }} />
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Alert severity="error" sx={{ mb: 2 }}>
+      <Alert
+        severity="error"
+        sx={{
+          mb: 3,
+          backgroundColor: "rgba(239, 68, 68, 0.1)",
+          border: "1px solid rgba(239, 68, 68, 0.25)",
+          color: "#fca5a5",
+          borderRadius: "14px",
+        }}
+      >
         {error}
       </Alert>
     );
@@ -174,17 +192,43 @@ export default function EmployeeProfile() {
 
   if (!employeeData) {
     return (
-      <Alert severity="warning">
+      <Alert
+        severity="warning"
+        sx={{
+          mb: 3,
+          backgroundColor: "rgba(245, 158, 11, 0.1)",
+          border: "1px solid rgba(245, 158, 11, 0.25)",
+          color: "#fcd34d",
+          borderRadius: "14px",
+        }}
+      >
         Employee profile not found. Please contact your administrator.
       </Alert>
     );
   }
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom sx={{ color: "#ffffff", mb: 3 }}>
-        My Profile
-      </Typography>
+    <Box sx={{ p: { xs: 2, sm: 3 } }}>
+      {/* Header */}
+      <Box sx={{ mb: 3 }}>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 700,
+            fontSize: { xs: "1.5rem", sm: "1.875rem" },
+            letterSpacing: "-0.02em",
+            background: "linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            mb: 0.5,
+          }}
+        >
+          My Profile
+        </Typography>
+        <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+          View your personal profile, department, and salary details
+        </Typography>
+      </Box>
 
       <Box
         sx={{
@@ -194,30 +238,49 @@ export default function EmployeeProfile() {
         }}
       >
         {/* Profile Header */}
-        <Card sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}>
-          <CardContent>
-            <Box display="flex" alignItems="center" gap={3}>
+        <Card elevation={0} sx={glassCardSx}>
+          <CardContent sx={{ p: 3 }}>
+            <Box display="flex" alignItems="center" gap={3} flexWrap="wrap">
               <Avatar
                 sx={{
-                  width: 120,
-                  height: 120,
-                  backgroundColor: "#2196f3",
-                  fontSize: "3rem",
+                  width: { xs: 88, sm: 110 },
+                  height: { xs: 88, sm: 110 },
+                  background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+                  boxShadow:
+                    "0 10px 32px rgba(99, 102, 241, 0.5), inset 2px 2px 6px rgba(255, 255, 255, 0.3)",
+                  border: "3px solid rgba(255, 255, 255, 0.15)",
+                  fontSize: { xs: "2.25rem", sm: "3rem" },
+                  fontWeight: 700,
+                  color: "#ffffff",
                 }}
               >
                 {employeeData.fullName?.charAt(0) || "E"}
               </Avatar>
               <Box flex={1}>
-                <Typography variant="h4" sx={{ color: "#ffffff", mb: 1 }}>
+                <Typography
+                  variant="h4"
+                  sx={{
+                    color: "#f1f5f9",
+                    fontWeight: 700,
+                    fontSize: { xs: "1.5rem", sm: "1.875rem" },
+                    mb: 0.5,
+                  }}
+                >
                   {employeeData.fullName}
                 </Typography>
-                <Typography variant="h6" sx={{ color: "#b0b0b0", mb: 2 }}>
+                <Typography variant="body1" sx={{ color: "#a5b4fc", mb: 1.5, fontWeight: 500 }}>
                   Employee ID: {employeeData.employeeId}
                 </Typography>
                 <Chip
                   label="Active Employee"
-                  color="success"
-                  sx={{ backgroundColor: "#4caf50", color: "#ffffff" }}
+                  size="small"
+                  sx={{
+                    backgroundColor: "rgba(16, 185, 129, 0.15)",
+                    color: "#34d399",
+                    border: "1px solid rgba(16, 185, 129, 0.3)",
+                    fontWeight: 600,
+                    px: 0.5,
+                  }}
                 />
               </Box>
             </Box>
@@ -236,28 +299,23 @@ export default function EmployeeProfile() {
           }}
         >
           {/* Employee Info */}
-          <Card
-            sx={{
-              backgroundColor: "#2d2d2d",
-              border: "1px solid #333",
-              height: "100%",
-            }}
-          >
-            <CardContent>
+          <Card elevation={0} sx={{ ...glassCardSx, height: "100%" }}>
+            <CardContent sx={{ p: 3 }}>
               <Typography
                 variant="h6"
                 sx={{
-                  color: "#ffffff",
+                  color: "#f1f5f9",
+                  fontWeight: 600,
                   mb: 2,
                   display: "flex",
                   alignItems: "center",
-                  gap: 1,
+                  gap: 1.2,
                 }}
               >
-                <Person />
+                <Person sx={{ color: "#818cf8" }} />
                 Employee Info
               </Typography>
-              <Divider sx={{ mb: 2, borderColor: "#444" }} />
+              <Divider sx={{ mb: 2, borderColor: "rgba(255, 255, 255, 0.06)" }} />
 
               <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 {[
@@ -269,11 +327,11 @@ export default function EmployeeProfile() {
                   { label: "Date of Joining", value: (employeeData as any).joinDate || (employeeData as any).joiningDate },
                 ].map(({ label, value }) =>
                   value ? (
-                    <Box key={label} display="flex" justifyContent="space-between" alignItems="flex-start">
-                      <Typography variant="body2" sx={{ color: "#b0b0b0", minWidth: 130 }}>
+                    <Box key={label} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
+                      <Typography variant="body2" sx={{ color: "#94a3b8", minWidth: 130 }}>
                         {label}:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: "#ffffff", textAlign: "right" }}>
+                      <Typography variant="body1" sx={{ color: "#f1f5f9", textAlign: "right" }}>
                         {(() => {
                           if (typeof value === "object" && value !== null) {
                             if ((value as any).seconds) {
@@ -294,28 +352,23 @@ export default function EmployeeProfile() {
           </Card>
 
           {/* Basic Details */}
-          <Card
-            sx={{
-              backgroundColor: "#2d2d2d",
-              border: "1px solid #333",
-              height: "100%",
-            }}
-          >
-            <CardContent>
+          <Card elevation={0} sx={{ ...glassCardSx, height: "100%" }}>
+            <CardContent sx={{ p: 3 }}>
               <Typography
                 variant="h6"
                 sx={{
-                  color: "#ffffff",
+                  color: "#f1f5f9",
+                  fontWeight: 600,
                   mb: 2,
                   display: "flex",
                   alignItems: "center",
-                  gap: 1,
+                  gap: 1.2,
                 }}
               >
-                <Work />
+                <Work sx={{ color: "#818cf8" }} />
                 Basic
               </Typography>
-              <Divider sx={{ mb: 2, borderColor: "#444" }} />
+              <Divider sx={{ mb: 2, borderColor: "rgba(255, 255, 255, 0.06)" }} />
 
               <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 {[
@@ -330,11 +383,11 @@ export default function EmployeeProfile() {
                   { label: "Manager(s)", value: managerNames.length > 0 ? managerNames.join(", ") : undefined },
                 ].map(({ label, value }) =>
                   value ? (
-                    <Box key={label} display="flex" justifyContent="space-between" alignItems="flex-start">
-                      <Typography variant="body2" sx={{ color: "#b0b0b0", minWidth: 110 }}>
+                    <Box key={label} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
+                      <Typography variant="body2" sx={{ color: "#94a3b8", minWidth: 110 }}>
                         {label}:
                       </Typography>
-                      <Typography variant="body1" sx={{ color: "#ffffff", textAlign: "right" }}>
+                      <Typography variant="body1" sx={{ color: "#f1f5f9", textAlign: "right" }}>
                         {String(value)}
                       </Typography>
                     </Box>
@@ -357,73 +410,124 @@ export default function EmployeeProfile() {
           }}
         >
           {/* Personal Information */}
-          <Card
-            sx={{
-              backgroundColor: "#2d2d2d",
-              border: "1px solid #333",
-              height: "100%",
-            }}
-          >
-            <CardContent>
+          <Card elevation={0} sx={{ ...glassCardSx, height: "100%" }}>
+            <CardContent sx={{ p: 3 }}>
               <Typography
                 variant="h6"
                 sx={{
-                  color: "#ffffff",
+                  color: "#f1f5f9",
+                  fontWeight: 600,
                   mb: 2,
                   display: "flex",
                   alignItems: "center",
-                  gap: 1,
+                  gap: 1.2,
                 }}
               >
-                <Person />
+                <Person sx={{ color: "#818cf8" }} />
                 Personal Information
               </Typography>
-              <Divider sx={{ mb: 2, borderColor: "#444" }} />
+              <Divider sx={{ mb: 2, borderColor: "rgba(255, 255, 255, 0.06)" }} />
 
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
                 <Box display="flex" alignItems="center" gap={2}>
-                  <Email sx={{ color: "#b0b0b0" }} />
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: "10px",
+                      background: "rgba(99, 102, 241, 0.12)",
+                      border: "1px solid rgba(99, 102, 241, 0.2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Email sx={{ color: "#818cf8", fontSize: 20 }} />
+                  </Box>
                   <Box>
-                    <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
+                    <Typography variant="caption" sx={{ color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                       Email Address
                     </Typography>
-                    <Typography variant="body1" sx={{ color: "#ffffff" }}>
+                    <Typography variant="body1" sx={{ color: "#f1f5f9" }}>
                       {employeeData.email}
                     </Typography>
                   </Box>
                 </Box>
 
                 <Box display="flex" alignItems="center" gap={2}>
-                  <Phone sx={{ color: "#b0b0b0" }} />
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: "10px",
+                      background: "rgba(99, 102, 241, 0.12)",
+                      border: "1px solid rgba(99, 102, 241, 0.2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Phone sx={{ color: "#818cf8", fontSize: 20 }} />
+                  </Box>
                   <Box>
-                    <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
+                    <Typography variant="caption" sx={{ color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                       Mobile Number
                     </Typography>
-                    <Typography variant="body1" sx={{ color: "#ffffff" }}>
+                    <Typography variant="body1" sx={{ color: "#f1f5f9" }}>
                       {employeeData.mobile}
                     </Typography>
                   </Box>
                 </Box>
 
                 <Box display="flex" alignItems="center" gap={2}>
-                  <Work sx={{ color: "#b0b0b0" }} />
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: "10px",
+                      background: "rgba(99, 102, 241, 0.12)",
+                      border: "1px solid rgba(99, 102, 241, 0.2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Work sx={{ color: "#818cf8", fontSize: 20 }} />
+                  </Box>
                   <Box>
-                    <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
+                    <Typography variant="caption" sx={{ color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                       Department
                     </Typography>
-                    <Typography variant="body1" sx={{ color: "#ffffff" }}>
+                    <Typography variant="body1" sx={{ color: "#f1f5f9" }}>
                       {employeeData.department || "Not specified"}
                     </Typography>
                   </Box>
                 </Box>
 
                 <Box display="flex" alignItems="center" gap={2}>
-                  <Schedule sx={{ color: "#b0b0b0" }} />
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: "10px",
+                      background: "rgba(99, 102, 241, 0.12)",
+                      border: "1px solid rgba(99, 102, 241, 0.2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Schedule sx={{ color: "#818cf8", fontSize: 20 }} />
+                  </Box>
                   <Box>
-                    <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
+                    <Typography variant="caption" sx={{ color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                       Joining Date
                     </Typography>
-                    <Typography variant="body1" sx={{ color: "#ffffff" }}>
+                    <Typography variant="body1" sx={{ color: "#f1f5f9" }}>
                       {(() => {
                         // Check both possible field names
                         const joinDate =
@@ -457,28 +561,23 @@ export default function EmployeeProfile() {
           </Card>
 
           {/* Salary Information */}
-          <Card
-            sx={{
-              backgroundColor: "#2d2d2d",
-              border: "1px solid #333",
-              height: "100%",
-            }}
-          >
-            <CardContent>
+          <Card elevation={0} sx={{ ...glassCardSx, height: "100%" }}>
+            <CardContent sx={{ p: 3 }}>
               <Typography
                 variant="h6"
                 sx={{
-                  color: "#ffffff",
+                  color: "#f1f5f9",
+                  fontWeight: 600,
                   mb: 2,
                   display: "flex",
                   alignItems: "center",
-                  gap: 1,
+                  gap: 1.2,
                 }}
               >
-                <AttachMoney />
+                <AttachMoney sx={{ color: "#34d399" }} />
                 Salary Structure
               </Typography>
-              <Divider sx={{ mb: 2, borderColor: "#444" }} />
+              <Divider sx={{ mb: 2, borderColor: "rgba(255, 255, 255, 0.06)" }} />
 
               <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <Box
@@ -486,12 +585,12 @@ export default function EmployeeProfile() {
                   justifyContent="space-between"
                   alignItems="center"
                 >
-                  <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
+                  <Typography variant="body2" sx={{ color: "#94a3b8" }}>
                     Basic Salary:
                   </Typography>
                   <Typography
                     variant="body1"
-                    sx={{ color: "#ffffff", fontWeight: "bold" }}
+                    sx={{ color: "#f1f5f9", fontWeight: 600 }}
                   >
                     ₹
                     {(
@@ -508,10 +607,10 @@ export default function EmployeeProfile() {
                     justifyContent="space-between"
                     alignItems="center"
                   >
-                    <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
+                    <Typography variant="body2" sx={{ color: "#94a3b8" }}>
                       HRA:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: "#ffffff" }}>
+                    <Typography variant="body1" sx={{ color: "#f1f5f9" }}>
                       ₹{employeeData.salary.hra}
                     </Typography>
                   </Box>
@@ -523,10 +622,10 @@ export default function EmployeeProfile() {
                     justifyContent="space-between"
                     alignItems="center"
                   >
-                    <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
+                    <Typography variant="body2" sx={{ color: "#94a3b8" }}>
                       TA:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: "#ffffff" }}>
+                    <Typography variant="body1" sx={{ color: "#f1f5f9" }}>
                       ₹{employeeData.salary.ta}
                     </Typography>
                   </Box>
@@ -538,16 +637,16 @@ export default function EmployeeProfile() {
                     justifyContent="space-between"
                     alignItems="center"
                   >
-                    <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
+                    <Typography variant="body2" sx={{ color: "#94a3b8" }}>
                       DA:
                     </Typography>
-                    <Typography variant="body1" sx={{ color: "#ffffff" }}>
+                    <Typography variant="body1" sx={{ color: "#f1f5f9" }}>
                       ₹{employeeData.salary.da}
                     </Typography>
                   </Box>
                 )}
 
-                <Divider sx={{ borderColor: "#444" }} />
+                <Divider sx={{ borderColor: "rgba(255, 255, 255, 0.06)" }} />
 
                 <Box
                   display="flex"
@@ -556,13 +655,18 @@ export default function EmployeeProfile() {
                 >
                   <Typography
                     variant="body1"
-                    sx={{ color: "#ffffff", fontWeight: "bold" }}
+                    sx={{ color: "#f1f5f9", fontWeight: 600 }}
                   >
                     Total CTC:
                   </Typography>
                   <Typography
                     variant="h6"
-                    sx={{ color: "#2196f3", fontWeight: "bold" }}
+                    sx={{
+                      background: "linear-gradient(135deg, #818cf8 0%, #a5b4fc 100%)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                      fontWeight: 700,
+                    }}
                   >
                     ₹
                     {(() => {
@@ -616,7 +720,7 @@ export default function EmployeeProfile() {
                     justifyContent="space-between"
                     alignItems="center"
                   >
-                    <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
+                    <Typography variant="body2" sx={{ color: "#94a3b8" }}>
                       Tax Regime:
                     </Typography>
                     <Chip
@@ -625,9 +729,13 @@ export default function EmployeeProfile() {
                           ? "New Regime"
                           : "Old Regime"
                       }
-                      color="primary"
                       size="small"
-                      sx={{ backgroundColor: "#2196f3", color: "#ffffff" }}
+                      sx={{
+                        backgroundColor: "rgba(99, 102, 241, 0.15)",
+                        color: "#a5b4fc",
+                        border: "1px solid rgba(99, 102, 241, 0.3)",
+                        fontWeight: 500,
+                      }}
                     />
                   </Box>
                 )}
@@ -638,13 +746,13 @@ export default function EmployeeProfile() {
 
         {/* Address Information */}
         {employeeData.address && (
-          <Card sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ color: "#ffffff", mb: 2 }}>
+          <Card elevation={0} sx={glassCardSx}>
+            <CardContent sx={{ p: 3 }}>
+              <Typography variant="h6" sx={{ color: "#f1f5f9", fontWeight: 600, mb: 2 }}>
                 Address
               </Typography>
-              <Divider sx={{ mb: 2, borderColor: "#444" }} />
-              <Typography variant="body1" sx={{ color: "#ffffff" }}>
+              <Divider sx={{ mb: 2, borderColor: "rgba(255, 255, 255, 0.06)" }} />
+              <Typography variant="body1" sx={{ color: "#f1f5f9" }}>
                 {employeeData.address}
               </Typography>
             </CardContent>
@@ -652,12 +760,12 @@ export default function EmployeeProfile() {
         )}
 
         {/* Additional Information */}
-        <Card sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}>
-          <CardContent>
-            <Typography variant="h6" sx={{ color: "#ffffff", mb: 2 }}>
+        <Card elevation={0} sx={glassCardSx}>
+          <CardContent sx={{ p: 3 }}>
+            <Typography variant="h6" sx={{ color: "#f1f5f9", fontWeight: 600, mb: 2 }}>
               Additional Information
             </Typography>
-            <Divider sx={{ mb: 2, borderColor: "#444" }} />
+            <Divider sx={{ mb: 2, borderColor: "rgba(255, 255, 255, 0.06)" }} />
 
             {(() => {
               const additionalFields = Object.entries(employeeData).filter(
@@ -751,13 +859,13 @@ export default function EmployeeProfile() {
                   <Box sx={{ textAlign: "center", py: 3 }}>
                     <Typography
                       variant="body2"
-                      sx={{ color: "#b0b0b0", fontStyle: "italic", mb: 2 }}
+                      sx={{ color: "#94a3b8", fontStyle: "italic", mb: 1.5 }}
                     >
                       No additional information available
                     </Typography>
                     <Typography
                       variant="body2"
-                      sx={{ color: "#2196f3", fontSize: "0.875rem" }}
+                      sx={{ color: "#818cf8", fontSize: "0.875rem" }}
                     >
                       You can add additional information in the Settings page
                     </Typography>
@@ -774,7 +882,7 @@ export default function EmployeeProfile() {
                       sm: "repeat(2, 1fr)",
                       md: "repeat(3, 1fr)",
                     },
-                    gap: 3,
+                    gap: 2.5,
                   }}
                 >
                   {additionalFields.map(([key, value]) => (
@@ -782,18 +890,21 @@ export default function EmployeeProfile() {
                       key={key}
                       sx={{
                         p: 2,
-                        border: "1px solid #444",
-                        borderRadius: 1,
-                        backgroundColor: "#1a1a1a",
+                        border: "1px solid rgba(255, 255, 255, 0.08)",
+                        borderRadius: "14px",
+                        backgroundColor: "rgba(255, 255, 255, 0.02)",
+                        backdropFilter: "blur(10px)",
                       }}
                     >
                       <Typography
-                        variant="body2"
+                        variant="caption"
                         sx={{
-                          color: "#2196f3",
-                          textTransform: "capitalize",
-                          fontWeight: "bold",
-                          mb: 1,
+                          color: "#818cf8",
+                          textTransform: "uppercase",
+                          fontWeight: 600,
+                          letterSpacing: "0.05em",
+                          display: "block",
+                          mb: 0.5,
                         }}
                       >
                         {key.replace(/([A-Z])/g, " $1").trim()}
@@ -801,7 +912,7 @@ export default function EmployeeProfile() {
                       <Typography
                         variant="body1"
                         sx={{
-                          color: "#ffffff",
+                          color: "#f1f5f9",
                           wordBreak: "break-word",
                         }}
                       >

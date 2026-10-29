@@ -31,6 +31,9 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  TableContainer,
+  Menu,
+  ListItemIcon,
 } from "@mui/material";
 import {
   Add,
@@ -45,6 +48,7 @@ import {
   Functions,
   PlayArrow,
   AddCircleOutline,
+  KeyboardArrowDown,
 } from "@mui/icons-material";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -586,12 +590,26 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
   });
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ color: "#2196f3", pb: 0 }}>
-        Set Formula — <span style={{ color: "#fff" }}>{column.label}</span>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          background: "rgba(15, 23, 42, 0.95)",
+          backdropFilter: "blur(30px)",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+          borderRadius: "20px",
+          boxShadow: "0 25px 60px rgba(0, 0, 0, 0.5)",
+        },
+      }}
+    >
+      <DialogTitle sx={{ color: "#6366f1", fontWeight: 600, borderBottom: "1px solid rgba(255, 255, 255, 0.08)", pb: 1.5 }}>
+        Set Formula — <span style={{ color: "#f1f5f9" }}>{column.label}</span>
       </DialogTitle>
 
-      <DialogContent>
+      <DialogContent sx={{ p: 3, pt: "20px !important" }}>
         {/* Mode toggle */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 1, mb: 2 }}>
           <ToggleButtonGroup
@@ -599,13 +617,32 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
             exclusive
             onChange={(_, v) => v && setMode(v)}
             size="small"
+            sx={{
+              backgroundColor: "rgba(255, 255, 255, 0.03)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: "10px",
+              "& .MuiToggleButton-root": {
+                color: "#94a3b8",
+                textTransform: "none",
+                fontWeight: 500,
+                px: 2,
+                border: "none",
+                "&.Mui-selected": {
+                  backgroundColor: "rgba(99, 102, 241, 0.2)",
+                  color: "#a5b4fc",
+                },
+                "&:hover": {
+                  backgroundColor: "rgba(255, 255, 255, 0.05)",
+                },
+              },
+            }}
           >
             <ToggleButton value="simple">Simple Formula</ToggleButton>
             <ToggleButton value="conditional">Conditional (if/else)</ToggleButton>
           </ToggleButtonGroup>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{ color: "#94a3b8" }}>
             Preview (sample data):&nbsp;
-            <span style={{ color: preview === "error" ? "#f44336" : "#4caf50", fontFamily: "monospace", fontWeight: 700 }}>
+            <span style={{ color: preview === "error" ? "#ef4444" : "#10b981", fontFamily: "monospace", fontWeight: 700 }}>
               {preview}
             </span>
           </Typography>
@@ -613,16 +650,16 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
 
         {/* Available variable chips */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{ color: "#94a3b8" }}>
             Click a key to insert at cursor:
           </Typography>
           {mode === "conditional" && focusedCondField && (
-            <Typography variant="caption" sx={{ color: "#4caf50", fontFamily: "monospace" }}>
+            <Typography variant="caption" sx={{ color: "#10b981", fontFamily: "monospace" }}>
               → inserting into <strong>{focusedCondField.field}</strong>
             </Typography>
           )}
           {mode === "conditional" && !focusedCondField && (
-            <Typography variant="caption" sx={{ color: "#888" }}>
+            <Typography variant="caption" sx={{ color: "#94a3b8" }}>
               (click a field above first, or inserts into raw expression)
             </Typography>
           )}
@@ -634,14 +671,26 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
               label={k}
               size="small"
               onClick={() => insertKey(k)}
-              sx={{ fontFamily: "monospace", cursor: "pointer", fontSize: 11 }}
+              sx={{
+                fontFamily: "monospace",
+                cursor: "pointer",
+                fontSize: 11,
+                backgroundColor: "rgba(255, 255, 255, 0.04)",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
+                color: "#f1f5f9",
+                "&:hover": {
+                  backgroundColor: "rgba(99, 102, 241, 0.15)",
+                  borderColor: "rgba(99, 102, 241, 0.3)",
+                  color: "#a5b4fc",
+                },
+              }}
             />
           ))}
         </Box>
 
         {/* Attendance variable chips */}
         <Box sx={{ mb: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+          <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.5 }}>
             Attendance variables:
           </Typography>
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
@@ -656,10 +705,14 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
                   fontFamily: "monospace",
                   cursor: "pointer",
                   fontSize: 11,
-                  backgroundColor: "rgba(33,150,243,0.12)",
-                  borderColor: "#2196f3",
-                  color: "#90caf9",
+                  backgroundColor: "rgba(99, 102, 241, 0.1)",
+                  borderColor: "rgba(99, 102, 241, 0.25)",
+                  color: "#a5b4fc",
                   border: "1px solid",
+                  "&:hover": {
+                    backgroundColor: "rgba(99, 102, 241, 0.2)",
+                    borderColor: "rgba(99, 102, 241, 0.4)",
+                  },
                 }}
               />
             ))}
@@ -669,17 +722,24 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
         {/* ── Conditional builder ── */}
         {mode === "conditional" && (
           <Box sx={{ mb: 2 }}>
-            <Typography variant="body2" sx={{ mb: 1, color: "#aaa" }}>
+            <Typography variant="body2" sx={{ mb: 1, color: "#94a3b8" }}>
               Conditions are evaluated top-to-bottom. First match wins.
             </Typography>
 
             {conditions.map((row, idx) => (
               <Paper
                 key={row.id}
-                sx={{ p: 1.5, mb: 1.5, backgroundColor: "#1e1e1e", border: "1px solid #3a3a3a" }}
+                sx={{
+                  p: 1.5,
+                  mb: 1.5,
+                  background: "rgba(255, 255, 255, 0.03)",
+                  backdropFilter: "blur(10px)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  borderRadius: "12px",
+                }}
               >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                  <Typography variant="caption" sx={{ color: "#888", minWidth: 60 }}>
+                  <Typography variant="caption" sx={{ color: "#94a3b8", minWidth: 60, fontWeight: 600 }}>
                     {idx === 0 ? "IF" : "ELSE IF"}
                   </Typography>
                   {/* Left operand */}
@@ -688,17 +748,36 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
                     label="Variable"
                     value={row.left}
                     onChange={(e) => updateCondition(row.id, { left: e.target.value })}
-                    sx={{ width: 140, "& input": { fontFamily: "monospace", fontSize: 12 } }}
+                    sx={{
+                      width: 140,
+                      "& input": { fontFamily: "monospace", fontSize: 12, color: "#f1f5f9" },
+                      "& .MuiOutlinedInput-root": {
+                        backgroundColor: "rgba(255, 255, 255, 0.03)",
+                        borderRadius: "8px",
+                        "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                        "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                        "&.Mui-focused fieldset": { borderColor: "#6366f1" },
+                      },
+                    }}
                     placeholder="e.g. basic"
                     {...condFieldProps(row.id, "left")}
                   />
                   {/* Operator */}
                   <FormControl size="small" sx={{ minWidth: 180 }}>
-                    <InputLabel>Condition</InputLabel>
+                    <InputLabel sx={{ color: "#94a3b8" }}>Condition</InputLabel>
                     <Select
                       value={row.op}
                       label="Condition"
                       onChange={(e) => updateCondition(row.id, { op: e.target.value as Operator })}
+                      sx={{
+                        backgroundColor: "rgba(255, 255, 255, 0.03)",
+                        borderRadius: "8px",
+                        color: "#f1f5f9",
+                        "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                        "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                        "&.Mui-focused fieldset": { borderColor: "#6366f1" },
+                        "& .MuiSelect-icon": { color: "#94a3b8" },
+                      }}
                     >
                       {(Object.keys(OP_LABELS) as Operator[]).map((op) => (
                         <MenuItem key={op} value={op} sx={{ fontSize: 13 }}>
@@ -713,11 +792,25 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
                     label={row.op === "==str" ? "Value (text)" : "Value / variable"}
                     value={row.right}
                     onChange={(e) => updateCondition(row.id, { right: e.target.value })}
-                    sx={{ width: 150, "& input": { fontFamily: "monospace", fontSize: 12 } }}
+                    sx={{
+                      width: 150,
+                      "& input": { fontFamily: "monospace", fontSize: 12, color: "#f1f5f9" },
+                      "& .MuiOutlinedInput-root": {
+                        backgroundColor: "rgba(255, 255, 255, 0.03)",
+                        borderRadius: "8px",
+                        "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                        "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                        "&.Mui-focused fieldset": { borderColor: "#6366f1" },
+                      },
+                    }}
                     placeholder={row.op === "==str" ? "e.g. labor" : "e.g. 10000"}
                     {...condFieldProps(row.id, "right")}
                   />
-                  <IconButton size="small" onClick={() => removeCondition(row.id)} sx={{ color: "#f44336", ml: "auto" }}>
+                  <IconButton
+                    size="small"
+                    onClick={() => removeCondition(row.id)}
+                    sx={{ color: "#ef4444", ml: "auto", "&:hover": { backgroundColor: "rgba(239, 68, 68, 0.1)" } }}
+                  >
                     <Delete fontSize="small" />
                   </IconButton>
                 </Box>
@@ -728,7 +821,17 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
                     label="Then (result if true)"
                     value={row.thenExpr}
                     onChange={(e) => updateCondition(row.id, { thenExpr: e.target.value })}
-                    sx={{ flex: 1, "& input": { fontFamily: "monospace", fontSize: 12 } }}
+                    sx={{
+                      flex: 1,
+                      "& input": { fontFamily: "monospace", fontSize: 12, color: "#f1f5f9" },
+                      "& .MuiOutlinedInput-root": {
+                        backgroundColor: "rgba(255, 255, 255, 0.03)",
+                        borderRadius: "8px",
+                        "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                        "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                        "&.Mui-focused fieldset": { borderColor: "#6366f1" },
+                      },
+                    }}
                     placeholder="e.g. basic * 0.05"
                     {...condFieldProps(row.id, "thenExpr")}
                   />
@@ -738,7 +841,17 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
                       label="Else (default result)"
                       value={row.elseExpr}
                       onChange={(e) => updateCondition(row.id, { elseExpr: e.target.value })}
-                      sx={{ flex: 1, "& input": { fontFamily: "monospace", fontSize: 12 } }}
+                      sx={{
+                        flex: 1,
+                        "& input": { fontFamily: "monospace", fontSize: 12, color: "#f1f5f9" },
+                        "& .MuiOutlinedInput-root": {
+                          backgroundColor: "rgba(255, 255, 255, 0.03)",
+                          borderRadius: "8px",
+                          "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                          "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                          "&.Mui-focused fieldset": { borderColor: "#6366f1" },
+                        },
+                      }}
                       placeholder="e.g. 0"
                       {...condFieldProps(row.id, "elseExpr")}
                     />
@@ -747,30 +860,57 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
               </Paper>
             ))}
 
-            <Button size="small" startIcon={<AddCircleOutline />} onClick={addCondition} sx={{ color: "#4caf50" }}>
+            <Button
+              size="small"
+              startIcon={<AddCircleOutline />}
+              onClick={addCondition}
+              sx={{
+                color: "#10b981",
+                textTransform: "none",
+                fontWeight: 500,
+                borderRadius: "8px",
+                "&:hover": { backgroundColor: "rgba(16, 185, 129, 0.1)" },
+              }}
+            >
               Add another condition
             </Button>
           </Box>
         )}
 
-        <Divider sx={{ my: 2, borderColor: "#333" }} />
+        <Divider sx={{ my: 2, borderColor: "rgba(255, 255, 255, 0.06)" }} />
 
         {/* Excel formula converter */}
-        <Accordion sx={{ mb: 2, backgroundColor: "#1a1a1a", border: "1px solid #2196f3" }}>
-          <AccordionSummary expandIcon={<ExpandMore sx={{ color: "#90caf9" }} />}>
+        <Accordion
+          sx={{
+            mb: 2,
+            background: "rgba(255, 255, 255, 0.03)",
+            backdropFilter: "blur(20px)",
+            border: "1px solid rgba(99, 102, 241, 0.25)",
+            borderRadius: "14px !important",
+            overflow: "hidden",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            "&:before": { display: "none" },
+            "&.Mui-expanded": {
+              borderColor: "rgba(99, 102, 241, 0.4)",
+              boxShadow: "0 12px 36px rgba(99, 102, 241, 0.15)",
+            },
+          }}
+        >
+          <AccordionSummary expandIcon={<ExpandMore sx={{ color: "#a5b4fc" }} />}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Functions sx={{ color: "#2196f3", fontSize: 18 }} />
-              <Typography variant="caption" sx={{ color: "#90caf9", fontWeight: 600 }}>
+              <Functions sx={{ color: "#6366f1", fontSize: 18 }} />
+              <Typography variant="caption" sx={{ color: "#a5b4fc", fontWeight: 600 }}>
                 Excel Formula Converter — paste Excel formula, get EMS formula
               </Typography>
             </Box>
           </AccordionSummary>
-          <AccordionDetails>
+          <AccordionDetails sx={{ pt: 1, px: 2, pb: 2 }}>
 
             {/* ── Step 1: Paste input ── */}
             {converterStep === "input" && (
               <Box>
-                <Typography variant="caption" sx={{ color: "#888", display: "block", mb: 1 }}>
+                <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 1 }}>
                   Paste your Excel formula. Cell refs like A1, B2 will be detected and you can map them to variable names.
                 </Typography>
                 <TextField
@@ -780,7 +920,17 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
                   fullWidth
                   multiline
                   rows={2}
-                  sx={{ mb: 1, "& textarea": { fontFamily: "monospace", fontSize: 12 } }}
+                  sx={{
+                    mb: 1.5,
+                    "& textarea": { fontFamily: "monospace", fontSize: 12, color: "#f1f5f9" },
+                    "& .MuiOutlinedInput-root": {
+                      backgroundColor: "rgba(255, 255, 255, 0.03)",
+                      borderRadius: "12px",
+                      "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                      "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                      "&.Mui-focused fieldset": { borderColor: "#6366f1" },
+                    },
+                  }}
                   placeholder={"e.g.  =IF(AND(A1>=10000,A1<=20000),A1*0.05,0)"}
                 />
                 <Button
@@ -791,14 +941,25 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
                     if (!excelInput.trim()) return;
                     const res = convertExcelFormula(excelInput);
                     setConvertResult(res);
-                    // Pre-fill mappings with empty strings for each detected ref
                     const initial: Record<string, string> = {};
                     res.cellRefs.forEach((ref) => { initial[ref] = ""; });
                     setCellMappings(initial);
-                    // If cell refs found → go to mapping step; else go straight to done
                     setConverterStep(res.cellRefs.length > 0 ? "mapping" : "done");
                   }}
-                  sx={{ backgroundColor: "#2196f3", "&:hover": { backgroundColor: "#1565c0" } }}
+                  sx={{
+                    backgroundColor: "#6366f1",
+                    color: "#f1f5f9",
+                    borderRadius: "10px",
+                    fontWeight: 600,
+                    textTransform: "none",
+                    boxShadow: "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.1)",
+                    "&:hover": {
+                      backgroundColor: "#4f46e5",
+                      boxShadow: "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+                      transform: "translateY(-1px)",
+                    },
+                    transition: "all 0.2s ease",
+                  }}
                 >
                   Convert
                 </Button>
@@ -808,11 +969,11 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
             {/* ── Step 2: Map cell refs to variable names ── */}
             {converterStep === "mapping" && convertResult && (
               <Box>
-                <Typography variant="body2" sx={{ color: "#fff", mb: 0.5, fontWeight: 600 }}>
+                <Typography variant="body2" sx={{ color: "#f1f5f9", mb: 0.5, fontWeight: 600 }}>
                   Map cell references to variable names
                 </Typography>
-                <Typography variant="caption" sx={{ color: "#888", display: "block", mb: 2 }}>
-                  Each cell reference found in your formula needs to be replaced with an EMS variable (e.g. <code style={{ color: "#4caf50" }}>basic</code>, <code style={{ color: "#4caf50" }}>da</code>, <code style={{ color: "#4caf50" }}>paid_days</code>). Leave blank to keep as-is.
+                <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 2 }}>
+                  Each cell reference found in your formula needs to be replaced with an EMS variable (e.g. <code style={{ color: "#10b981" }}>basic</code>, <code style={{ color: "#10b981" }}>da</code>, <code style={{ color: "#10b981" }}>paid_days</code>). Leave blank to keep as-is.
                   {convertResult.result.includes("__RANGE_SUM__") && (
                     <span style={{ color: "#f59e0b", display: "block", marginTop: 4 }}>
                       ⚠ SUM range detected — map the start and end cell refs to variable names. All ctx variables between them (inclusive, by template order) will be summed.
@@ -821,33 +982,43 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
                 </Typography>
 
                 {/* Show partially converted formula for reference */}
-                <Paper sx={{ p: 1, mb: 2, backgroundColor: "#0d1117", border: "1px solid #333" }}>
-                  <Typography variant="caption" sx={{ color: "#666", display: "block" }}>Converted so far (cell refs still need replacing):</Typography>
-                  <Typography sx={{ fontFamily: "monospace", fontSize: 11, color: "#aaa", wordBreak: "break-all" }}>
+                <Paper sx={{ p: 1.5, mb: 2, background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: "10px" }}>
+                  <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.5 }}>Converted so far (cell refs still need replacing):</Typography>
+                  <Typography sx={{ fontFamily: "monospace", fontSize: 11, color: "#cbd5e1", wordBreak: "break-all" }}>
                     {convertResult.result}
                   </Typography>
                 </Paper>
 
                 {Object.keys(cellMappings).map((ref) => (
                   <Box key={ref} sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1.5 }}>
-                    <Paper sx={{ px: 1.5, py: 0.75, backgroundColor: "#1e1e1e", border: "1px solid #555", borderRadius: 1, minWidth: 56, textAlign: "center" }}>
+                    <Paper sx={{ px: 1.5, py: 0.75, backgroundColor: "rgba(245, 158, 11, 0.12)", border: "1px solid rgba(245, 158, 11, 0.25)", borderRadius: "8px", minWidth: 56, textAlign: "center" }}>
                       <Typography sx={{ fontFamily: "monospace", fontSize: 13, color: "#f59e0b", fontWeight: 700 }}>
                         {ref}
                       </Typography>
                     </Paper>
-                    <Typography sx={{ color: "#666", fontSize: 18 }}>→</Typography>
+                    <Typography sx={{ color: "#94a3b8", fontSize: 18 }}>→</Typography>
                     <TextField
                       size="small"
                       label={`Replace ${ref} with`}
                       value={cellMappings[ref]}
                       onChange={(e) => setCellMappings((prev) => ({ ...prev, [ref]: e.target.value }))}
                       placeholder="e.g. basic"
-                      sx={{ flex: 1, "& input": { fontFamily: "monospace", fontSize: 12 } }}
+                      sx={{
+                        flex: 1,
+                        "& input": { fontFamily: "monospace", fontSize: 12, color: "#f1f5f9" },
+                        "& .MuiOutlinedInput-root": {
+                          backgroundColor: "rgba(255, 255, 255, 0.03)",
+                          borderRadius: "8px",
+                          "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                          "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                          "&.Mui-focused fieldset": { borderColor: "#6366f1" },
+                        },
+                      }}
                       select={allKeysForConverter.length > 0}
                       SelectProps={allKeysForConverter.length > 0 ? { displayEmpty: true } : undefined}
                     >
                       {allKeysForConverter.length > 0 && [
-                        <MenuItem key="" value=""><em style={{ color: "#666" }}>— pick a variable —</em></MenuItem>,
+                        <MenuItem key="" value=""><em style={{ color: "#94a3b8" }}>— pick a variable —</em></MenuItem>,
                         ...[...new Set(allKeysForConverter)].map((k) => (
                           <MenuItem key={k} value={k} sx={{ fontFamily: "monospace", fontSize: 12 }}>{k}</MenuItem>
                         )),
@@ -857,20 +1028,47 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
                 ))}
 
                 {convertResult.warnings.filter(w => !w.startsWith("Cell ref")).length > 0 && (
-                  <Alert severity="warning" sx={{ mb: 1, fontSize: 11 }}>
+                  <Alert
+                    severity="warning"
+                    sx={{
+                      mb: 1,
+                      fontSize: 11,
+                      borderRadius: "10px",
+                      background: "rgba(245, 158, 11, 0.12)",
+                      border: "1px solid rgba(245, 158, 11, 0.25)",
+                      color: "#fde68a",
+                    }}
+                  >
                     {convertResult.warnings.filter(w => !w.startsWith("Cell ref")).map((w, i) => <div key={i}>⚠ {w}</div>)}
                   </Alert>
                 )}
 
                 <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
-                  <Button size="small" onClick={() => setConverterStep("input")} sx={{ color: "#888" }}>
+                  <Button
+                    size="small"
+                    onClick={() => setConverterStep("input")}
+                    sx={{ color: "#94a3b8", textTransform: "none" }}
+                  >
                     ← Back
                   </Button>
                   <Button
                     size="small"
                     variant="contained"
                     onClick={() => setConverterStep("done")}
-                    sx={{ backgroundColor: "#4caf50", "&:hover": { backgroundColor: "#388e3c" } }}
+                    sx={{
+                      backgroundColor: "#10b981",
+                      color: "#f1f5f9",
+                      borderRadius: "10px",
+                      fontWeight: 600,
+                      textTransform: "none",
+                      boxShadow: "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.1)",
+                      "&:hover": {
+                        backgroundColor: "#059669",
+                        boxShadow: "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+                        transform: "translateY(-1px)",
+                      },
+                      transition: "all 0.2s ease",
+                    }}
                   >
                     Apply Mappings →
                   </Button>
@@ -883,17 +1081,27 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
               const finalFormula = applyCellMappings(convertResult.result, cellMappings, allKeysForConverter);
               return (
                 <Box>
-                  <Typography variant="body2" sx={{ color: "#fff", mb: 1, fontWeight: 600 }}>
+                  <Typography variant="body2" sx={{ color: "#f1f5f9", mb: 1, fontWeight: 600 }}>
                     ✓ Converted formula ready
                   </Typography>
-                  <Paper sx={{ p: 1.5, backgroundColor: "#0d1117", border: "1px solid #4caf50", borderRadius: 1, mb: 1.5 }}>
-                    <Typography variant="caption" sx={{ color: "#888", display: "block", mb: 0.5 }}>Final formula:</Typography>
-                    <Typography sx={{ fontFamily: "monospace", fontSize: 13, color: "#4caf50", wordBreak: "break-all" }}>
+                  <Paper sx={{ p: 1.5, background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "10px", mb: 1.5 }}>
+                    <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.5 }}>Final formula:</Typography>
+                    <Typography sx={{ fontFamily: "monospace", fontSize: 13, color: "#34d399", wordBreak: "break-all" }}>
                       {finalFormula}
                     </Typography>
                   </Paper>
                   {convertResult.warnings.length > 0 && (
-                    <Alert severity="warning" sx={{ mb: 1.5, fontSize: 11 }}>
+                    <Alert
+                      severity="warning"
+                      sx={{
+                        mb: 1.5,
+                        fontSize: 11,
+                        borderRadius: "10px",
+                        background: "rgba(245, 158, 11, 0.12)",
+                        border: "1px solid rgba(245, 158, 11, 0.25)",
+                        color: "#fde68a",
+                      }}
+                    >
                       {convertResult.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
                     </Alert>
                   )}
@@ -901,7 +1109,7 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
                     <Button
                       size="small"
                       onClick={() => setConverterStep(convertResult.cellRefs.length > 0 ? "mapping" : "input")}
-                      sx={{ color: "#888" }}
+                      sx={{ color: "#94a3b8", textTransform: "none" }}
                     >
                       ← Back
                     </Button>
@@ -912,13 +1120,25 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
                       onClick={() => {
                         setExpr(finalFormula);
                         setMode("simple");
-                        // Reset converter
                         setExcelInput("");
                         setConvertResult(null);
                         setCellMappings({});
                         setConverterStep("input");
                       }}
-                      sx={{ backgroundColor: "#4caf50", "&:hover": { backgroundColor: "#388e3c" } }}
+                      sx={{
+                        backgroundColor: "#10b981",
+                        color: "#f1f5f9",
+                        borderRadius: "10px",
+                        fontWeight: 600,
+                        textTransform: "none",
+                        boxShadow: "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.1)",
+                        "&:hover": {
+                          backgroundColor: "#059669",
+                          boxShadow: "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+                          transform: "translateY(-1px)",
+                        },
+                        transition: "all 0.2s ease",
+                      }}
                     >
                       Use this formula
                     </Button>
@@ -931,7 +1151,16 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
                         setCellMappings({});
                         setConverterStep("input");
                       }}
-                      sx={{ borderColor: "#555", color: "#888" }}
+                      sx={{
+                        borderColor: "rgba(255, 255, 255, 0.15)",
+                        color: "#94a3b8",
+                        borderRadius: "10px",
+                        textTransform: "none",
+                        "&:hover": {
+                          borderColor: "rgba(255, 255, 255, 0.3)",
+                          backgroundColor: "rgba(255, 255, 255, 0.04)",
+                        },
+                      }}
                     >
                       Start over
                     </Button>
@@ -952,7 +1181,21 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
           multiline
           rows={3}
           inputRef={textareaRef}
-          sx={{ mb: 2, "& textarea": { fontFamily: "monospace", fontSize: 13 } }}
+          sx={{
+            mb: 2,
+            "& textarea": { fontFamily: "monospace", fontSize: 13, color: "#f1f5f9" },
+            "& .MuiInputLabel-root": { color: "#94a3b8", "&.Mui-focused": { color: "#6366f1" } },
+            "& .MuiOutlinedInput-root": {
+              backgroundColor: "rgba(255, 255, 255, 0.03)",
+              backdropFilter: "blur(10px)",
+              borderRadius: "12px",
+              color: "#f1f5f9",
+              "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+              "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+              "&.Mui-focused fieldset": { borderColor: "#6366f1", boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.15)" },
+            },
+            "& .MuiFormHelperText-root": { color: "#94a3b8" },
+          }}
           placeholder={`e.g.  if(basic > 10000, basic * 0.05, 0)\n      name + " - " + basic\n      if(employee_type == "labor", basic * 0.1, basic * 0.05)`}
           helperText='Syntax: if(cond, true_val, false_val) — nestable. Use + for string concat: name + basic'
         />
@@ -964,80 +1207,155 @@ function FormulaDialog({ open, column, allKeys, allKeysForConverter, onSave, onC
           fullWidth
           placeholder="e.g. 5% HRA only for employees with basic > 10,000"
           size="small"
+          sx={{
+            "& .MuiInputLabel-root": { color: "#94a3b8", "&.Mui-focused": { color: "#6366f1" } },
+            "& .MuiOutlinedInput-root": {
+              backgroundColor: "rgba(255, 255, 255, 0.03)",
+              borderRadius: "12px",
+              color: "#f1f5f9",
+              "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+              "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+              "&.Mui-focused fieldset": { borderColor: "#6366f1", boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.15)" },
+            },
+          }}
         />
 
         {/* Quick reference */}
-        <Accordion sx={{ mt: 2, backgroundColor: "#1a1a1a", border: "1px solid #333" }}>
-          <AccordionSummary expandIcon={<ExpandMore sx={{ color: "#aaa" }} />}>
-            <Typography variant="caption" sx={{ color: "#aaa" }}>Formula syntax reference</Typography>
+        <Accordion
+          sx={{
+            mt: 2,
+            background: "rgba(255, 255, 255, 0.03)",
+            backdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            borderRadius: "14px !important",
+            overflow: "hidden",
+            "&:before": { display: "none" },
+            transition: "all 0.3s ease",
+            "&.Mui-expanded": {
+              borderColor: "rgba(255, 255, 255, 0.15)",
+            },
+          }}
+        >
+          <AccordionSummary expandIcon={<ExpandMore sx={{ color: "#94a3b8" }} />}>
+            <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 500 }}>Formula syntax reference</Typography>
           </AccordionSummary>
-          <AccordionDetails>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ color: "#888", fontSize: 11 }}>Example</TableCell>
-                  <TableCell sx={{ color: "#888", fontSize: 11 }}>Meaning</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {[
-                  ["basic * 0.05", "5% of basic salary (number)"],
-                  ["if(basic > 10000, basic * 0.05, 0)", "5% HRA only if basic > 10,000"],
-                  ['if(employee_type == "labor", basic * 0.1, basic * 0.05)', "10% for labor, 5% for others"],
-                  ["if(paid_days >= 26, 500, 0)", "Attendance bonus if paid days ≥ 26"],
-                  ["if(basic > 15000, if(paid_days == 30, 1000, 500), 0)", "Nested: bonus only for high earners"],
-                  ["(basic + da) / total_days * paid_days", "Prorated amount"],
-                  ["name + basic", 'String concat → "Hariom15000"'],
-                  ['name + " - " + basic', 'String concat with separator → "Hariom - 15000"'],
-                  ['employee_id + " (" + name + ")"', 'e.g. "EMP001 (Hariom)"'],
-                  ['if(basic > 10000, name + " eligible", name + " not eligible")', "Conditional string result"],
-                ].map(([ex, meaning]) => (
-                  <TableRow key={ex}>
-                    <TableCell
-                      sx={{ fontFamily: "monospace", fontSize: 11, color: "#4caf50", cursor: "pointer" }}
-                      onClick={() => setExpr(ex as string)}
-                    >
-                      {ex}
-                    </TableCell>
-                    <TableCell sx={{ fontSize: 11, color: "#aaa" }}>{meaning}</TableCell>
+          <AccordionDetails sx={{ pt: 0, px: 2, pb: 2 }}>
+            <TableContainer
+              sx={{
+                background: "rgba(255, 255, 255, 0.02)",
+                border: "1px solid rgba(255, 255, 255, 0.06)",
+                borderRadius: "10px",
+                overflow: "hidden",
+              }}
+            >
+              <Table size="small">
+                <TableHead
+                  sx={{
+                    "& .MuiTableCell-root": {
+                      backgroundColor: "rgba(255, 255, 255, 0.04)",
+                      color: "#94a3b8",
+                      fontWeight: 600,
+                      fontSize: 11,
+                      borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                    },
+                  }}
+                >
+                  <TableRow>
+                    <TableCell>Example</TableCell>
+                    <TableCell>Meaning</TableCell>
                   </TableRow>
-                ))}
-                {/* Attendance deduction examples */}
-                <TableRow>
-                  <TableCell
-                    colSpan={2}
-                    sx={{ fontSize: 11, color: "#90caf9", fontWeight: 700, pt: 1.5, pb: 0.5, borderTop: "1px solid #333" }}
-                  >
-                    Attendance deduction examples
-                  </TableCell>
-                </TableRow>
-                {[
-                  ["absent_days * (basic / total_days)", "Deduct one day's pay per absent day"],
-                  ["if(absent_days > 3, absent_days * (basic / total_days), 0)", "Deduct only when absent more than 3 days"],
-                ].map(([ex, meaning]) => (
-                  <TableRow key={ex}>
-                    <TableCell
-                      sx={{ fontFamily: "monospace", fontSize: 11, color: "#4caf50", cursor: "pointer" }}
-                      onClick={() => setExpr(ex as string)}
+                </TableHead>
+                <TableBody>
+                  {[
+                    ["basic * 0.05", "5% of basic salary (number)"],
+                    ["if(basic > 10000, basic * 0.05, 0)", "5% HRA only if basic > 10,000"],
+                    ['if(employee_type == "labor", basic * 0.1, basic * 0.05)', "10% for labor, 5% for others"],
+                    ["if(paid_days >= 26, 500, 0)", "Attendance bonus if paid days ≥ 26"],
+                    ["if(basic > 15000, if(paid_days == 30, 1000, 500), 0)", "Nested: bonus only for high earners"],
+                    ["(basic + da) / total_days * paid_days", "Prorated amount"],
+                    ["name + basic", 'String concat → "Hariom15000"'],
+                    ['name + " - " + basic', 'String concat with separator → "Hariom - 15000"'],
+                    ['employee_id + " (" + name + ")"', 'e.g. "EMP001 (Hariom)"'],
+                    ['if(basic > 10000, name + " eligible", name + " not eligible")', "Conditional string result"],
+                  ].map(([ex, meaning]) => (
+                    <TableRow
+                      key={ex}
+                      sx={{
+                        "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.03)" },
+                        "& .MuiTableCell-root": { borderBottom: "1px solid rgba(255, 255, 255, 0.04)" },
+                      }}
                     >
-                      {ex}
+                      <TableCell
+                        sx={{ fontFamily: "monospace", fontSize: 11, color: "#10b981", cursor: "pointer" }}
+                        onClick={() => setExpr(ex as string)}
+                      >
+                        {ex}
+                      </TableCell>
+                      <TableCell sx={{ fontSize: 11, color: "#94a3b8" }}>{meaning}</TableCell>
+                    </TableRow>
+                  ))}
+                  {/* Attendance deduction examples */}
+                  <TableRow>
+                    <TableCell
+                      colSpan={2}
+                      sx={{ fontSize: 11, color: "#a5b4fc", fontWeight: 700, pt: 1.5, pb: 0.5, borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}
+                    >
+                      Attendance deduction examples
                     </TableCell>
-                    <TableCell sx={{ fontSize: 11, color: "#aaa" }}>{meaning}</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                  {[
+                    ["absent_days * (basic / total_days)", "Deduct one day's pay per absent day"],
+                    ["if(absent_days > 3, absent_days * (basic / total_days), 0)", "Deduct only when absent more than 3 days"],
+                  ].map(([ex, meaning]) => (
+                    <TableRow
+                      key={ex}
+                      sx={{
+                        "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.03)" },
+                        "& .MuiTableCell-root": { borderBottom: "1px solid rgba(255, 255, 255, 0.04)" },
+                      }}
+                    >
+                      <TableCell
+                        sx={{ fontFamily: "monospace", fontSize: 11, color: "#10b981", cursor: "pointer" }}
+                        onClick={() => setExpr(ex as string)}
+                      >
+                        {ex}
+                      </TableCell>
+                      <TableCell sx={{ fontSize: 11, color: "#94a3b8" }}>{meaning}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </AccordionDetails>
         </Accordion>
       </DialogContent>
 
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+      <DialogActions sx={{ borderTop: "1px solid rgba(255, 255, 255, 0.08)", px: 3, py: 2 }}>
+        <Button onClick={onClose} sx={{ color: "#94a3b8", textTransform: "none", fontWeight: 500 }}>
+          Cancel
+        </Button>
         <Button
           variant="contained"
           onClick={handleSave}
           startIcon={<Save />}
-          sx={{ backgroundColor: "#4caf50", "&:hover": { backgroundColor: "#388e3c" } }}
+          sx={{
+            backgroundColor: "#10b981",
+            color: "#f1f5f9",
+            borderRadius: "12px",
+            fontWeight: 600,
+            textTransform: "none",
+            boxShadow: "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.1)",
+            "&:hover": {
+              backgroundColor: "#059669",
+              boxShadow: "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+              transform: "translateY(-1px)",
+            },
+            "&:active": {
+              boxShadow: "2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)",
+              transform: "translateY(0)",
+            },
+            transition: "all 0.2s ease",
+          }}
         >
           Save Formula
         </Button>
@@ -1068,11 +1386,12 @@ function ColumnRow({ column, availableKeys, allTemplateKeys, onUpdate, onDelete 
           gap: 1,
           py: 0.75,
           px: 1,
-          borderRadius: 1,
-          "&:hover": { backgroundColor: "rgba(255,255,255,0.04)" },
+          borderRadius: "10px",
+          transition: "all 0.2s ease",
+          "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.04)" },
         }}
       >
-        <DragIndicator sx={{ color: "#555", fontSize: 18 }} />
+        <DragIndicator sx={{ color: "#94a3b8", fontSize: 18 }} />
 
         <TextField
           size="small"
@@ -1081,13 +1400,23 @@ function ColumnRow({ column, availableKeys, allTemplateKeys, onUpdate, onDelete 
           onChange={(e) =>
             onUpdate({ ...column, label: e.target.value, key: normalize(e.target.value) })
           }
-          sx={{ flex: 1, "& .MuiInputBase-input": { fontSize: 13 } }}
+          sx={{
+            flex: 1,
+            "& .MuiInputBase-input": { fontSize: 13, color: "#f1f5f9" },
+            "& .MuiOutlinedInput-root": {
+              backgroundColor: "rgba(255, 255, 255, 0.02)",
+              borderRadius: "8px",
+              "& fieldset": { borderColor: "rgba(255, 255, 255, 0.08)" },
+              "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+              "&.Mui-focused fieldset": { borderColor: "#6366f1" },
+            },
+          }}
           placeholder="Column label"
         />
 
         <Typography
           variant="caption"
-          sx={{ fontFamily: "monospace", color: "#888", minWidth: 100, fontSize: 11 }}
+          sx={{ fontFamily: "monospace", color: "#94a3b8", minWidth: 100, fontSize: 11 }}
         >
           key: {column.key}
         </Typography>
@@ -1096,13 +1425,24 @@ function ColumnRow({ column, availableKeys, allTemplateKeys, onUpdate, onDelete 
           <Chip
             label={column.formula.expression.slice(0, 20) + (column.formula.expression.length > 20 ? "…" : "")}
             size="small"
-            color="primary"
-            variant="outlined"
             onClick={() => !column.isFixed && setFormulaOpen(true)}
-            sx={{ fontFamily: "monospace", fontSize: 10, maxWidth: 140 }}
+            sx={{
+              fontFamily: "monospace",
+              fontSize: 10,
+              maxWidth: 140,
+              backgroundColor: "rgba(99, 102, 241, 0.15)",
+              color: "#a5b4fc",
+              border: "1px solid rgba(99, 102, 241, 0.25)",
+              cursor: column.isFixed ? "default" : "pointer",
+            }}
           />
         ) : (
-          <Chip label="no formula" size="small" variant="outlined" sx={{ fontSize: 10, color: "#666" }} />
+          <Chip
+            label="no formula"
+            size="small"
+            variant="outlined"
+            sx={{ fontSize: 10, color: "#94a3b8", borderColor: "rgba(255, 255, 255, 0.1)" }}
+          />
         )}
 
         {/* Set formula button */}
@@ -1112,7 +1452,13 @@ function ColumnRow({ column, availableKeys, allTemplateKeys, onUpdate, onDelete 
               size="small"
               disabled={column.isFixed}
               onClick={() => setFormulaOpen(true)}
-              sx={{ color: "#2196f3" }}
+              sx={{
+                color: "#6366f1",
+                backgroundColor: "rgba(99, 102, 241, 0.1)",
+                borderRadius: "8px",
+                "&:hover": { backgroundColor: "rgba(99, 102, 241, 0.2)" },
+                "&.Mui-disabled": { color: "rgba(255, 255, 255, 0.2)" },
+              }}
             >
               <Functions fontSize="small" />
             </IconButton>
@@ -1121,11 +1467,19 @@ function ColumnRow({ column, availableKeys, allTemplateKeys, onUpdate, onDelete 
 
         {column.isFixed ? (
           <Tooltip title="Fixed column — cannot be deleted">
-            <Lock sx={{ fontSize: 16, color: "#555" }} />
+            <Lock sx={{ fontSize: 16, color: "#94a3b8", mx: 0.5 }} />
           </Tooltip>
         ) : (
           <Tooltip title="Delete column">
-            <IconButton size="small" onClick={() => onDelete(column.id)} sx={{ color: "#f44336" }}>
+            <IconButton
+              size="small"
+              onClick={() => onDelete(column.id)}
+              sx={{
+                color: "#ef4444",
+                borderRadius: "8px",
+                "&:hover": { backgroundColor: "rgba(239, 68, 68, 0.1)" },
+              }}
+            >
               <Delete fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -1181,37 +1535,70 @@ function SectionCard({ section, getAvailableKeys, allTemplateKeys, onUpdate, onD
     <Accordion
       defaultExpanded
       sx={{
-        backgroundColor: "#2a2a2a",
-        border: "1px solid #3a3a3a",
-        mb: 1,
+        background: "rgba(255, 255, 255, 0.03)",
+        backdropFilter: "blur(20px)",
+        border: "1px solid rgba(255, 255, 255, 0.08)",
+        borderRadius: "16px !important",
+        mb: 2,
+        overflow: "hidden",
+        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
+        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         "&:before": { display: "none" },
+        "&.Mui-expanded": {
+          borderColor: "rgba(99, 102, 241, 0.3)",
+          boxShadow: "0 12px 36px rgba(0, 0, 0, 0.3)",
+        },
       }}
     >
-      <AccordionSummary expandIcon={<ExpandMore sx={{ color: "#fff" }} />}>
+      <AccordionSummary expandIcon={<ExpandMore sx={{ color: "#94a3b8" }} />}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
           {section.isFixed ? (
-            <Lock sx={{ fontSize: 16, color: "#888" }} />
+            <Lock sx={{ fontSize: 16, color: "#94a3b8" }} />
           ) : (
-            <DragIndicator sx={{ fontSize: 16, color: "#888" }} />
+            <DragIndicator sx={{ fontSize: 16, color: "#94a3b8" }} />
           )}
           {section.isFixed ? (
-            <Typography sx={{ color: "#fff", fontWeight: 600 }}>{section.label}</Typography>
+            <Typography sx={{ color: "#f1f5f9", fontWeight: 600 }}>{section.label}</Typography>
           ) : (
             <TextField
               size="small"
               value={section.label}
               onClick={(e) => e.stopPropagation()}
               onChange={(e) => onUpdate({ ...section, label: e.target.value })}
-              sx={{ "& .MuiInputBase-input": { fontSize: 14, fontWeight: 600, color: "#fff" } }}
+              sx={{
+                "& .MuiInputBase-input": { fontSize: 14, fontWeight: 600, color: "#f1f5f9" },
+                "& .MuiOutlinedInput-root": {
+                  backgroundColor: "rgba(255, 255, 255, 0.02)",
+                  borderRadius: "8px",
+                  "& fieldset": { borderColor: "rgba(255, 255, 255, 0.08)" },
+                  "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                  "&.Mui-focused fieldset": { borderColor: "#6366f1" },
+                },
+              }}
             />
           )}
           <Chip
             label={`${section.columns.length} columns`}
             size="small"
-            sx={{ ml: 1, fontSize: 10 }}
+            sx={{
+              ml: 1,
+              fontSize: 10,
+              backgroundColor: "rgba(255, 255, 255, 0.04)",
+              color: "#94a3b8",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+            }}
           />
           {section.isFixed && (
-            <Chip label="fixed" size="small" color="default" sx={{ fontSize: 10 }} />
+            <Chip
+              label="fixed"
+              size="small"
+              sx={{
+                fontSize: 10,
+                backgroundColor: "rgba(99, 102, 241, 0.12)",
+                color: "#a5b4fc",
+                border: "1px solid rgba(99, 102, 241, 0.2)",
+              }}
+            />
           )}
         </Box>
         {!section.isFixed && (
@@ -1220,7 +1607,7 @@ function SectionCard({ section, getAvailableKeys, allTemplateKeys, onUpdate, onD
               component="span"
               size="small"
               onClick={(e) => { e.stopPropagation(); onDelete(section.id); }}
-              sx={{ color: "#f44336", mr: 1 }}
+              sx={{ color: "#ef4444", mr: 1, "&:hover": { backgroundColor: "rgba(239, 68, 68, 0.1)" } }}
             >
               <Delete fontSize="small" />
             </IconButton>
@@ -1228,8 +1615,8 @@ function SectionCard({ section, getAvailableKeys, allTemplateKeys, onUpdate, onD
         )}
       </AccordionSummary>
 
-      <AccordionDetails sx={{ pt: 0 }}>
-        <Divider sx={{ mb: 1, borderColor: "#3a3a3a" }} />
+      <AccordionDetails sx={{ pt: 0, px: 2, pb: 2 }}>
+        <Divider sx={{ mb: 1.5, borderColor: "rgba(255, 255, 255, 0.06)" }} />
         {section.columns.map((col) => (
           <ColumnRow
             key={col.id}
@@ -1244,7 +1631,14 @@ function SectionCard({ section, getAvailableKeys, allTemplateKeys, onUpdate, onD
           size="small"
           startIcon={<Add />}
           onClick={addColumn}
-          sx={{ mt: 1, color: "#4caf50" }}
+          sx={{
+            mt: 1.5,
+            color: "#10b981",
+            textTransform: "none",
+            fontWeight: 600,
+            borderRadius: "8px",
+            "&:hover": { backgroundColor: "rgba(16, 185, 129, 0.1)" },
+          }}
         >
           Add Column
         </Button>
@@ -1268,6 +1662,9 @@ export default function SalaryTemplateBuilder() {
   const [editing, setEditing] = useState<SalaryTemplate | null>(null);
   const [isNew, setIsNew] = useState(false);
 
+  // Dropdown menu anchor for New Template
+  const [newTemplateAnchor, setNewTemplateAnchor] = useState<null | HTMLElement>(null);
+
   // Assign dialog
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignTemplateId, setAssignTemplateId] = useState("");
@@ -1289,14 +1686,9 @@ export default function SalaryTemplateBuilder() {
         salaryTemplateService.getAll(companyId),
         getDocs(query(collection(db, "managers"), where("companyId", "==", companyId))),
       ]);
-      // Strip retired fixed columns (Basic Salary, D.A., Paid Days) from any
-      // previously-saved templates so they no longer appear while editing.
       setTemplates(
         tmpl.map((t) => ({
           ...t,
-          // Strip retired fixed columns, then make sure all currently-defined
-          // fixed sections/columns (e.g. the Attendance section) are present
-          // even for templates saved before they were introduced.
           sections: ensureFixedSections(stripRemovedFixedColumns(t.sections)),
         })),
       );
@@ -1317,7 +1709,6 @@ export default function SalaryTemplateBuilder() {
   useEffect(() => { load(); }, [load]);
 
   // ── Derived: keys available up to a given section/column position ─────────
-  // Returns keys from all sections before sectionId, plus columns before colId in same section
   const getAvailableKeys = useCallback(
     (sectionId: string, colId: string): string[] => {
       if (!editing) return [];
@@ -1325,14 +1716,12 @@ export default function SalaryTemplateBuilder() {
       const keys: string[] = [];
       for (const sec of sorted) {
         if (sec.id === sectionId) {
-          // same section: only columns before this one
           for (const col of sec.columns) {
             if (col.id === colId) break;
             keys.push(col.key);
           }
           break;
         }
-        // previous sections: all columns
         sec.columns.forEach((c) => keys.push(c.key));
       }
       return [...new Set(keys)];
@@ -1391,7 +1780,6 @@ export default function SalaryTemplateBuilder() {
         });
         setAlert({ type: "success", message: "Template created successfully" });
         await load();
-        // stay in edit mode with the real id
         setEditing((prev) => prev ? { ...prev, id } : null);
         setIsNew(false);
       } else {
@@ -1481,7 +1869,7 @@ export default function SalaryTemplateBuilder() {
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight={300}>
-        <CircularProgress />
+        <CircularProgress sx={{ color: "#6366f1" }} />
       </Box>
     );
   }
@@ -1489,7 +1877,19 @@ export default function SalaryTemplateBuilder() {
   return (
     <Box sx={{ p: 3 }}>
       {alert && (
-        <Alert severity={alert.type} onClose={() => setAlert(null)} sx={{ mb: 2 }}>
+        <Alert
+          severity={alert.type}
+          onClose={() => setAlert(null)}
+          sx={{
+            mb: 2,
+            borderRadius: "14px",
+            backdropFilter: "blur(20px)",
+            background: alert.type === "error" ? "rgba(239, 68, 68, 0.12)" : "rgba(16, 185, 129, 0.12)",
+            border: `1px solid ${alert.type === "error" ? "rgba(239, 68, 68, 0.25)" : "rgba(16, 185, 129, 0.25)"}`,
+            color: alert.type === "error" ? "#fca5a5" : "#6ee7b7",
+            "& .MuiAlert-icon": { color: alert.type === "error" ? "#ef4444" : "#10b981" },
+          }}
+        >
           {alert.message}
         </Alert>
       )}
@@ -1499,40 +1899,124 @@ export default function SalaryTemplateBuilder() {
         <Box>
           {/* Editor header */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3, flexWrap: "wrap" }}>
-            <Button variant="outlined" size="small" onClick={() => setEditing(null)}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => setEditing(null)}
+              sx={{
+                color: "#94a3b8",
+                borderColor: "rgba(255, 255, 255, 0.15)",
+                borderRadius: "10px",
+                textTransform: "none",
+                fontWeight: 500,
+                "&:hover": {
+                  borderColor: "#6366f1",
+                  color: "#f1f5f9",
+                  backgroundColor: "rgba(99, 102, 241, 0.08)",
+                },
+              }}
+            >
               ← Back
             </Button>
-            <Typography variant="h5" sx={{ color: "#2196f3", fontWeight: 600, flex: 1 }}>
+            <Typography variant="h5" sx={{ color: "#6366f1", fontWeight: 700, flex: 1, letterSpacing: "-0.01em" }}>
               {isNew ? "New Template" : "Edit Template"}
             </Typography>
             <Button
               variant="contained"
-              startIcon={saving ? <CircularProgress size={16} /> : <Save />}
+              startIcon={saving ? <CircularProgress size={16} sx={{ color: "#f1f5f9" }} /> : <Save />}
               onClick={handleSave}
               disabled={saving}
-              sx={{ backgroundColor: "#4caf50", "&:hover": { backgroundColor: "#388e3c" } }}
+              sx={{
+                backgroundColor: "#10b981",
+                color: "#f1f5f9",
+                borderRadius: "12px",
+                fontWeight: 600,
+                textTransform: "none",
+                boxShadow: "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.1)",
+                "&:hover": {
+                  backgroundColor: "#059669",
+                  boxShadow: "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+                  transform: "translateY(-1px)",
+                },
+                "&:active": {
+                  boxShadow: "2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)",
+                  transform: "translateY(0)",
+                },
+                transition: "all 0.2s ease",
+              }}
             >
               Save Template
             </Button>
           </Box>
 
           {/* Template meta */}
-          <Paper sx={{ p: 2, mb: 3, backgroundColor: "#2a2a2a", border: "1px solid #3a3a3a" }}>
+          <Paper
+            sx={{
+              p: 2.5,
+              mb: 3,
+              background: "rgba(255, 255, 255, 0.03)",
+              backdropFilter: "blur(20px)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: "16px",
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+            }}
+          >
             <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
               <TextField
                 label="Template Name"
                 value={editing.name}
                 onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                sx={{ flex: 1, minWidth: 220 }}
+                sx={{
+                  flex: 1,
+                  minWidth: 220,
+                  "& .MuiInputLabel-root": { color: "#94a3b8", "&.Mui-focused": { color: "#6366f1" } },
+                  "& .MuiOutlinedInput-root": {
+                    backgroundColor: "rgba(255, 255, 255, 0.03)",
+                    backdropFilter: "blur(10px)",
+                    borderRadius: "12px",
+                    color: "#f1f5f9",
+                    "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                    "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                    "&.Mui-focused fieldset": { borderColor: "#6366f1", boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.15)" },
+                  },
+                }}
                 required
               />
               <TextField
                 label="Description"
                 value={editing.description ?? ""}
                 onChange={(e) => setEditing({ ...editing, description: e.target.value })}
-                sx={{ flex: 2, minWidth: 280 }}
+                sx={{
+                  flex: 2,
+                  minWidth: 280,
+                  "& .MuiInputLabel-root": { color: "#94a3b8", "&.Mui-focused": { color: "#6366f1" } },
+                  "& .MuiOutlinedInput-root": {
+                    backgroundColor: "rgba(255, 255, 255, 0.03)",
+                    backdropFilter: "blur(10px)",
+                    borderRadius: "12px",
+                    color: "#f1f5f9",
+                    "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                    "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                    "&.Mui-focused fieldset": { borderColor: "#6366f1", boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.15)" },
+                  },
+                }}
               />
-              <FormControl sx={{ minWidth: 220 }}>
+              <FormControl
+                sx={{
+                  minWidth: 220,
+                  "& .MuiInputLabel-root": { color: "#94a3b8", "&.Mui-focused": { color: "#6366f1" } },
+                  "& .MuiOutlinedInput-root": {
+                    backgroundColor: "rgba(255, 255, 255, 0.03)",
+                    backdropFilter: "blur(10px)",
+                    borderRadius: "12px",
+                    color: "#f1f5f9",
+                    "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                    "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                    "&.Mui-focused fieldset": { borderColor: "#6366f1", boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.15)" },
+                    "& .MuiSelect-icon": { color: "#94a3b8" },
+                  },
+                }}
+              >
                 <InputLabel>Assign to Manager</InputLabel>
                 <Select
                   value={editing.managerId ?? ""}
@@ -1555,7 +2039,7 @@ export default function SalaryTemplateBuilder() {
           </Paper>
 
           {/* Sections */}
-          <Typography variant="subtitle1" sx={{ color: "#aaa", mb: 1 }}>
+          <Typography variant="subtitle1" sx={{ color: "#94a3b8", mb: 1.5, fontWeight: 500 }}>
             Sections — drag to reorder (coming soon), click to expand
           </Typography>
 
@@ -1577,7 +2061,18 @@ export default function SalaryTemplateBuilder() {
             variant="outlined"
             startIcon={<Add />}
             onClick={addSection}
-            sx={{ mt: 2, borderColor: "#2196f3", color: "#2196f3" }}
+            sx={{
+              mt: 2,
+              borderColor: "rgba(99, 102, 241, 0.4)",
+              color: "#a5b4fc",
+              borderRadius: "12px",
+              textTransform: "none",
+              fontWeight: 600,
+              "&:hover": {
+                borderColor: "#6366f1",
+                backgroundColor: "rgba(99, 102, 241, 0.08)",
+              },
+            }}
           >
             Add Section
           </Button>
@@ -1586,44 +2081,134 @@ export default function SalaryTemplateBuilder() {
         /* ── List view ── */
         <Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3, flexWrap: "wrap" }}>
-            <Typography variant="h5" sx={{ color: "#2196f3", fontWeight: 600, flex: 1 }}>
+            <Typography variant="h4" sx={{ color: "#6366f1", fontWeight: 700, flex: 1, letterSpacing: "-0.02em" }}>
               Salary Templates
             </Typography>
             <Button
               variant="outlined"
               startIcon={<Assignment />}
               onClick={() => setAssignOpen(true)}
-              sx={{ borderColor: "#ff9800", color: "#ff9800" }}
+              sx={{
+                borderColor: "rgba(245, 158, 11, 0.4)",
+                color: "#f59e0b",
+                borderRadius: "12px",
+                textTransform: "none",
+                fontWeight: 600,
+                "&:hover": {
+                  borderColor: "#f59e0b",
+                  backgroundColor: "rgba(245, 158, 11, 0.08)",
+                },
+              }}
             >
               Assign Template
             </Button>
             <Button
               variant="contained"
               startIcon={<Add />}
-              onClick={() => handleNew(null)}
-              sx={{ backgroundColor: "#2196f3" }}
-            >
-              New Global Template
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => {
-                // pick manager first via assign dialog repurposed
-                setAssignOpen(true);
+              endIcon={<KeyboardArrowDown />}
+              onClick={(e) => setNewTemplateAnchor(e.currentTarget)}
+              sx={{
+                backgroundColor: "#6366f1",
+                color: "#f1f5f9",
+                borderRadius: "12px",
+                fontWeight: 600,
+                textTransform: "none",
+                boxShadow: "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.1)",
+                "&:hover": {
+                  backgroundColor: "#4f46e5",
+                  boxShadow: "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+                  transform: "translateY(-1px)",
+                },
+                "&:active": {
+                  boxShadow: "2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)",
+                  transform: "translateY(0)",
+                },
+                transition: "all 0.2s ease",
               }}
-              sx={{ backgroundColor: "#9c27b0" }}
             >
-              New Manager Template
+              New Template
             </Button>
+            <Menu
+              anchorEl={newTemplateAnchor}
+              open={Boolean(newTemplateAnchor)}
+              onClose={() => setNewTemplateAnchor(null)}
+              PaperProps={{
+                sx: {
+                  background: "rgba(15, 23, 42, 0.95)",
+                  backdropFilter: "blur(20px)",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  borderRadius: "12px",
+                  boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+                },
+              }}
+            >
+              <MenuItem
+                onClick={() => {
+                  handleNew(null);
+                  setNewTemplateAnchor(null);
+                }}
+                sx={{
+                  color: "#f1f5f9",
+                  "&:hover": { backgroundColor: "rgba(99, 102, 241, 0.15)" },
+                }}
+              >
+                <ListItemIcon sx={{ color: "#6366f1" }}>
+                  <Add fontSize="small" />
+                </ListItemIcon>
+                New Global Template
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setAssignOpen(true);
+                  setNewTemplateAnchor(null);
+                }}
+                sx={{
+                  color: "#f1f5f9",
+                  "&:hover": { backgroundColor: "rgba(139, 92, 246, 0.15)" },
+                }}
+              >
+                <ListItemIcon sx={{ color: "#8b5cf6" }}>
+                  <Assignment fontSize="small" />
+                </ListItemIcon>
+                New Manager Template
+              </MenuItem>
+            </Menu>
           </Box>
 
           {templates.length === 0 ? (
-            <Paper sx={{ p: 4, textAlign: "center", backgroundColor: "#2a2a2a", border: "1px solid #3a3a3a" }}>
-              <Typography color="text.secondary" sx={{ mb: 2 }}>
+            <Paper
+              sx={{
+                p: 5,
+                textAlign: "center",
+                background: "rgba(255, 255, 255, 0.03)",
+                backdropFilter: "blur(20px)",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
+                borderRadius: "16px",
+                boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+              }}
+            >
+              <Typography sx={{ color: "#94a3b8", mb: 2 }}>
                 No templates yet. Create a global template or one per manager.
               </Typography>
-              <Button variant="contained" startIcon={<Add />} onClick={() => handleNew(null)}>
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => handleNew(null)}
+                sx={{
+                  backgroundColor: "#6366f1",
+                  color: "#f1f5f9",
+                  borderRadius: "12px",
+                  fontWeight: 600,
+                  textTransform: "none",
+                  boxShadow: "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.1)",
+                  "&:hover": {
+                    backgroundColor: "#4f46e5",
+                    boxShadow: "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+                    transform: "translateY(-1px)",
+                  },
+                  transition: "all 0.2s ease",
+                }}
+              >
                 Create Default Template
               </Button>
             </Paper>
@@ -1637,39 +2222,67 @@ export default function SalaryTemplateBuilder() {
                   <Paper
                     key={tmpl.id}
                     sx={{
-                      p: 2,
-                      backgroundColor: "#2a2a2a",
-                      border: "1px solid #3a3a3a",
+                      p: 2.5,
+                      background: "rgba(255, 255, 255, 0.03)",
+                      backdropFilter: "blur(20px)",
+                      border: "1px solid rgba(255, 255, 255, 0.08)",
+                      borderRadius: "16px",
+                      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
                       display: "flex",
                       alignItems: "center",
                       gap: 2,
                       flexWrap: "wrap",
+                      transition: "all 0.3s ease",
+                      "&:hover": {
+                        borderColor: "rgba(99, 102, 241, 0.3)",
+                        boxShadow: "0 12px 40px rgba(0, 0, 0, 0.35)",
+                        transform: "translateY(-2px)",
+                      },
                     }}
                   >
                     <Box sx={{ flex: 1 }}>
-                      <Typography variant="subtitle1" sx={{ color: "#fff", fontWeight: 600 }}>
+                      <Typography variant="subtitle1" sx={{ color: "#f1f5f9", fontWeight: 600 }}>
                         {tmpl.name}
                       </Typography>
                       {tmpl.description && (
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" sx={{ color: "#94a3b8", mt: 0.5 }}>
                           {tmpl.description}
                         </Typography>
                       )}
-                      <Box sx={{ display: "flex", gap: 1, mt: 0.5, flexWrap: "wrap" }}>
+                      <Box sx={{ display: "flex", gap: 1, mt: 1, flexWrap: "wrap" }}>
                         <Chip
                           label={managerName ? `Manager: ${managerName}` : "Global"}
                           size="small"
-                          color={managerName ? "secondary" : "primary"}
+                          sx={{
+                            backgroundColor: managerName
+                              ? "rgba(139, 92, 246, 0.15)"
+                              : "rgba(99, 102, 241, 0.15)",
+                            color: managerName ? "#c4b5fd" : "#a5b4fc",
+                            border: `1px solid ${
+                              managerName
+                                ? "rgba(139, 92, 246, 0.25)"
+                                : "rgba(99, 102, 241, 0.25)"
+                            }`,
+                            fontWeight: 500,
+                          }}
                         />
                         <Chip
                           label={`${tmpl.sections.length} sections`}
                           size="small"
                           variant="outlined"
+                          sx={{
+                            color: "#94a3b8",
+                            borderColor: "rgba(255, 255, 255, 0.1)",
+                          }}
                         />
                         <Chip
                           label={`${tmpl.sections.reduce((a, s) => a + s.columns.length, 0)} columns`}
                           size="small"
                           variant="outlined"
+                          sx={{
+                            color: "#94a3b8",
+                            borderColor: "rgba(255, 255, 255, 0.1)",
+                          }}
                         />
                       </Box>
                     </Box>
@@ -1678,19 +2291,49 @@ export default function SalaryTemplateBuilder() {
                       <Tooltip title="Edit template">
                         <IconButton
                           onClick={() => { setEditing(tmpl); setIsNew(false); }}
-                          sx={{ color: "#2196f3" }}
+                          sx={{
+                            color: "#6366f1",
+                            backgroundColor: "rgba(99, 102, 241, 0.1)",
+                            borderRadius: "8px",
+                            "&:hover": {
+                              backgroundColor: "rgba(99, 102, 241, 0.2)",
+                              transform: "scale(1.05)",
+                            },
+                          }}
                         >
-                          <Edit />
+                          <Edit fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Duplicate">
-                        <IconButton onClick={() => handleDuplicate(tmpl)} sx={{ color: "#ff9800" }}>
-                          <ContentCopy />
+                        <IconButton
+                          onClick={() => handleDuplicate(tmpl)}
+                          sx={{
+                            color: "#f59e0b",
+                            backgroundColor: "rgba(245, 158, 11, 0.1)",
+                            borderRadius: "8px",
+                            "&:hover": {
+                              backgroundColor: "rgba(245, 158, 11, 0.2)",
+                              transform: "scale(1.05)",
+                            },
+                          }}
+                        >
+                          <ContentCopy fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Delete">
-                        <IconButton onClick={() => setDeleteId(tmpl.id)} sx={{ color: "#f44336" }}>
-                          <Delete />
+                        <IconButton
+                          onClick={() => setDeleteId(tmpl.id)}
+                          sx={{
+                            color: "#ef4444",
+                            backgroundColor: "rgba(239, 68, 68, 0.1)",
+                            borderRadius: "8px",
+                            "&:hover": {
+                              backgroundColor: "rgba(239, 68, 68, 0.2)",
+                              transform: "scale(1.05)",
+                            },
+                          }}
+                        >
+                          <Delete fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     </Box>
@@ -1703,11 +2346,42 @@ export default function SalaryTemplateBuilder() {
       )}
 
       {/* ── Assign dialog ── */}
-      <Dialog open={assignOpen} onClose={() => setAssignOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Assign Template to Manager</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 1 }}>
-            <FormControl fullWidth>
+      <Dialog
+        open={assignOpen}
+        onClose={() => setAssignOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: "rgba(15, 23, 42, 0.95)",
+            backdropFilter: "blur(30px)",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: "20px",
+            boxShadow: "0 25px 60px rgba(0, 0, 0, 0.5)",
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: "#f1f5f9", fontWeight: 600, borderBottom: "1px solid rgba(255, 255, 255, 0.08)", pb: 2 }}>
+          Assign Template to Manager
+        </DialogTitle>
+        <DialogContent sx={{ p: 3, pt: "20px !important" }}>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+            <FormControl
+              fullWidth
+              sx={{
+                "& .MuiInputLabel-root": { color: "#94a3b8", "&.Mui-focused": { color: "#6366f1" } },
+                "& .MuiOutlinedInput-root": {
+                  backgroundColor: "rgba(255, 255, 255, 0.03)",
+                  backdropFilter: "blur(10px)",
+                  borderRadius: "12px",
+                  color: "#f1f5f9",
+                  "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                  "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                  "&.Mui-focused fieldset": { borderColor: "#6366f1", boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.15)" },
+                  "& .MuiSelect-icon": { color: "#94a3b8" },
+                },
+              }}
+            >
               <InputLabel>Manager</InputLabel>
               <Select
                 value={assignManagerId}
@@ -1721,7 +2395,22 @@ export default function SalaryTemplateBuilder() {
                 ))}
               </Select>
             </FormControl>
-            <FormControl fullWidth>
+            <FormControl
+              fullWidth
+              sx={{
+                "& .MuiInputLabel-root": { color: "#94a3b8", "&.Mui-focused": { color: "#6366f1" } },
+                "& .MuiOutlinedInput-root": {
+                  backgroundColor: "rgba(255, 255, 255, 0.03)",
+                  backdropFilter: "blur(10px)",
+                  borderRadius: "12px",
+                  color: "#f1f5f9",
+                  "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                  "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                  "&.Mui-focused fieldset": { borderColor: "#6366f1", boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.15)" },
+                  "& .MuiSelect-icon": { color: "#94a3b8" },
+                },
+              }}
+            >
               <InputLabel>Template</InputLabel>
               <Select
                 value={assignTemplateId}
@@ -1738,18 +2427,38 @@ export default function SalaryTemplateBuilder() {
                 ))}
               </Select>
             </FormControl>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{ color: "#94a3b8" }}>
               Assigning a template will use its section/column structure when generating salary slips for employees under this manager.
             </Typography>
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAssignOpen(false)}>Cancel</Button>
+        <DialogActions sx={{ borderTop: "1px solid rgba(255, 255, 255, 0.08)", px: 3, py: 2 }}>
+          <Button onClick={() => setAssignOpen(false)} sx={{ color: "#94a3b8", textTransform: "none", fontWeight: 500 }}>
+            Cancel
+          </Button>
           <Button
             variant="contained"
             onClick={handleAssign}
             disabled={assigning || !assignManagerId}
-            startIcon={assigning ? <CircularProgress size={16} /> : <Assignment />}
+            startIcon={assigning ? <CircularProgress size={16} sx={{ color: "#f1f5f9" }} /> : <Assignment />}
+            sx={{
+              backgroundColor: "#6366f1",
+              color: "#f1f5f9",
+              borderRadius: "12px",
+              fontWeight: 600,
+              textTransform: "none",
+              boxShadow: "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.1)",
+              "&:hover": {
+                backgroundColor: "#4f46e5",
+                boxShadow: "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+                transform: "translateY(-1px)",
+              },
+              "&:active": {
+                boxShadow: "2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)",
+                transform: "translateY(0)",
+              },
+              transition: "all 0.2s ease",
+            }}
           >
             Assign
           </Button>
@@ -1760,7 +2469,18 @@ export default function SalaryTemplateBuilder() {
                 setAssignOpen(false);
                 handleNew(assignManagerId);
               }}
-              sx={{ ml: 1 }}
+              sx={{
+                ml: 1,
+                borderColor: "rgba(139, 92, 246, 0.4)",
+                color: "#c4b5fd",
+                borderRadius: "12px",
+                textTransform: "none",
+                fontWeight: 500,
+                "&:hover": {
+                  borderColor: "#8b5cf6",
+                  backgroundColor: "rgba(139, 92, 246, 0.08)",
+                },
+              }}
             >
               Create New for This Manager
             </Button>
@@ -1769,16 +2489,55 @@ export default function SalaryTemplateBuilder() {
       </Dialog>
 
       {/* ── Delete confirm ── */}
-      <Dialog open={!!deleteId} onClose={() => setDeleteId(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Delete Template?</DialogTitle>
-        <DialogContent>
-          <Typography>
+      <Dialog
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: "rgba(15, 23, 42, 0.95)",
+            backdropFilter: "blur(30px)",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: "20px",
+            boxShadow: "0 25px 60px rgba(0, 0, 0, 0.5)",
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: "#f1f5f9", fontWeight: 600, borderBottom: "1px solid rgba(255, 255, 255, 0.08)", pb: 2 }}>
+          Delete Template?
+        </DialogTitle>
+        <DialogContent sx={{ p: 3, pt: "20px !important" }}>
+          <Typography sx={{ color: "#94a3b8" }}>
             This will permanently delete the template. Managers assigned to it will lose their template assignment.
           </Typography>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteId(null)}>Cancel</Button>
-          <Button color="error" variant="contained" onClick={handleDelete}>
+        <DialogActions sx={{ borderTop: "1px solid rgba(255, 255, 255, 0.08)", px: 3, py: 2 }}>
+          <Button onClick={() => setDeleteId(null)} sx={{ color: "#94a3b8", textTransform: "none", fontWeight: 500 }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleDelete}
+            sx={{
+              backgroundColor: "#ef4444",
+              color: "#f1f5f9",
+              borderRadius: "12px",
+              fontWeight: 600,
+              textTransform: "none",
+              boxShadow: "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.1)",
+              "&:hover": {
+                backgroundColor: "#dc2626",
+                boxShadow: "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+                transform: "translateY(-1px)",
+              },
+              "&:active": {
+                boxShadow: "2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)",
+                transform: "translateY(0)",
+              },
+              transition: "all 0.2s ease",
+            }}
+          >
             Delete
           </Button>
         </DialogActions>

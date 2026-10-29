@@ -254,73 +254,225 @@ export default function AttendanceManager() {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box>
-        <Typography variant="h4" gutterBottom>
-          Attendance Management
-        </Typography>
-
-        {/* Manager filter (admin only) */}
-        {currentUser?.role === "admin" && (
-          <FormControl size="small" sx={{ minWidth: 260, mb: 2, mr: 2 }}>
-            <InputLabel id="attendance-manager-filter-label">Filter By Manager</InputLabel>
-            <Select
-              labelId="attendance-manager-filter-label"
-              value={selectedManagerId}
-              label="Filter By Manager"
-              onChange={(e) => setSelectedManagerId(e.target.value)}
-            >
-              <MenuItem value="all">All Managers</MenuItem>
-              {managers.map((m) => (
-                <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        )}
+      <Box sx={{ p: { xs: 2, sm: 3 } }}>
+        <Box sx={{ mb: 3 }}>
+          <Typography
+            variant="h4"
+            sx={{
+              fontWeight: 700,
+              fontSize: { xs: "1.5rem", sm: "1.875rem" },
+              letterSpacing: "-0.02em",
+              background: "linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              mb: 0.5,
+            }}
+          >
+            Attendance Management
+          </Typography>
+          <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+            Track, mark, and update employee daily attendance records
+          </Typography>
+        </Box>
 
         {error   && <Alert severity="error"   sx={{ mb: 2 }}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
-        {/* Date picker + Bulk Edit Period + Stats */}
-        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 3, mb: 3 }}>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {/* Action Toolbar & Filters */}
+        <Paper
+          elevation={0}
+          sx={{
+            mb: 3,
+            p: 2.5,
+            background: "rgba(255, 255, 255, 0.03)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            borderRadius: "16px",
+            display: "flex",
+            flexDirection: { xs: "column", md: "row" },
+            gap: 2,
+            alignItems: { xs: "stretch", md: "center" },
+            justifyContent: "space-between",
+          }}
+        >
+          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center", flex: 1 }}>
+            {currentUser?.role === "admin" && (
+              <FormControl size="small" sx={{ minWidth: 220 }}>
+                <InputLabel id="attendance-manager-filter-label">Filter By Manager</InputLabel>
+                <Select
+                  labelId="attendance-manager-filter-label"
+                  value={selectedManagerId}
+                  label="Filter By Manager"
+                  onChange={(e) => setSelectedManagerId(e.target.value)}
+                >
+                  <MenuItem value="all">All Managers</MenuItem>
+                  {managers.map((m) => (
+                    <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+
             <DatePicker
               label="Select Date"
               value={selectedDate}
               onChange={(d) => setSelectedDate(d || new Date())}
-              slotProps={{ textField: { fullWidth: true } }}
+              slotProps={{ textField: { size: "small", sx: { minWidth: 200 } } }}
             />
-            <Button
-              variant="outlined"
-              startIcon={<Edit />}
-              onClick={() => setShowBulkPeriodDialog(true)}
-              fullWidth
-            >
-              Bulk Edit Period
-            </Button>
           </Box>
 
-          {/* Stats cards */}
-          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 2 }}>
-            {[
-              { icon: <CheckCircle color="success" sx={{ fontSize: 40, mb: 1 }} />, value: stats.present,       label: "Present"  },
-              { icon: <Cancel      color="error"   sx={{ fontSize: 40, mb: 1 }} />, value: stats.absent,        label: "Absent"   },
-              { icon: <Schedule    color="warning" sx={{ fontSize: 40, mb: 1 }} />, value: stats["half-day"],   label: "Half Day" },
-              { icon: <Person      color="info"    sx={{ fontSize: 40, mb: 1 }} />, value: stats.leave,         label: "Leave"    },
-              { icon: <EventAvailable color="secondary" sx={{ fontSize: 40, mb: 1 }} />, value: stats["paid-leave"], label: "Paid Leave" },
-            ].map(({ icon, value, label }) => (
-              <Card key={label}>
-                <CardContent sx={{ textAlign: "center", py: 2 }}>
-                  {icon}
-                  <Typography variant="h6">{value}</Typography>
-                  <Typography variant="caption">{label}</Typography>
-                </CardContent>
-              </Card>
-            ))}
-          </Box>
+          <Button
+            variant="outlined"
+            startIcon={<Edit />}
+            onClick={() => setShowBulkPeriodDialog(true)}
+            sx={{
+              borderRadius: "10px",
+              borderColor: "rgba(99, 102, 241, 0.3)",
+              color: "#a5b4fc",
+              backgroundColor: "rgba(99, 102, 241, 0.06)",
+              "&:hover": {
+                borderColor: "rgba(99, 102, 241, 0.5)",
+                backgroundColor: "rgba(99, 102, 241, 0.12)",
+                transform: "translateY(-1px)",
+              },
+            }}
+          >
+            Bulk Edit Period
+          </Button>
+        </Paper>
+
+        {/* Stats Cards */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 2,
+            mb: 3,
+          }}
+        >
+          {[
+            {
+              icon: <CheckCircle sx={{ fontSize: 28, color: "#34d399" }} />,
+              value: stats.present,
+              label: "Present",
+              accent: "rgba(16, 185, 129, 0.12)",
+              border: "rgba(16, 185, 129, 0.25)",
+              glow: "rgba(16, 185, 129, 0.15)",
+            },
+            {
+              icon: <Cancel sx={{ fontSize: 28, color: "#f87171" }} />,
+              value: stats.absent,
+              label: "Absent",
+              accent: "rgba(239, 68, 68, 0.12)",
+              border: "rgba(239, 68, 68, 0.25)",
+              glow: "rgba(239, 68, 68, 0.15)",
+            },
+            {
+              icon: <Schedule sx={{ fontSize: 28, color: "#fbbf24" }} />,
+              value: stats["half-day"],
+              label: "Half Day",
+              accent: "rgba(245, 158, 11, 0.12)",
+              border: "rgba(245, 158, 11, 0.25)",
+              glow: "rgba(245, 158, 11, 0.15)",
+            },
+            {
+              icon: <Person sx={{ fontSize: 28, color: "#60a5fa" }} />,
+              value: stats.leave,
+              label: "Leave",
+              accent: "rgba(59, 130, 246, 0.12)",
+              border: "rgba(59, 130, 246, 0.25)",
+              glow: "rgba(59, 130, 246, 0.15)",
+            },
+            {
+              icon: <EventAvailable sx={{ fontSize: 28, color: "#a78bfa" }} />,
+              value: stats["paid-leave"],
+              label: "Paid Leave",
+              accent: "rgba(139, 92, 246, 0.12)",
+              border: "rgba(139, 92, 246, 0.25)",
+              glow: "rgba(139, 92, 246, 0.15)",
+            },
+          ].map(({ icon, value, label, accent, border, glow }) => (
+            <Card
+              key={label}
+              elevation={0}
+              sx={{
+                background: "rgba(255, 255, 255, 0.03)",
+                backdropFilter: "blur(20px)",
+                WebkitBackdropFilter: "blur(20px)",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
+                borderRadius: "16px",
+                boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
+                transition: "all 0.25s ease",
+                "&:hover": {
+                  transform: "translateY(-3px)",
+                  borderColor: border,
+                  boxShadow: `0 12px 36px rgba(0, 0, 0, 0.3), 0 0 20px ${glow}`,
+                },
+              }}
+            >
+              <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+                <Box display="flex" alignItems="center" gap={1.5}>
+                  <Box
+                    sx={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: "12px",
+                      background: accent,
+                      border: `1px solid ${border}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: `0 4px 12px ${glow}`,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {icon}
+                  </Box>
+                  <Box>
+                    <Typography
+                      variant="h5"
+                      sx={{
+                        fontWeight: 700,
+                        fontSize: "1.35rem",
+                        color: "#f1f5f9",
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {value}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "#94a3b8",
+                        fontWeight: 500,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        fontSize: "0.6875rem",
+                      }}
+                    >
+                      {label}
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          ))}
         </Box>
 
         {/* Attendance Table */}
-        <Paper sx={{ width: "100%", overflow: "hidden" }}>
+        <Paper
+          elevation={0}
+          sx={{
+            width: "100%",
+            overflow: "hidden",
+            backgroundColor: "rgba(255, 255, 255, 0.02)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            borderRadius: "16px",
+          }}
+        >
           <TableContainer>
             <Table>
               <TableHead>

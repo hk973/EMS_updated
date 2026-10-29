@@ -23,6 +23,9 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Menu,
+  ListItemIcon,
+  ListItemText,
   CircularProgress,
   Tooltip,
   Divider,
@@ -41,6 +44,8 @@ import {
   AddBox,
   ToggleOn,
   ToggleOff,
+  KeyboardArrowDown,
+  ViewColumn,
 } from "@mui/icons-material";
 import {
   collection,
@@ -178,6 +183,8 @@ export default function EmployeeTable() {
   const [columns, setColumns] = useState<TableColumn[]>(defaultColumns);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [showAddColumnDialog, setShowAddColumnDialog] = useState(false);
+  const [exportAnchorEl, setExportAnchorEl] = useState<null | HTMLElement>(null);
+  const [columnsAnchorEl, setColumnsAnchorEl] = useState<null | HTMLElement>(null);
   const [newColumn, setNewColumn] = useState({
     name: "",
     type: "text" as const,
@@ -1232,207 +1239,327 @@ export default function EmployeeTable() {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: { xs: 2, sm: 3 } }}>
       {/* Header */}
       <Box sx={{ mb: 3 }}>
         <Typography
           variant="h4"
-          sx={{ color: "#2196f3", fontWeight: 600, mb: 1 }}
+          sx={{
+            fontWeight: 700,
+            fontSize: { xs: "1.5rem", sm: "1.875rem" },
+            letterSpacing: "-0.02em",
+            background: "linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            mb: 0.5,
+          }}
         >
           Employees
         </Typography>
         {isEditable && (
-          <>
-            <Typography variant="body1" color="text.secondary">
-              View, and manage employees
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              Note: To add employees go to managers tab and click "ASSIGN
-              EMPLOYEES"
-            </Typography>
-          </>
+          <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+            View and manage workforce records across all departments
+          </Typography>
         )}
       </Box>
 
-      {/* Action Buttons */}
-      <Box sx={{ mb: 3, display: "flex", gap: 2, flexWrap: "wrap" }}>
-        {/* Admin-only buttons */}
-        {currentUser?.role === "admin" && (
-          <>
-            {/* <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => setShowForm(true)}
-              sx={{
-                backgroundColor: '#2196f3',
-                '&:hover': { backgroundColor: '#1976d2' },
+      {/* Action Toolbar */}
+      <Paper
+        elevation={0}
+        sx={{
+          mb: 3,
+          p: 2.5,
+          background: "rgba(255, 255, 255, 0.03)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          borderRadius: "16px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+        }}
+      >
+        {/* Row 1: Search & Filter */}
+        <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center" }}>
+          <TextField
+            sx={{ flex: 1, minWidth: 280 }}
+            placeholder="Search by Name, Email, ID, Department, or Manager"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: <Search sx={{ mr: 1, color: "#64748b" }} />,
+            }}
+          />
+          <FormControl sx={{ minWidth: 220 }}>
+            <InputLabel>Filter By</InputLabel>
+            <Select
+              value={filterType}
+              onChange={(e) => {
+                setFilterType(e.target.value);
+                setSelectedEmployeeIds([]);
+                setPage(0);
               }}
+              label="Filter By"
             >
-              ADD EMPLOYEE
-            </Button> */}
+              <MenuItem value="all">All Employees</MenuItem>
+              <MenuItem value="active">Active Employees</MenuItem>
+              <MenuItem value="inactive">Inactive Employees</MenuItem>
+              <Divider sx={{ my: 0.5 }} />
+              {Array.from(new Set(employees.map((emp) => emp.department)))
+                .filter(Boolean)
+                .map((dept) => (
+                  <MenuItem key={dept} value={`department:${dept}`}>
+                    Department: {dept}
+                  </MenuItem>
+                ))}
+              <Divider sx={{ my: 0.5 }} />
+              {managerFilterOptions.map((manager) => (
+                <MenuItem key={manager.id} value={`manager:${manager.id}`}>
+                  Manager: {manager.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
 
-            {/* <Button
-              variant="contained"
-              startIcon={<FileUpload />}
-              onClick={handleUploadXLSX}
-              sx={{
-                backgroundColor: '#9c27b0',
-                '&:hover': { backgroundColor: '#7b1fa2' },
-              }}
-            >
-              UPLOAD XLSX
-            </Button> */}
-
-            {/* <Button
-              variant="contained"
-              startIcon={<Download />}
-              onClick={handleDownloadSample}
-              sx={{
-                backgroundColor: '#2196f3',
-                '&:hover': { backgroundColor: '#1976d2' },
-              }}
-            >
-              DOWNLOAD SAMPLE TEMPLATE
-            </Button> */}
-
-            <Button
-              variant="contained"
-              startIcon={<AddBox />}
-              onClick={() => setShowAddColumnDialog(true)}
-              sx={{
-                backgroundColor: "#2196f3",
-                "&:hover": { backgroundColor: "#1976d2" },
-              }}
-            >
-              ADD COLUMN
-            </Button>
-
-            <Button
-              variant="contained"
-              startIcon={<Delete />}
-              onClick={() => setShowDeleteColumnDialog(true)}
-              sx={{
-                backgroundColor: "#f44336",
-                "&:hover": { backgroundColor: "#d32f2f" },
-              }}
-            >
-              DELETE COLUMN
-            </Button>
-
+        {/* Row 2: Actions Bar */}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 2,
+            pt: 1.5,
+            borderTop: "1px solid rgba(255, 255, 255, 0.06)",
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography variant="body2" sx={{ color: "#94a3b8", fontSize: "0.8125rem" }}>
+              Total: <span style={{ color: "#f1f5f9", fontWeight: 600 }}>{filteredEmployees.length}</span> employees
+            </Typography>
             {selectedEmployeeIds.length > 0 && (
+              <Chip
+                label={`${selectedEmployeeIds.length} selected`}
+                size="small"
+                color="primary"
+                sx={{ ml: 1, fontWeight: 600 }}
+              />
+            )}
+          </Box>
+
+          <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", flexWrap: "wrap" }}>
+            {/* Bulk Delete (Admin only) */}
+            {selectedEmployeeIds.length > 0 && currentUser?.role === "admin" && (
               <Button
                 variant="contained"
                 startIcon={<Delete />}
                 onClick={handleBulkDelete}
                 sx={{
-                  backgroundColor: "#b71c1c",
-                  "&:hover": { backgroundColor: "#7f0000" },
+                  background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                  borderRadius: "10px",
+                  fontWeight: 600,
+                  boxShadow: "0 4px 12px rgba(239, 68, 68, 0.3)",
+                  "&:hover": {
+                    background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)",
+                    transform: "translateY(-1px)",
+                  },
                 }}
               >
-                DELETE SELECTED ({selectedEmployeeIds.length})
+                Delete Selected ({selectedEmployeeIds.length})
               </Button>
             )}
 
+            {/* Manage Columns Dropdown (Admin only) */}
+            {currentUser?.role === "admin" && (
+              <>
+                <Button
+                  variant="outlined"
+                  startIcon={<ViewColumn />}
+                  endIcon={<KeyboardArrowDown />}
+                  onClick={(e) => setColumnsAnchorEl(e.currentTarget)}
+                  sx={{
+                    borderRadius: "10px",
+                    borderColor: "rgba(255, 255, 255, 0.15)",
+                    color: "#f1f5f9",
+                    backgroundColor: "rgba(255, 255, 255, 0.04)",
+                    "&:hover": {
+                      borderColor: "rgba(99, 102, 241, 0.4)",
+                      backgroundColor: "rgba(99, 102, 241, 0.08)",
+                    },
+                  }}
+                >
+                  Columns
+                </Button>
+                <Menu
+                  anchorEl={columnsAnchorEl}
+                  open={Boolean(columnsAnchorEl)}
+                  onClose={() => setColumnsAnchorEl(null)}
+                  transformOrigin={{ horizontal: "right", vertical: "top" }}
+                  anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+                  PaperProps={{
+                    sx: {
+                      backgroundColor: "rgba(15, 23, 42, 0.95)",
+                      backdropFilter: "blur(24px)",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
+                      borderRadius: "12px",
+                      minWidth: 190,
+                      p: 0.5,
+                    },
+                  }}
+                >
+                  <MenuItem
+                    onClick={() => {
+                      setShowAddColumnDialog(true);
+                      setColumnsAnchorEl(null);
+                    }}
+                    sx={{ py: 1.25, borderRadius: "8px" }}
+                  >
+                    <ListItemIcon sx={{ color: "#818cf8", minWidth: 36 }}>
+                      <AddBox fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Add Column"
+                      primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: 500 }}
+                    />
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      setColumnsAnchorEl(null);
+                      const columnField = prompt(
+                        "Enter column field name to edit (e.g., fullName, email, Employee Id):",
+                      );
+                      if (columnField) {
+                        openEditColumnDialog(columnField);
+                      }
+                    }}
+                    sx={{ py: 1.25, borderRadius: "8px" }}
+                  >
+                    <ListItemIcon sx={{ color: "#fbbf24", minWidth: 36 }}>
+                      <Edit fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Edit Column"
+                      primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: 500 }}
+                    />
+                  </MenuItem>
+                  <Divider sx={{ my: 0.5, borderColor: "rgba(255, 255, 255, 0.08)" }} />
+                  <MenuItem
+                    onClick={() => {
+                      setShowDeleteColumnDialog(true);
+                      setColumnsAnchorEl(null);
+                    }}
+                    sx={{
+                      py: 1.25,
+                      borderRadius: "8px",
+                      color: "#f87171",
+                      "&:hover": { backgroundColor: "rgba(239, 68, 68, 0.1)" },
+                    }}
+                  >
+                    <ListItemIcon sx={{ color: "#f87171", minWidth: 36 }}>
+                      <Delete fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Delete Column"
+                      primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: 500, color: "#f87171" }}
+                    />
+                  </MenuItem>
+                </Menu>
+              </>
+            )}
+
+            {/* Export Dropdown */}
             <Button
-              variant="contained"
-              startIcon={<Edit />}
-              onClick={() => {
-                // Show a dropdown or dialog to select which column to edit
-                const columnField = prompt(
-                  "Enter column field name to edit (e.g., fullName, email, Employee Id):",
-                );
-                if (columnField) {
-                  openEditColumnDialog(columnField);
-                }
-              }}
+              variant="outlined"
+              startIcon={<FileDownload />}
+              endIcon={<KeyboardArrowDown />}
+              onClick={(e) => setExportAnchorEl(e.currentTarget)}
               sx={{
-                backgroundColor: "#ff9800",
-                "&:hover": { backgroundColor: "#f57c00" },
+                borderRadius: "10px",
+                borderColor: "rgba(255, 255, 255, 0.15)",
+                color: "#f1f5f9",
+                backgroundColor: "rgba(255, 255, 255, 0.04)",
+                "&:hover": {
+                  borderColor: "rgba(16, 185, 129, 0.4)",
+                  backgroundColor: "rgba(16, 185, 129, 0.08)",
+                },
               }}
             >
-              EDIT COLUMN
+              Export
             </Button>
-          </>
-        )}
-
-        {/* Buttons available for both admin and manager */}
-        <Button
-          variant="contained"
-          startIcon={<FileDownload />}
-          onClick={handleExportCSV}
-          sx={{
-            backgroundColor: "#4caf50",
-            "&:hover": { backgroundColor: "#388e3c" },
-          }}
-        >
-          EXPORT CSV
-        </Button>
-
-        <Button
-          variant="contained"
-          startIcon={<FileDownload />}
-          onClick={handleExportXLSX}
-          sx={{
-            backgroundColor: "#2196f3",
-            "&:hover": { backgroundColor: "#1976d2" },
-          }}
-        >
-          EXPORT XLSX
-        </Button>
-      </Box>
-
-      {/* Search Bar and Filters */}
-      <Box sx={{ mb: 3, display: "flex", gap: 2 }}>
-        <TextField
-          sx={{ flex: 1 }}
-          placeholder="Search by Name, Email, ID, Department, or Manager"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          InputProps={{
-            startAdornment: <Search sx={{ mr: 1, color: "text.secondary" }} />,
-          }}
-        />
-        <FormControl sx={{ minWidth: 200 }}>
-          <InputLabel>Filter By</InputLabel>
-          <Select
-            value={filterType}
-            onChange={(e) => { setFilterType(e.target.value); setSelectedEmployeeIds([]); setPage(0); }}
-            label="Filter By"
-          >
-            <MenuItem value="all">All Employees</MenuItem>
-            <MenuItem value="active">Active Employees</MenuItem>
-            <MenuItem value="inactive">Inactive Employees</MenuItem>
-            <Divider />
-            {Array.from(new Set(employees.map((emp) => emp.department)))
-              .filter(Boolean)
-              .map((dept) => (
-                <MenuItem key={dept} value={`department:${dept}`}>
-                  Department: {dept}
-                </MenuItem>
-              ))}
-            <Divider />
-            {managerFilterOptions.map((manager) => (
-              <MenuItem key={manager.id} value={`manager:${manager.id}`}>
-                Manager: {manager.name}
+            <Menu
+              anchorEl={exportAnchorEl}
+              open={Boolean(exportAnchorEl)}
+              onClose={() => setExportAnchorEl(null)}
+              transformOrigin={{ horizontal: "right", vertical: "top" }}
+              anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+              PaperProps={{
+                sx: {
+                  backgroundColor: "rgba(15, 23, 42, 0.95)",
+                  backdropFilter: "blur(24px)",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  borderRadius: "12px",
+                  minWidth: 180,
+                  p: 0.5,
+                },
+              }}
+            >
+              <MenuItem
+                onClick={() => {
+                  handleExportXLSX();
+                  setExportAnchorEl(null);
+                }}
+                sx={{ py: 1.25, borderRadius: "8px" }}
+              >
+                <ListItemIcon sx={{ color: "#34d399", minWidth: 36 }}>
+                  <FileDownload fontSize="small" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Export to Excel (XLSX)"
+                  primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: 500 }}
+                />
               </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Box>
+              <MenuItem
+                onClick={() => {
+                  handleExportCSV();
+                  setExportAnchorEl(null);
+                }}
+                sx={{ py: 1.25, borderRadius: "8px" }}
+              >
+                <ListItemIcon sx={{ color: "#60a5fa", minWidth: 36 }}>
+                  <FileDownload fontSize="small" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Export to CSV"
+                  primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: 500 }}
+                />
+              </MenuItem>
+            </Menu>
+          </Box>
+        </Box>
+      </Paper>
 
       {/* Employee Table */}
       <Box sx={{ overflowX: "auto", maxWidth: "100%" }}>
         <TableContainer
           component={Paper}
-          sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}
+          elevation={0}
+          sx={{
+            backgroundColor: "rgba(255, 255, 255, 0.02)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            borderRadius: "16px",
+            overflow: "hidden",
+          }}
         >
           <Table>
             <TableHead>
-              <TableRow sx={{ backgroundColor: "#1e1e1e" }}>
+              <TableRow sx={{ backgroundColor: "rgba(255, 255, 255, 0.04)" }}>
                 {currentUser?.role === "admin" && (
                   <TableCell
                     padding="checkbox"
-                    sx={{ backgroundColor: "#1e1e1e", borderBottom: "2px solid #333" }}
+                    sx={{ backgroundColor: "transparent", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}
                   >
                     <Checkbox
                       indeterminate={
@@ -1462,7 +1589,7 @@ export default function EmployeeTable() {
                           );
                         }
                       }}
-                      sx={{ color: "#ffffff" }}
+                      sx={{ color: "#94a3b8" }}
                     />
                   </TableCell>
                 )}
@@ -1472,16 +1599,20 @@ export default function EmployeeTable() {
                     <TableCell
                       key={column.id}
                       sx={{
+                        backgroundColor: "transparent",
+                        borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                        color: "#94a3b8",
                         fontWeight: 600,
-                        color: "#ffffff",
-                        borderBottom: "2px solid #333",
+                        fontSize: "0.75rem",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
                         width: column.width,
                         ...(column.field === "actions" && {
                           position: "sticky",
                           right: 0,
                           zIndex: 2,
-                          backgroundColor: "#1e1e1e",
-                          borderLeft: "2px solid #333",
+                          backgroundColor: "rgba(15, 23, 42, 0.95)",
+                          borderLeft: "1px solid rgba(255, 255, 255, 0.08)",
                         }),
                       }}
                     >

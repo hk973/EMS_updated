@@ -150,12 +150,12 @@ export default function NotificationCenter() {
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case 'leave': return '#4caf50';
-      case 'payroll': return '#2196f3';
-      case 'attendance': return '#ff9800';
-      case 'system': return '#9c27b0';
-      case 'announcement': return '#f44336';
-      default: return '#757575';
+      case 'leave': return '#10b981';
+      case 'payroll': return '#6366f1';
+      case 'attendance': return '#f59e0b';
+      case 'system': return '#8b5cf6';
+      case 'announcement': return '#ef4444';
+      default: return '#94a3b8';
     }
   };
 
@@ -206,6 +206,12 @@ export default function NotificationCenter() {
             width: 400,
             maxHeight: 500,
             overflow: 'hidden',
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            backdropFilter: 'blur(30px)',
+            WebkitBackdropFilter: 'blur(30px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '16px',
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)',
           },
         }}
       >

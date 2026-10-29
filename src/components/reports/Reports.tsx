@@ -348,7 +348,7 @@ export default function Reports() {
   const payrollChartData = getPayrollChartData();
   const attendanceChartData = getAttendanceChartData();
 
-  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
+  const COLORS = ["#6366f1", "#10b981", "#f59e0b", "#8b5cf6"];
 
   if (loading) {
     return (
@@ -358,7 +358,7 @@ export default function Reports() {
         alignItems="center"
         minHeight="400px"
       >
-        <CircularProgress />
+        <CircularProgress sx={{ color: "#6366f1" }} />
       </Box>
     );
   }
@@ -369,33 +369,97 @@ export default function Reports() {
       <Box sx={{ mb: 3 }}>
         <Typography
           variant="h4"
-          sx={{ color: "#2196f3", fontWeight: 600, mb: 1 }}
+          sx={{
+            fontWeight: 700,
+            fontSize: { xs: "1.5rem", sm: "1.875rem" },
+            letterSpacing: "-0.02em",
+            background: "linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            mb: 0.5,
+          }}
         >
-          Reports & Analytics
+          Reports &amp; Analytics
         </Typography>
-        <Typography variant="body1" color="text.secondary">
+        <Typography variant="body2" sx={{ color: "#94a3b8" }}>
           Comprehensive reports and analytics for your organization
         </Typography>
       </Box>
 
       {/* Alerts */}
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+        <Alert
+          severity="error"
+          sx={{
+            mb: 2,
+            backgroundColor: "rgba(239, 68, 68, 0.1)",
+            border: "1px solid rgba(239, 68, 68, 0.25)",
+            color: "#fca5a5",
+            borderRadius: "12px",
+          }}
+          onClose={() => setError("")}
+        >
           {error}
         </Alert>
       )}
 
       {success && (
-        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess("")}>
+        <Alert
+          severity="success"
+          sx={{
+            mb: 2,
+            backgroundColor: "rgba(16, 185, 129, 0.1)",
+            border: "1px solid rgba(16, 185, 129, 0.25)",
+            color: "#6ee7b7",
+            borderRadius: "12px",
+          }}
+          onClose={() => setSuccess("")}
+        >
           {success}
         </Alert>
       )}
 
       {/* Month/Year Selection */}
-      <Card sx={{ mb: 3, backgroundColor: "#2d2d2d" }}>
-        <CardContent>
-          <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-            <FormControl sx={{ minWidth: 120 }}>
+      <Card
+        elevation={0}
+        sx={{
+          mb: 3,
+          background: "rgba(255, 255, 255, 0.03)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          borderRadius: "16px",
+          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+        }}
+      >
+        <CardContent sx={{ p: 2.5, "&:last-child": { pb: 2.5 } }}>
+          <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
+            <FormControl
+              size="small"
+              sx={{
+                minWidth: 140,
+                "& .MuiOutlinedInput-root": {
+                  backgroundColor: "rgba(255, 255, 255, 0.03)",
+                  backdropFilter: "blur(10px)",
+                  borderRadius: "12px",
+                  "& fieldset": {
+                    borderColor: "rgba(255, 255, 255, 0.1)",
+                  },
+                  "&:hover fieldset": {
+                    borderColor: "rgba(99, 102, 241, 0.4)",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: "#6366f1",
+                  },
+                },
+                "& .MuiInputLabel-root": {
+                  color: "#94a3b8",
+                },
+                "& .MuiSelect-select": {
+                  color: "#f1f5f9",
+                },
+              }}
+            >
               <InputLabel>Month</InputLabel>
               <Select
                 value={selectedMonth}
@@ -410,7 +474,32 @@ export default function Reports() {
               </Select>
             </FormControl>
 
-            <FormControl sx={{ minWidth: 120 }}>
+            <FormControl
+              size="small"
+              sx={{
+                minWidth: 120,
+                "& .MuiOutlinedInput-root": {
+                  backgroundColor: "rgba(255, 255, 255, 0.03)",
+                  backdropFilter: "blur(10px)",
+                  borderRadius: "12px",
+                  "& fieldset": {
+                    borderColor: "rgba(255, 255, 255, 0.1)",
+                  },
+                  "&:hover fieldset": {
+                    borderColor: "rgba(99, 102, 241, 0.4)",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: "#6366f1",
+                  },
+                },
+                "& .MuiInputLabel-root": {
+                  color: "#94a3b8",
+                },
+                "& .MuiSelect-select": {
+                  color: "#f1f5f9",
+                },
+              }}
+            >
               <InputLabel>Year</InputLabel>
               <Select
                 value={selectedYear}
@@ -430,8 +519,27 @@ export default function Reports() {
               startIcon={<Refresh />}
               onClick={loadData}
               sx={{
-                backgroundColor: "#2196f3",
-                "&:hover": { backgroundColor: "#1976d2" },
+                borderRadius: "12px",
+                px: 2.5,
+                py: 0.9,
+                fontWeight: 600,
+                textTransform: "none",
+                background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+                color: "#ffffff",
+                boxShadow:
+                  "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)",
+                  boxShadow:
+                    "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.2)",
+                  transform: "translateY(-1px)",
+                },
+                "&:active": {
+                  boxShadow:
+                    "2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)",
+                  transform: "translateY(0)",
+                },
+                transition: "all 0.2s ease",
               }}
             >
               Refresh
@@ -444,81 +552,213 @@ export default function Reports() {
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-          gap: 3,
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: 2.5,
           mb: 3,
         }}
       >
-        <Card sx={{ backgroundColor: "#2d2d2d" }}>
-          <CardContent>
-            <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-              <People sx={{ color: "#2196f3", mr: 1 }} />
-              <Typography variant="h6" sx={{ color: "#ffffff" }}>
+        <Card
+          elevation={0}
+          sx={{
+            background:
+              "linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0.03) 100%)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(99, 102, 241, 0.22)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+            position: "relative",
+            overflow: "hidden",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            "&:hover": {
+              transform: "translateY(-3px)",
+              borderColor: "rgba(99, 102, 241, 0.4)",
+              boxShadow:
+                "0 14px 40px rgba(0, 0, 0, 0.35), 0 0 20px rgba(99, 102, 241, 0.2)",
+            },
+            "&::before": {
+              content: '""',
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "2px",
+              background:
+                "linear-gradient(90deg, transparent, #818cf8, transparent)",
+            },
+          }}
+        >
+          <CardContent sx={{ p: 2.5 }}>
+            <Box sx={{ display: "flex", alignItems: "center", mb: 1.5 }}>
+              <Box
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: "12px",
+                  background: "rgba(99, 102, 241, 0.15)",
+                  border: "1px solid rgba(99, 102, 241, 0.25)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  mr: 1.5,
+                }}
+              >
+                <People sx={{ color: "#818cf8", fontSize: 22 }} />
+              </Box>
+              <Typography variant="subtitle1" sx={{ color: "#f1f5f9", fontWeight: 600 }}>
                 Employee Statistics
               </Typography>
             </Box>
-            <Typography variant="h4" sx={{ color: "#ffffff", mb: 1 }}>
+            <Typography variant="h4" sx={{ color: "#f1f5f9", fontWeight: 700, mb: 0.5 }}>
               {employeeStats.totalEmployees}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="caption" sx={{ color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Total Employees
             </Typography>
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="body2" sx={{ color: "#ffffff" }}>
-                Active: {employeeStats.activeEmployees}
+            <Box sx={{ mt: 2, pt: 1.5, borderTop: "1px solid rgba(255, 255, 255, 0.06)", display: "flex", gap: 2 }}>
+              <Typography variant="body2" sx={{ color: "#cbd5e1" }}>
+                Active: <strong style={{ color: "#34d399" }}>{employeeStats.activeEmployees}</strong>
               </Typography>
-              <Typography variant="body2" sx={{ color: "#ffffff" }}>
-                New (3 months): {employeeStats.newEmployees}
+              <Typography variant="body2" sx={{ color: "#cbd5e1" }}>
+                New (3m): <strong style={{ color: "#818cf8" }}>{employeeStats.newEmployees}</strong>
               </Typography>
             </Box>
           </CardContent>
         </Card>
 
-        <Card sx={{ backgroundColor: "#2d2d2d" }}>
-          <CardContent>
-            <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-              <AttachMoney sx={{ color: "#4caf50", mr: 1 }} />
-              <Typography variant="h6" sx={{ color: "#ffffff" }}>
+        <Card
+          elevation={0}
+          sx={{
+            background:
+              "linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(16, 185, 129, 0.03) 100%)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(16, 185, 129, 0.22)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+            position: "relative",
+            overflow: "hidden",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            "&:hover": {
+              transform: "translateY(-3px)",
+              borderColor: "rgba(16, 185, 129, 0.4)",
+              boxShadow:
+                "0 14px 40px rgba(0, 0, 0, 0.35), 0 0 20px rgba(16, 185, 129, 0.2)",
+            },
+            "&::before": {
+              content: '""',
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "2px",
+              background:
+                "linear-gradient(90deg, transparent, #34d399, transparent)",
+            },
+          }}
+        >
+          <CardContent sx={{ p: 2.5 }}>
+            <Box sx={{ display: "flex", alignItems: "center", mb: 1.5 }}>
+              <Box
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: "12px",
+                  background: "rgba(16, 185, 129, 0.15)",
+                  border: "1px solid rgba(16, 185, 129, 0.25)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  mr: 1.5,
+                }}
+              >
+                <AttachMoney sx={{ color: "#34d399", fontSize: 22 }} />
+              </Box>
+              <Typography variant="subtitle1" sx={{ color: "#f1f5f9", fontWeight: 600 }}>
                 Payroll Statistics
               </Typography>
             </Box>
-            <Typography variant="h4" sx={{ color: "#ffffff", mb: 1 }}>
+            <Typography variant="h4" sx={{ color: "#f1f5f9", fontWeight: 700, mb: 0.5 }}>
               ₹{payrollStats.totalPayroll.toLocaleString()}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="caption" sx={{ color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Total Gross Payroll
             </Typography>
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="body2" sx={{ color: "#ffffff" }}>
-                Net: ₹{payrollStats.totalNetPayroll.toLocaleString()}
+            <Box sx={{ mt: 2, pt: 1.5, borderTop: "1px solid rgba(255, 255, 255, 0.06)", display: "flex", gap: 2 }}>
+              <Typography variant="body2" sx={{ color: "#cbd5e1" }}>
+                Net: <strong style={{ color: "#34d399" }}>₹{payrollStats.totalNetPayroll.toLocaleString()}</strong>
               </Typography>
-              <Typography variant="body2" sx={{ color: "#ffffff" }}>
-                Tax: ₹{payrollStats.totalTax.toLocaleString()}
+              <Typography variant="body2" sx={{ color: "#cbd5e1" }}>
+                Tax: <strong style={{ color: "#fbbf24" }}>₹{payrollStats.totalTax.toLocaleString()}</strong>
               </Typography>
             </Box>
           </CardContent>
         </Card>
 
-        <Card sx={{ backgroundColor: "#2d2d2d" }}>
-          <CardContent>
-            <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-              <Schedule sx={{ color: "#ff9800", mr: 1 }} />
-              <Typography variant="h6" sx={{ color: "#ffffff" }}>
+        <Card
+          elevation={0}
+          sx={{
+            background:
+              "linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(245, 158, 11, 0.03) 100%)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(245, 158, 11, 0.22)",
+            borderRadius: "16px",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+            position: "relative",
+            overflow: "hidden",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            "&:hover": {
+              transform: "translateY(-3px)",
+              borderColor: "rgba(245, 158, 11, 0.4)",
+              boxShadow:
+                "0 14px 40px rgba(0, 0, 0, 0.35), 0 0 20px rgba(245, 158, 11, 0.2)",
+            },
+            "&::before": {
+              content: '""',
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "2px",
+              background:
+                "linear-gradient(90deg, transparent, #fbbf24, transparent)",
+            },
+          }}
+        >
+          <CardContent sx={{ p: 2.5 }}>
+            <Box sx={{ display: "flex", alignItems: "center", mb: 1.5 }}>
+              <Box
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: "12px",
+                  background: "rgba(245, 158, 11, 0.15)",
+                  border: "1px solid rgba(245, 158, 11, 0.25)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  mr: 1.5,
+                }}
+              >
+                <Schedule sx={{ color: "#fbbf24", fontSize: 22 }} />
+              </Box>
+              <Typography variant="subtitle1" sx={{ color: "#f1f5f9", fontWeight: 600 }}>
                 Attendance Statistics
               </Typography>
             </Box>
-            <Typography variant="h4" sx={{ color: "#ffffff", mb: 1 }}>
+            <Typography variant="h4" sx={{ color: "#f1f5f9", fontWeight: 700, mb: 0.5 }}>
               {attendanceStats.attendanceRate.toFixed(1)}%
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="caption" sx={{ color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Attendance Rate
             </Typography>
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="body2" sx={{ color: "#ffffff" }}>
-                Present: {attendanceStats.presentDays}
+            <Box sx={{ mt: 2, pt: 1.5, borderTop: "1px solid rgba(255, 255, 255, 0.06)", display: "flex", gap: 2 }}>
+              <Typography variant="body2" sx={{ color: "#cbd5e1" }}>
+                Present: <strong style={{ color: "#34d399" }}>{attendanceStats.presentDays}</strong>
               </Typography>
-              <Typography variant="body2" sx={{ color: "#ffffff" }}>
-                Absent: {attendanceStats.absentDays}
+              <Typography variant="body2" sx={{ color: "#cbd5e1" }}>
+                Absent: <strong style={{ color: "#f87171" }}>{attendanceStats.absentDays}</strong>
               </Typography>
             </Box>
           </CardContent>
@@ -526,56 +766,127 @@ export default function Reports() {
       </Box>
 
       {/* Tabs */}
-      <Card sx={{ backgroundColor: "#2d2d2d" }}>
-        <Box sx={{ borderBottom: 1, borderColor: "#333" }}>
+      <Card
+        elevation={0}
+        sx={{
+          background: "rgba(255, 255, 255, 0.03)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          borderRadius: "16px",
+          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+          overflow: "hidden",
+        }}
+      >
+        <Box
+          sx={{
+            p: 1.5,
+            borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
+            background: "rgba(255, 255, 255, 0.02)",
+          }}
+        >
           <Tabs
             value={tabValue}
             onChange={(e, newValue) => setTabValue(newValue)}
             sx={{
-              "& .MuiTab-root": { color: "#ffffff" },
-              "& .Mui-selected": { color: "#2196f3" },
+              minHeight: "unset",
+              "& .MuiTabs-flexContainer": {
+                gap: 1,
+                flexWrap: "wrap",
+              },
+              "& .MuiTabs-indicator": {
+                display: "none",
+              },
+              "& .MuiTab-root": {
+                minHeight: 40,
+                py: 1,
+                px: 2.5,
+                borderRadius: "12px",
+                color: "#94a3b8",
+                fontWeight: 500,
+                fontSize: "0.875rem",
+                textTransform: "none",
+                display: "flex",
+                flexDirection: "row",
+                gap: 1,
+                transition: "all 0.2s ease",
+                "&:hover": {
+                  color: "#f1f5f9",
+                  backgroundColor: "rgba(255, 255, 255, 0.05)",
+                },
+                "&.Mui-selected": {
+                  color: "#ffffff !important",
+                  fontWeight: 600,
+                  backgroundColor: "rgba(99, 102, 241, 0.2)",
+                  border: "1px solid rgba(99, 102, 241, 0.35)",
+                  boxShadow: "0 4px 16px rgba(99, 102, 241, 0.25)",
+                },
+              },
             }}
           >
-            <Tab label="Analytics" icon={<BarChart />} />
-            <Tab label="Employee Report" icon={<People />} />
-            <Tab label="Payroll Report" icon={<AttachMoney />} />
-            <Tab label="Attendance Report" icon={<Schedule />} />
+            <Tab label="Analytics" icon={<BarChart fontSize="small" />} />
+            <Tab label="Employee Report" icon={<People fontSize="small" />} />
+            <Tab label="Payroll Report" icon={<AttachMoney fontSize="small" />} />
+            <Tab label="Attendance Report" icon={<Schedule fontSize="small" />} />
           </Tabs>
         </Box>
 
         {/* Analytics Tab */}
         <TabPanel value={tabValue} index={0}>
-          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3 }}>
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 3 }}>
             {/* Payroll Chart */}
-            <Card sx={{ backgroundColor: "#3d3d3d" }}>
-              <CardContent>
-                <Typography variant="h6" sx={{ color: "#ffffff", mb: 2 }}>
+            <Card
+              elevation={0}
+              sx={{
+                background: "rgba(255, 255, 255, 0.02)",
+                backdropFilter: "blur(20px)",
+                WebkitBackdropFilter: "blur(20px)",
+                border: "1px solid rgba(255, 255, 255, 0.06)",
+                borderRadius: "14px",
+                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.2)",
+              }}
+            >
+              <CardContent sx={{ p: 2.5 }}>
+                <Typography variant="h6" sx={{ color: "#f1f5f9", fontWeight: 600, mb: 2 }}>
                   Monthly Payroll Trend
                 </Typography>
                 <ResponsiveContainer width="100%" height={300}>
                   <RechartsBarChart data={payrollChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#555" />
-                    <XAxis dataKey="month" stroke="#ffffff" />
-                    <YAxis stroke="#ffffff" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.08)" />
+                    <XAxis dataKey="month" stroke="#94a3b8" tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                    <YAxis stroke="#94a3b8" tick={{ fill: "#94a3b8", fontSize: 12 }} />
                     <RechartsTooltip
                       contentStyle={{
-                        backgroundColor: "#2d2d2d",
-                        border: "1px solid #333",
-                        color: "#ffffff",
+                        backgroundColor: "rgba(15, 23, 42, 0.95)",
+                        backdropFilter: "blur(20px)",
+                        border: "1px solid rgba(255, 255, 255, 0.1)",
+                        borderRadius: "10px",
+                        color: "#f1f5f9",
+                        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.5)",
                       }}
                     />
-                    <Legend />
-                    <Bar dataKey="gross" fill="#2196f3" name="Gross Salary" />
-                    <Bar dataKey="net" fill="#4caf50" name="Net Salary" />
+                    <Legend wrapperStyle={{ color: "#94a3b8" }} />
+                    <Bar dataKey="gross" fill="#6366f1" name="Gross Salary" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="net" fill="#10b981" name="Net Salary" radius={[4, 4, 0, 0]} />
                   </RechartsBarChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
 
             {/* Attendance Chart */}
-            <Card sx={{ backgroundColor: "#3d3d3d" }}>
-              <CardContent>
-                <Typography variant="h6" sx={{ color: "#ffffff", mb: 2 }}>
+            <Card
+              elevation={0}
+              sx={{
+                background: "rgba(255, 255, 255, 0.02)",
+                backdropFilter: "blur(20px)",
+                WebkitBackdropFilter: "blur(20px)",
+                border: "1px solid rgba(255, 255, 255, 0.06)",
+                borderRadius: "14px",
+                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.2)",
+              }}
+            >
+              <CardContent sx={{ p: 2.5 }}>
+                <Typography variant="h6" sx={{ color: "#f1f5f9", fontWeight: 600, mb: 2 }}>
                   Attendance Distribution
                 </Typography>
                 <ResponsiveContainer width="100%" height={300}>
@@ -588,7 +899,7 @@ export default function Reports() {
                       label={({ name, percent }) =>
                         `${name} ${percent ? (percent * 100).toFixed(0) : "0"}%`
                       }
-                      outerRadius={80}
+                      outerRadius={85}
                       fill="#8884d8"
                       dataKey="value"
                     >
@@ -601,9 +912,12 @@ export default function Reports() {
                     </Pie>
                     <RechartsTooltip
                       contentStyle={{
-                        backgroundColor: "#2d2d2d",
-                        border: "1px solid #333",
-                        color: "#ffffff",
+                        backgroundColor: "rgba(15, 23, 42, 0.95)",
+                        backdropFilter: "blur(20px)",
+                        border: "1px solid rgba(255, 255, 255, 0.1)",
+                        borderRadius: "10px",
+                        color: "#f1f5f9",
+                        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.5)",
                       }}
                     />
                   </RechartsPieChart>
@@ -615,25 +929,66 @@ export default function Reports() {
 
         {/* Employee Report Tab */}
         <TabPanel value={tabValue} index={1}>
-          <Box sx={{ mb: 2, display: "flex", gap: 2, alignItems: "center" }}>
+          <Box sx={{ mb: 2.5, display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
             <TextField
+              size="small"
               placeholder="Search employees..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               InputProps={{
                 startAdornment: (
-                  <Search sx={{ mr: 1, color: "text.secondary" }} />
+                  <Search sx={{ mr: 1, color: "#94a3b8" }} />
                 ),
               }}
-              sx={{ flex: 1 }}
+              sx={{
+                flex: 1,
+                minWidth: 240,
+                "& .MuiOutlinedInput-root": {
+                  backgroundColor: "rgba(255, 255, 255, 0.03)",
+                  backdropFilter: "blur(10px)",
+                  borderRadius: "12px",
+                  "& fieldset": {
+                    borderColor: "rgba(255, 255, 255, 0.1)",
+                  },
+                  "&:hover fieldset": {
+                    borderColor: "rgba(99, 102, 241, 0.4)",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: "#6366f1",
+                    boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.1)",
+                  },
+                },
+                "& .MuiInputBase-input": {
+                  color: "#f1f5f9",
+                },
+              }}
             />
             <Button
               variant="contained"
               startIcon={<GetApp />}
               onClick={exportEmployeeReport}
               sx={{
-                backgroundColor: "#4caf50",
-                "&:hover": { backgroundColor: "#388e3c" },
+                borderRadius: "12px",
+                px: 2.5,
+                py: 0.9,
+                fontWeight: 600,
+                textTransform: "none",
+                background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                color: "#ffffff",
+                boxShadow:
+                  "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+                  boxShadow:
+                    "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.2)",
+                  transform: "translateY(-1px)",
+                },
+                "&:active": {
+                  boxShadow:
+                    "2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)",
+                  transform: "translateY(0)",
+                },
+                transition: "all 0.2s ease",
               }}
             >
               Export Excel
@@ -642,26 +997,37 @@ export default function Reports() {
 
           <TableContainer
             component={Paper}
-            sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}
+            elevation={0}
+            sx={{
+              backgroundColor: "rgba(255, 255, 255, 0.02)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              border: "1px solid rgba(255, 255, 255, 0.06)",
+              borderRadius: "14px",
+              overflow: "hidden",
+            }}
           >
             <Table>
               <TableHead>
-                <TableRow sx={{ backgroundColor: "#1e1e1e" }}>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Employee ID
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Name
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Email
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Basic Salary
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Status
-                  </TableCell>
+                <TableRow
+                  sx={{
+                    "& .MuiTableCell-root": {
+                      backgroundColor: "rgba(255, 255, 255, 0.04)",
+                      borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                      color: "#94a3b8",
+                      fontWeight: 600,
+                      fontSize: "0.75rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      py: 1.5,
+                    },
+                  }}
+                >
+                  <TableCell>Employee ID</TableCell>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Email</TableCell>
+                  <TableCell>Basic Salary</TableCell>
+                  <TableCell>Status</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -679,27 +1045,39 @@ export default function Reports() {
                   .map((employee) => (
                     <TableRow
                       key={employee.id}
-                      sx={{ "&:hover": { backgroundColor: "#3d3d3d" } }}
+                      sx={{
+                        "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.04)" },
+                        "& .MuiTableCell-root": {
+                          borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
+                          color: "#f1f5f9",
+                        },
+                      }}
                     >
-                      <TableCell sx={{ color: "#ffffff" }}>
+                      <TableCell sx={{ fontWeight: 600, color: "#818cf8 !important" }}>
                         {employee.employeeId}
                       </TableCell>
-                      <TableCell sx={{ color: "#ffffff" }}>
-                        {employee.fullName}
-                      </TableCell>
-                      <TableCell sx={{ color: "#ffffff" }}>
-                        {employee.email}
-                      </TableCell>
-                      <TableCell sx={{ color: "#ffffff" }}>
-                        ₹{employee.salary?.basic || "0"}
-                      </TableCell>
-                      <TableCell sx={{ color: "#ffffff" }}>
+                      <TableCell>{employee.fullName}</TableCell>
+                      <TableCell sx={{ color: "#94a3b8 !important" }}>{employee.email}</TableCell>
+                      <TableCell>₹{employee.salary?.basic || "0"}</TableCell>
+                      <TableCell>
                         <Chip
                           label={employee.status || "active"}
-                          color={
-                            employee.status === "active" ? "success" : "default"
-                          }
                           size="small"
+                          sx={{
+                            backgroundColor:
+                              employee.status === "active"
+                                ? "rgba(16, 185, 129, 0.15)"
+                                : "rgba(255, 255, 255, 0.06)",
+                            color:
+                              employee.status === "active" ? "#34d399" : "#94a3b8",
+                            border: `1px solid ${
+                              employee.status === "active"
+                                ? "rgba(16, 185, 129, 0.3)"
+                                : "rgba(255, 255, 255, 0.1)"
+                            }`,
+                            fontWeight: 500,
+                            textTransform: "capitalize",
+                          }}
                         />
                       </TableCell>
                     </TableRow>
@@ -728,20 +1106,50 @@ export default function Reports() {
               setRowsPerPage(parseInt(event.target.value, 10));
               setPage(0);
             }}
-            sx={{ color: "#ffffff" }}
+            sx={{
+              color: "#94a3b8",
+              "& .MuiTablePagination-select": {
+                color: "#f1f5f9",
+              },
+              "& .MuiTablePagination-selectIcon": {
+                color: "#94a3b8",
+              },
+              "& .MuiTablePagination-actions button": {
+                color: "#f1f5f9",
+              },
+            }}
           />
         </TabPanel>
 
         {/* Payroll Report Tab */}
         <TabPanel value={tabValue} index={2}>
-          <Box sx={{ mb: 2, display: "flex", gap: 2, alignItems: "center" }}>
+          <Box sx={{ mb: 2.5, display: "flex", gap: 2, alignItems: "center" }}>
             <Button
               variant="contained"
               startIcon={<GetApp />}
               onClick={exportPayrollReport}
               sx={{
-                backgroundColor: "#4caf50",
-                "&:hover": { backgroundColor: "#388e3c" },
+                borderRadius: "12px",
+                px: 2.5,
+                py: 0.9,
+                fontWeight: 600,
+                textTransform: "none",
+                background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                color: "#ffffff",
+                boxShadow:
+                  "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+                  boxShadow:
+                    "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.2)",
+                  transform: "translateY(-1px)",
+                },
+                "&:active": {
+                  boxShadow:
+                    "2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)",
+                  transform: "translateY(0)",
+                },
+                transition: "all 0.2s ease",
               }}
             >
               Export Excel
@@ -750,29 +1158,38 @@ export default function Reports() {
 
           <TableContainer
             component={Paper}
-            sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}
+            elevation={0}
+            sx={{
+              backgroundColor: "rgba(255, 255, 255, 0.02)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              border: "1px solid rgba(255, 255, 255, 0.06)",
+              borderRadius: "14px",
+              overflow: "hidden",
+            }}
           >
             <Table>
               <TableHead>
-                <TableRow sx={{ backgroundColor: "#1e1e1e" }}>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Employee
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Month
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Gross Salary
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Net Salary
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Tax
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Status
-                  </TableCell>
+                <TableRow
+                  sx={{
+                    "& .MuiTableCell-root": {
+                      backgroundColor: "rgba(255, 255, 255, 0.04)",
+                      borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                      color: "#94a3b8",
+                      fontWeight: 600,
+                      fontSize: "0.75rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      py: 1.5,
+                    },
+                  }}
+                >
+                  <TableCell>Employee</TableCell>
+                  <TableCell>Month</TableCell>
+                  <TableCell>Gross Salary</TableCell>
+                  <TableCell>Net Salary</TableCell>
+                  <TableCell>Tax</TableCell>
+                  <TableCell>Status</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -785,35 +1202,57 @@ export default function Reports() {
                   return (
                     <TableRow
                       key={payroll.id}
-                      sx={{ "&:hover": { backgroundColor: "#3d3d3d" } }}
+                      sx={{
+                        "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.04)" },
+                        "& .MuiTableCell-root": {
+                          borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
+                          color: "#f1f5f9",
+                        },
+                      }}
                     >
-                      <TableCell sx={{ color: "#ffffff" }}>
+                      <TableCell sx={{ fontWeight: 600 }}>
                         {employee?.fullName || "Unknown"}
                       </TableCell>
-                      <TableCell sx={{ color: "#ffffff" }}>
+                      <TableCell sx={{ color: "#94a3b8 !important" }}>
                         {months.find((m) => m.value === payroll.month)?.label}{" "}
                         {payroll.year}
                       </TableCell>
-                      <TableCell sx={{ color: "#ffffff" }}>
+                      <TableCell>
                         ₹{payroll.grossSalary.toLocaleString()}
                       </TableCell>
-                      <TableCell sx={{ color: "#ffffff" }}>
+                      <TableCell sx={{ color: "#34d399 !important", fontWeight: 600 }}>
                         ₹{payroll.netSalary.toLocaleString()}
                       </TableCell>
-                      <TableCell sx={{ color: "#ffffff" }}>
+                      <TableCell sx={{ color: "#fbbf24 !important" }}>
                         ₹{payroll.taxAmount.toLocaleString()}
                       </TableCell>
-                      <TableCell sx={{ color: "#ffffff" }}>
+                      <TableCell>
                         <Chip
                           label={payroll.status}
-                          color={
-                            payroll.status === "paid"
-                              ? "success"
-                              : payroll.status === "approved"
-                                ? "warning"
-                                : "default"
-                          }
                           size="small"
+                          sx={{
+                            backgroundColor:
+                              payroll.status === "paid"
+                                ? "rgba(16, 185, 129, 0.15)"
+                                : payroll.status === "approved"
+                                  ? "rgba(245, 158, 11, 0.15)"
+                                  : "rgba(255, 255, 255, 0.06)",
+                            color:
+                              payroll.status === "paid"
+                                ? "#34d399"
+                                : payroll.status === "approved"
+                                  ? "#fbbf24"
+                                  : "#94a3b8",
+                            border: `1px solid ${
+                              payroll.status === "paid"
+                                ? "rgba(16, 185, 129, 0.3)"
+                                : payroll.status === "approved"
+                                  ? "rgba(245, 158, 11, 0.3)"
+                                  : "rgba(255, 255, 255, 0.1)"
+                            }`,
+                            fontWeight: 500,
+                            textTransform: "capitalize",
+                          }}
                         />
                       </TableCell>
                     </TableRow>
@@ -826,14 +1265,33 @@ export default function Reports() {
 
         {/* Attendance Report Tab */}
         <TabPanel value={tabValue} index={3}>
-          <Box sx={{ mb: 2, display: "flex", gap: 2, alignItems: "center" }}>
+          <Box sx={{ mb: 2.5, display: "flex", gap: 2, alignItems: "center" }}>
             <Button
               variant="contained"
               startIcon={<GetApp />}
               onClick={exportAttendanceReport}
               sx={{
-                backgroundColor: "#4caf50",
-                "&:hover": { backgroundColor: "#388e3c" },
+                borderRadius: "12px",
+                px: 2.5,
+                py: 0.9,
+                fontWeight: 600,
+                textTransform: "none",
+                background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                color: "#ffffff",
+                boxShadow:
+                  "6px 6px 12px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.15)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+                  boxShadow:
+                    "4px 4px 8px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.2)",
+                  transform: "translateY(-1px)",
+                },
+                "&:active": {
+                  boxShadow:
+                    "2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)",
+                  transform: "translateY(0)",
+                },
+                transition: "all 0.2s ease",
               }}
             >
               Export Excel
@@ -842,26 +1300,37 @@ export default function Reports() {
 
           <TableContainer
             component={Paper}
-            sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}
+            elevation={0}
+            sx={{
+              backgroundColor: "rgba(255, 255, 255, 0.02)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              border: "1px solid rgba(255, 255, 255, 0.06)",
+              borderRadius: "14px",
+              overflow: "hidden",
+            }}
           >
             <Table>
               <TableHead>
-                <TableRow sx={{ backgroundColor: "#1e1e1e" }}>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Employee
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Date
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Status
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Check In
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: "#ffffff" }}>
-                    Check Out
-                  </TableCell>
+                <TableRow
+                  sx={{
+                    "& .MuiTableCell-root": {
+                      backgroundColor: "rgba(255, 255, 255, 0.04)",
+                      borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                      color: "#94a3b8",
+                      fontWeight: 600,
+                      fontSize: "0.75rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      py: 1.5,
+                    },
+                  }}
+                >
+                  <TableCell>Employee</TableCell>
+                  <TableCell>Date</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Check In</TableCell>
+                  <TableCell>Check Out</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -874,39 +1343,61 @@ export default function Reports() {
                   return (
                     <TableRow
                       key={record.id}
-                      sx={{ "&:hover": { backgroundColor: "#3d3d3d" } }}
+                      sx={{
+                        "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.04)" },
+                        "& .MuiTableCell-root": {
+                          borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
+                          color: "#f1f5f9",
+                        },
+                      }}
                     >
-                      <TableCell sx={{ color: "#ffffff" }}>
+                      <TableCell sx={{ fontWeight: 600 }}>
                         {employee?.fullName || "Unknown"}
                       </TableCell>
-                      <TableCell sx={{ color: "#ffffff" }}>
+                      <TableCell sx={{ color: "#94a3b8 !important" }}>
                         {record.date instanceof Date
                           ? record.date.toLocaleDateString()
                           : (record.date as any)
                               ?.toDate?.()
                               ?.toLocaleDateString() || "Unknown"}
                       </TableCell>
-                      <TableCell sx={{ color: "#ffffff" }}>
+                      <TableCell>
                         <Chip
                           label={record.status}
-                          color={
-                            record.status === "present"
-                              ? "success"
-                              : record.status === "absent"
-                                ? "error"
-                                : "warning"
-                          }
                           size="small"
+                          sx={{
+                            backgroundColor:
+                              record.status === "present"
+                                ? "rgba(16, 185, 129, 0.15)"
+                                : record.status === "absent"
+                                  ? "rgba(239, 68, 68, 0.15)"
+                                  : "rgba(245, 158, 11, 0.15)",
+                            color:
+                              record.status === "present"
+                                ? "#34d399"
+                                : record.status === "absent"
+                                  ? "#f87171"
+                                  : "#fbbf24",
+                            border: `1px solid ${
+                              record.status === "present"
+                                ? "rgba(16, 185, 129, 0.3)"
+                                : record.status === "absent"
+                                  ? "rgba(239, 68, 68, 0.3)"
+                                  : "rgba(245, 158, 11, 0.3)"
+                            }`,
+                            fontWeight: 500,
+                            textTransform: "capitalize",
+                          }}
                         />
                       </TableCell>
-                      <TableCell sx={{ color: "#ffffff" }}>
+                      <TableCell sx={{ color: "#94a3b8 !important" }}>
                         {record.checkIn instanceof Date
                           ? record.checkIn.toLocaleTimeString()
                           : (record.checkIn as any)
                               ?.toDate?.()
                               ?.toLocaleTimeString() || "N/A"}
                       </TableCell>
-                      <TableCell sx={{ color: "#ffffff" }}>
+                      <TableCell sx={{ color: "#94a3b8 !important" }}>
                         {record.checkOut instanceof Date
                           ? record.checkOut.toLocaleTimeString()
                           : (record.checkOut as any)

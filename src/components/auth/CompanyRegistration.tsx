@@ -17,14 +17,12 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Avatar,
-  Chip,
   Grid,
   Card,
   CardContent,
   Divider,
 } from '@mui/material';
-import { Visibility, VisibilityOff, Business, ContentCopy, CheckCircle } from '@mui/icons-material';
+import { Visibility, VisibilityOff, Business, ContentCopy, CheckCircle, LocationOn, AdminPanelSettings } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
@@ -79,6 +77,38 @@ const industryTypes = [
   'Other',
 ];
 
+const glassInputSx = {
+  '& .MuiOutlinedInput-root': {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    backdropFilter: 'blur(10px)',
+    borderRadius: '12px',
+    color: '#f1f5f9',
+    transition: 'all 0.2s ease',
+    '& fieldset': {
+      borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    '&:hover fieldset': {
+      borderColor: 'rgba(99, 102, 241, 0.3)',
+    },
+    '&.Mui-focused fieldset': {
+      borderColor: '#6366f1',
+      boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.1)',
+    },
+    '& .MuiInputBase-input': {
+      color: '#f1f5f9',
+    },
+  },
+  '& .MuiInputLabel-root': {
+    color: '#94a3b8',
+    '&.Mui-focused': {
+      color: '#a5b4fc',
+    },
+  },
+  '& .MuiFormHelperText-root': {
+    color: '#ef4444',
+  },
+};
+
 export default function CompanyRegistration() {
   // Suppress MUI controlled/uncontrolled Select warnings
   React.useEffect(() => {
@@ -124,8 +154,6 @@ export default function CompanyRegistration() {
       buildingBlock: '',
     },
   });
-
-
 
   const generateAdminId = () => {
     const timestamp = Date.now().toString().slice(-6);
@@ -207,8 +235,6 @@ export default function CompanyRegistration() {
     }
   };
 
-
-
   const handleCopyAdminId = () => {
     navigator.clipboard.writeText(generatedAdminId);
   };
@@ -219,8 +245,7 @@ export default function CompanyRegistration() {
       <Container component="main" maxWidth="md">
         <Box
           sx={{
-            marginTop: 8,
-            marginBottom: 8,
+            py: { xs: 4, sm: 8 },
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -229,75 +254,85 @@ export default function CompanyRegistration() {
           }}
         >
           <Paper
-            elevation={12}
+            elevation={0}
             sx={{
-              padding: { xs: 4, md: 6 },
+              padding: { xs: 3.5, sm: 5, md: 6 },
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               width: '100%',
-              backgroundColor: '#1a1a1a',
-              border: '1px solid #333',
+              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
               borderRadius: 4,
-              boxShadow: '0 16px 48px rgba(0, 0, 0, 0.6)',
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
             }}
           >
             <Box
               sx={{
-                width: 100,
-                height: 100,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)',
+                width: 90,
+                height: 90,
+                borderRadius: '24px',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 mb: 3,
-                boxShadow: '0 8px 24px rgba(76, 175, 80, 0.4)',
+                boxShadow: '0 12px 32px rgba(16, 185, 129, 0.35)',
               }}
             >
-              <CheckCircle sx={{ color: '#ffffff', fontSize: 60 }} />
+              <CheckCircle sx={{ color: '#ffffff', fontSize: 52 }} />
             </Box>
 
             <Typography
               variant="h3"
               sx={{
-                color: '#ffffff',
+                color: '#f1f5f9',
                 fontWeight: 800,
-                mb: 2,
+                fontSize: { xs: '1.75rem', sm: '2.25rem' },
+                letterSpacing: '-0.02em',
+                mb: 1.5,
                 textAlign: 'center',
+                background: 'linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
               }}
             >
               Registration Successful!
             </Typography>
 
             <Typography
-              variant="h6"
+              variant="body1"
               sx={{
-                color: '#b0b0b0',
+                color: '#94a3b8',
                 mb: 4,
                 textAlign: 'center',
+                fontSize: '1.05rem',
               }}
             >
               Your company has been registered successfully
             </Typography>
 
-            <Divider sx={{ width: '100%', mb: 4, borderColor: '#333' }} />
+            <Divider sx={{ width: '100%', mb: 4, borderColor: 'rgba(255, 255, 255, 0.08)' }} />
 
             <Card
               sx={{
                 width: '100%',
                 mb: 4,
-                backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                border: '2px solid #4caf50',
+                backgroundColor: 'rgba(16, 185, 129, 0.06)',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
                 borderRadius: 3,
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
               }}
             >
               <CardContent sx={{ textAlign: 'center', py: 4 }}>
                 <Typography
                   variant="h6"
                   sx={{
-                    color: '#ffffff',
-                    mb: 2,
+                    color: '#f1f5f9',
+                    mb: 1,
                     fontWeight: 600,
                   }}
                 >
@@ -306,7 +341,7 @@ export default function CompanyRegistration() {
                 <Typography
                   variant="body2"
                   sx={{
-                    color: '#b0b0b0',
+                    color: '#94a3b8',
                     mb: 3,
                   }}
                 >
@@ -318,19 +353,21 @@ export default function CompanyRegistration() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 2,
-                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                    padding: 3,
-                    borderRadius: 2,
-                    border: '1px solid #444',
+                    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+                    padding: 2.5,
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    backdropFilter: 'blur(10px)',
                   }}
                 >
                   <Typography
                     variant="h4"
                     sx={{
-                      color: '#4caf50',
+                      color: '#10b981',
                       fontWeight: 700,
                       letterSpacing: '2px',
                       fontFamily: 'monospace',
+                      fontSize: { xs: '1.5rem', sm: '2rem' },
                     }}
                   >
                     {generatedAdminId}
@@ -338,11 +375,15 @@ export default function CompanyRegistration() {
                   <IconButton
                     onClick={handleCopyAdminId}
                     sx={{
-                      color: '#4caf50',
+                      color: '#10b981',
+                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
                       '&:hover': {
-                        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        transform: 'scale(1.05)',
                       },
+                      transition: 'all 0.2s ease',
                     }}
+                    title="Copy Admin ID"
                   >
                     <ContentCopy />
                   </IconButton>
@@ -356,17 +397,19 @@ export default function CompanyRegistration() {
                 width: '100%',
                 mb: 4,
                 borderRadius: 3,
-                border: '1px solid #ff9800',
-                backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                backdropFilter: 'blur(10px)',
+                color: '#f1f5f9',
                 '& .MuiAlert-icon': {
-                  color: '#ff9800',
+                  color: '#f59e0b',
                 },
               }}
             >
               <Typography variant="body1" sx={{ fontWeight: 600 }}>
                 Important: Save this Admin ID!
               </Typography>
-              <Typography variant="body2" sx={{ mt: 1 }}>
+              <Typography variant="body2" sx={{ mt: 0.5, color: '#94a3b8' }}>
                 You will need this ID along with your email and password to log in. Store it in a safe place.
               </Typography>
             </Alert>
@@ -376,19 +419,24 @@ export default function CompanyRegistration() {
               variant="contained"
               onClick={() => router.replace('/login')}
               sx={{
-                py: 2,
-                borderRadius: 4,
-                fontSize: '1.1rem',
-                fontWeight: 700,
-                background: 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)',
-                boxShadow: '0 8px 24px rgba(76, 175, 80, 0.4)',
+                py: 1.8,
+                borderRadius: '12px',
+                fontSize: '1rem',
+                fontWeight: 600,
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                boxShadow: '6px 6px 16px rgba(0, 0, 0, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.15)',
                 textTransform: 'none',
+                letterSpacing: '0.3px',
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #45a049 0%, #388e3c 100%)',
-                  boxShadow: '0 12px 32px rgba(76, 175, 80, 0.6)',
-                  transform: 'translateY(-2px)',
+                  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                  boxShadow: '4px 4px 10px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.2)',
+                  transform: 'translateY(-1px)',
                 },
-                transition: 'all 0.3s ease-in-out',
+                '&:active': {
+                  boxShadow: '2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)',
+                  transform: 'translateY(0)',
+                },
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
               }}
             >
               Proceed to Login
@@ -403,8 +451,7 @@ export default function CompanyRegistration() {
     <Container component="main" maxWidth="lg">
       <Box
         sx={{
-          marginTop: 6,
-          marginBottom: 6,
+          py: { xs: 4, sm: 6 },
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -412,18 +459,19 @@ export default function CompanyRegistration() {
         }}
       >
         <Paper
-          elevation={12}
+          elevation={0}
           sx={{
-            padding: { xs: 3, md: 6 },
+            padding: { xs: 3, sm: 5, md: 6 },
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             width: '100%',
-            backgroundColor: '#1a1a1a',
-            border: '1px solid #333',
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
             borderRadius: 4,
-            boxShadow: '0 16px 48px rgba(0, 0, 0, 0.6)',
-            backdropFilter: 'blur(10px)',
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
           }}
         >
           <Box
@@ -438,27 +486,14 @@ export default function CompanyRegistration() {
           >
             <Box
               sx={{
-                width: 80,
-                height: 80,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)',
+                width: 72,
+                height: 72,
+                borderRadius: '20px',
+                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 8px 24px rgba(76, 175, 80, 0.4)',
-                position: 'relative',
-                '&::before': {
-                  content: '""',
-                  position: 'absolute',
-                  top: -2,
-                  left: -2,
-                  right: -2,
-                  bottom: -2,
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #4caf50, #45a049, #4caf50)',
-                  zIndex: -1,
-                  opacity: 0.3,
-                },
+                boxShadow: '0 10px 25px rgba(99, 102, 241, 0.35)',
               }}
             >
               <Business sx={{ color: '#ffffff', fontSize: 36 }} />
@@ -469,22 +504,21 @@ export default function CompanyRegistration() {
                 variant="h3"
                 sx={{
                   fontWeight: 800,
-                  color: '#ffffff',
-                  mb: 1,
-                  background: 'linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%)',
-                  backgroundClip: 'text',
+                  fontSize: { xs: '1.75rem', sm: '2.25rem' },
+                  letterSpacing: '-0.02em',
+                  background: 'linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
+                  mb: 0.5,
                 }}
               >
                 Register Your Company
               </Typography>
               <Typography
-                variant="h6"
+                variant="body1"
                 sx={{
-                  color: '#b0b0b0',
+                  color: '#94a3b8',
                   fontWeight: 400,
-                  letterSpacing: '0.5px',
                 }}
               >
                 Set up your company account and start managing your team
@@ -498,11 +532,13 @@ export default function CompanyRegistration() {
               sx={{
                 width: '100%',
                 mb: 4,
-                borderRadius: 3,
-                border: '1px solid #f44336',
-                backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                borderRadius: 2.5,
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                backdropFilter: 'blur(10px)',
+                color: '#f1f5f9',
                 '& .MuiAlert-icon': {
-                  color: '#f44336',
+                  color: '#ef4444',
                 },
               }}
             >
@@ -516,11 +552,13 @@ export default function CompanyRegistration() {
               sx={{
                 width: '100%',
                 mb: 4,
-                borderRadius: 3,
-                border: '1px solid #4caf50',
-                backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                borderRadius: 2.5,
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                backdropFilter: 'blur(10px)',
+                color: '#f1f5f9',
                 '& .MuiAlert-icon': {
-                  color: '#4caf50',
+                  color: '#10b981',
                 },
               }}
             >
@@ -534,35 +572,37 @@ export default function CompanyRegistration() {
               {/* @ts-ignore */}
               <Grid item xs={12}>
                 <Box sx={{
-                  mb: 4,
+                  mb: 3,
                   pb: 2,
-                  borderBottom: '2px solid #333',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
                   position: 'relative',
                   '&::after': {
                     content: '""',
                     position: 'absolute',
-                    bottom: -2,
+                    bottom: -1,
                     left: 0,
                     width: '60px',
                     height: '2px',
-                    backgroundColor: '#4caf50',
+                    background: 'linear-gradient(90deg, #6366f1, #8b5cf6)',
+                    borderRadius: '2px',
                   }
                 }}>
                   <Typography
                     variant="h5"
                     sx={{
-                      color: '#ffffff',
+                      color: '#f1f5f9',
                       fontWeight: 700,
-                      letterSpacing: '0.5px',
+                      letterSpacing: '-0.01em',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 1,
+                      gap: 1.25,
+                      fontSize: { xs: '1.25rem', sm: '1.4rem' },
                     }}
                   >
-                    <Business sx={{ color: '#4caf50', fontSize: 28 }} />
+                    <Business sx={{ color: '#6366f1', fontSize: 26 }} />
                     Company Information
                   </Typography>
-                  <Typography variant="body2" sx={{ color: '#b0b0b0', mt: 1 }}>
+                  <Typography variant="body2" sx={{ color: '#94a3b8', mt: 0.5 }}>
                     Provide your company details to set up your account
                   </Typography>
                 </Box>
@@ -581,36 +621,7 @@ export default function CompanyRegistration() {
                       label="Company Name"
                       error={!!errors.companyName}
                       helperText={errors.companyName?.message}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 3,
-                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                          transition: 'all 0.3s ease',
-                          '& fieldset': {
-                            borderColor: '#444',
-                            borderWidth: '2px',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#666',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#4caf50',
-                            borderWidth: '2px',
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: '#b0b0b0',
-                            fontWeight: 500,
-                          },
-                          '& .MuiInputBase-input': {
-                            color: '#ffffff',
-                            fontWeight: 500,
-                          },
-                        },
-                        '& .MuiFormHelperText-root': {
-                          color: errors.companyName ? '#f44336' : '#b0b0b0',
-                          fontWeight: 500,
-                        },
-                      }}
+                      sx={glassInputSx}
                     />
                   )}
                 />
@@ -630,36 +641,7 @@ export default function CompanyRegistration() {
                       type="email"
                       error={!!errors.companyEmail}
                       helperText={errors.companyEmail?.message}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 3,
-                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                          transition: 'all 0.3s ease',
-                          '& fieldset': {
-                            borderColor: '#444',
-                            borderWidth: '2px',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#666',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#4caf50',
-                            borderWidth: '2px',
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: '#b0b0b0',
-                            fontWeight: 500,
-                          },
-                          '& .MuiInputBase-input': {
-                            color: '#ffffff',
-                            fontWeight: 500,
-                          },
-                        },
-                        '& .MuiFormHelperText-root': {
-                          color: errors.companyEmail ? '#f44336' : '#b0b0b0',
-                          fontWeight: 500,
-                        },
-                      }}
+                      sx={glassInputSx}
                     />
                   )}
                 />
@@ -671,34 +653,58 @@ export default function CompanyRegistration() {
                   name="industryType"
                   control={control}
                   render={({ field }) => (
-                    <FormControl fullWidth>
-                      <InputLabel sx={{ color: '#b0b0b0', fontWeight: 500 }}>Industry Type *</InputLabel>
+                    <FormControl fullWidth error={!!errors.industryType}>
+                      <InputLabel sx={{ color: '#94a3b8', '&.Mui-focused': { color: '#a5b4fc' } }}>Industry Type *</InputLabel>
                       <Select
                         {...field}
                         label="Industry Type *"
-                        error={!!errors.industryType}
                         sx={{
-                          borderRadius: 3,
-                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                          transition: 'all 0.3s ease',
-                          minWidth: '200px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                          backdropFilter: 'blur(10px)',
+                          borderRadius: '12px',
+                          color: '#f1f5f9',
+                          transition: 'all 0.2s ease',
                           '& .MuiOutlinedInput-notchedOutline': {
-                            borderColor: '#444',
-                            borderWidth: '2px',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
                           },
                           '&:hover .MuiOutlinedInput-notchedOutline': {
-                            borderColor: '#666',
+                            borderColor: 'rgba(99, 102, 241, 0.3)',
                           },
                           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                            borderColor: '#4caf50',
-                            borderWidth: '2px',
+                            borderColor: '#6366f1',
+                            boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.1)',
                           },
                           '& .MuiSelect-select': {
-                            color: '#ffffff',
-                            fontWeight: 500,
+                            color: '#f1f5f9',
                           },
                           '& .MuiSvgIcon-root': {
-                            color: '#b0b0b0',
+                            color: '#94a3b8',
+                          },
+                        }}
+                        MenuProps={{
+                          PaperProps: {
+                            sx: {
+                              backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                              backdropFilter: 'blur(20px)',
+                              border: '1px solid rgba(255, 255, 255, 0.08)',
+                              borderRadius: 3,
+                              boxShadow: '0 16px 36px rgba(0, 0, 0, 0.5)',
+                              color: '#f1f5f9',
+                              '& .MuiMenuItem-root': {
+                                color: '#f1f5f9',
+                                '&:hover': {
+                                  backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                                },
+                                '&.Mui-selected': {
+                                  backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                                  color: '#a5b4fc',
+                                  fontWeight: 600,
+                                  '&:hover': {
+                                    backgroundColor: 'rgba(99, 102, 241, 0.28)',
+                                  },
+                                },
+                              },
+                            },
                           },
                         }}
                       >
@@ -712,7 +718,7 @@ export default function CompanyRegistration() {
                         ))}
                       </Select>
                       {errors.industryType && (
-                        <Typography variant="caption" sx={{ color: '#f44336', mt: 1, ml: 2 }}>
+                        <Typography variant="caption" sx={{ color: '#ef4444', mt: 0.5, ml: 1.75 }}>
                           {errors.industryType.message}
                         </Typography>
                       )}
@@ -725,35 +731,38 @@ export default function CompanyRegistration() {
               {/* @ts-ignore */}
               <Grid item xs={12}>
                 <Box sx={{
-                  mb: 4,
+                  mt: 2,
+                  mb: 3,
                   pb: 2,
-                  borderBottom: '2px solid #333',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
                   position: 'relative',
                   '&::after': {
                     content: '""',
                     position: 'absolute',
-                    bottom: -2,
+                    bottom: -1,
                     left: 0,
                     width: '60px',
                     height: '2px',
-                    backgroundColor: '#4caf50',
+                    background: 'linear-gradient(90deg, #6366f1, #8b5cf6)',
+                    borderRadius: '2px',
                   }
                 }}>
                   <Typography
                     variant="h5"
                     sx={{
-                      color: '#ffffff',
+                      color: '#f1f5f9',
                       fontWeight: 700,
-                      letterSpacing: '0.5px',
+                      letterSpacing: '-0.01em',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 1,
+                      gap: 1.25,
+                      fontSize: { xs: '1.25rem', sm: '1.4rem' },
                     }}
                   >
-                    <Business sx={{ color: '#4caf50', fontSize: 28 }} />
+                    <LocationOn sx={{ color: '#6366f1', fontSize: 26 }} />
                     Company Address
                   </Typography>
-                  <Typography variant="body2" sx={{ color: '#b0b0b0', mt: 1 }}>
+                  <Typography variant="body2" sx={{ color: '#94a3b8', mt: 0.5 }}>
                     Provide your company's physical address
                   </Typography>
                 </Box>
@@ -772,36 +781,7 @@ export default function CompanyRegistration() {
                       label="Street Address"
                       error={!!errors.street}
                       helperText={errors.street?.message}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 3,
-                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                          transition: 'all 0.3s ease',
-                          '& fieldset': {
-                            borderColor: '#444',
-                            borderWidth: '2px',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#666',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#4caf50',
-                            borderWidth: '2px',
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: '#b0b0b0',
-                            fontWeight: 500,
-                          },
-                          '& .MuiInputBase-input': {
-                            color: '#ffffff',
-                            fontWeight: 500,
-                          },
-                        },
-                        '& .MuiFormHelperText-root': {
-                          color: errors.street ? '#f44336' : '#b0b0b0',
-                          fontWeight: 500,
-                        },
-                      }}
+                      sx={glassInputSx}
                     />
                   )}
                 />
@@ -819,36 +799,7 @@ export default function CompanyRegistration() {
                       label="Building/Block No. (Optional)"
                       error={!!errors.buildingBlock}
                       helperText={errors.buildingBlock?.message}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 3,
-                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                          transition: 'all 0.3s ease',
-                          '& fieldset': {
-                            borderColor: '#444',
-                            borderWidth: '2px',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#666',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#4caf50',
-                            borderWidth: '2px',
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: '#b0b0b0',
-                            fontWeight: 500,
-                          },
-                          '& .MuiInputBase-input': {
-                            color: '#ffffff',
-                            fontWeight: 500,
-                          },
-                        },
-                        '& .MuiFormHelperText-root': {
-                          color: errors.buildingBlock ? '#f44336' : '#b0b0b0',
-                          fontWeight: 500,
-                        },
-                      }}
+                      sx={glassInputSx}
                     />
                   )}
                 />
@@ -867,36 +818,7 @@ export default function CompanyRegistration() {
                       label="City"
                       error={!!errors.city}
                       helperText={errors.city?.message}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 3,
-                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                          transition: 'all 0.3s ease',
-                          '& fieldset': {
-                            borderColor: '#444',
-                            borderWidth: '2px',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#666',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#4caf50',
-                            borderWidth: '2px',
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: '#b0b0b0',
-                            fontWeight: 500,
-                          },
-                          '& .MuiInputBase-input': {
-                            color: '#ffffff',
-                            fontWeight: 500,
-                          },
-                        },
-                        '& .MuiFormHelperText-root': {
-                          color: errors.city ? '#f44336' : '#b0b0b0',
-                          fontWeight: 500,
-                        },
-                      }}
+                      sx={glassInputSx}
                     />
                   )}
                 />
@@ -915,36 +837,7 @@ export default function CompanyRegistration() {
                       label="State"
                       error={!!errors.state}
                       helperText={errors.state?.message}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 3,
-                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                          transition: 'all 0.3s ease',
-                          '& fieldset': {
-                            borderColor: '#444',
-                            borderWidth: '2px',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#666',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#4caf50',
-                            borderWidth: '2px',
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: '#b0b0b0',
-                            fontWeight: 500,
-                          },
-                          '& .MuiInputBase-input': {
-                            color: '#ffffff',
-                            fontWeight: 500,
-                          },
-                        },
-                        '& .MuiFormHelperText-root': {
-                          color: errors.state ? '#f44336' : '#b0b0b0',
-                          fontWeight: 500,
-                        },
-                      }}
+                      sx={glassInputSx}
                     />
                   )}
                 />
@@ -963,76 +856,48 @@ export default function CompanyRegistration() {
                       label="Pin Code"
                       error={!!errors.pinCode}
                       helperText={errors.pinCode?.message}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 3,
-                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                          transition: 'all 0.3s ease',
-                          '& fieldset': {
-                            borderColor: '#444',
-                            borderWidth: '2px',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#666',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#4caf50',
-                            borderWidth: '2px',
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: '#b0b0b0',
-                            fontWeight: 500,
-                          },
-                          '& .MuiInputBase-input': {
-                            color: '#ffffff',
-                            fontWeight: 500,
-                          },
-                        },
-                        '& .MuiFormHelperText-root': {
-                          color: errors.pinCode ? '#f44336' : '#b0b0b0',
-                          fontWeight: 500,
-                        },
-                      }}
+                      sx={glassInputSx}
                     />
                   )}
                 />
               </Grid>
 
-
-
               {/* Admin Account */}
               {/* @ts-ignore */}
               <Grid item xs={12}>
                 <Box sx={{
-                  mb: 4,
+                  mt: 2,
+                  mb: 3,
                   pb: 2,
-                  borderBottom: '2px solid #333',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
                   position: 'relative',
                   '&::after': {
                     content: '""',
                     position: 'absolute',
-                    bottom: -2,
+                    bottom: -1,
                     left: 0,
                     width: '60px',
                     height: '2px',
-                    backgroundColor: '#4caf50',
+                    background: 'linear-gradient(90deg, #6366f1, #8b5cf6)',
+                    borderRadius: '2px',
                   }
                 }}>
                   <Typography
                     variant="h5"
                     sx={{
-                      color: '#ffffff',
+                      color: '#f1f5f9',
                       fontWeight: 700,
-                      letterSpacing: '0.5px',
+                      letterSpacing: '-0.01em',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 1,
+                      gap: 1.25,
+                      fontSize: { xs: '1.25rem', sm: '1.4rem' },
                     }}
                   >
-                    <Business sx={{ color: '#4caf50', fontSize: 28 }} />
+                    <AdminPanelSettings sx={{ color: '#6366f1', fontSize: 26 }} />
                     Admin Account Setup
                   </Typography>
-                  <Typography variant="body2" sx={{ color: '#b0b0b0', mt: 1 }}>
+                  <Typography variant="body2" sx={{ color: '#94a3b8', mt: 0.5 }}>
                     Create your admin account to manage your company
                   </Typography>
                 </Box>
@@ -1051,36 +916,7 @@ export default function CompanyRegistration() {
                       label="Admin Name"
                       error={!!errors.adminName}
                       helperText={errors.adminName?.message}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 3,
-                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                          transition: 'all 0.3s ease',
-                          '& fieldset': {
-                            borderColor: '#444',
-                            borderWidth: '2px',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#666',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#4caf50',
-                            borderWidth: '2px',
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: '#b0b0b0',
-                            fontWeight: 500,
-                          },
-                          '& .MuiInputBase-input': {
-                            color: '#ffffff',
-                            fontWeight: 500,
-                          },
-                        },
-                        '& .MuiFormHelperText-root': {
-                          color: errors.adminName ? '#f44336' : '#b0b0b0',
-                          fontWeight: 500,
-                        },
-                      }}
+                      sx={glassInputSx}
                     />
                   )}
                 />
@@ -1099,36 +935,7 @@ export default function CompanyRegistration() {
                       label="Admin Mobile Number"
                       error={!!errors.adminMobile}
                       helperText={errors.adminMobile?.message}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 3,
-                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                          transition: 'all 0.3s ease',
-                          '& fieldset': {
-                            borderColor: '#444',
-                            borderWidth: '2px',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#666',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#4caf50',
-                            borderWidth: '2px',
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: '#b0b0b0',
-                            fontWeight: 500,
-                          },
-                          '& .MuiInputBase-input': {
-                            color: '#ffffff',
-                            fontWeight: 500,
-                          },
-                        },
-                        '& .MuiFormHelperText-root': {
-                          color: errors.adminMobile ? '#f44336' : '#b0b0b0',
-                          fontWeight: 500,
-                        },
-                      }}
+                      sx={glassInputSx}
                     />
                   )}
                 />
@@ -1155,9 +962,10 @@ export default function CompanyRegistration() {
                               onClick={() => setShowPassword(!showPassword)}
                               edge="end"
                               sx={{
-                                color: '#b0b0b0',
+                                color: '#94a3b8',
                                 '&:hover': {
-                                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                  backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                  color: '#e0e7ff',
                                 },
                               }}
                             >
@@ -1166,36 +974,7 @@ export default function CompanyRegistration() {
                           </InputAdornment>
                         ),
                       }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 3,
-                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                          transition: 'all 0.3s ease',
-                          '& fieldset': {
-                            borderColor: '#444',
-                            borderWidth: '2px',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#666',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#4caf50',
-                            borderWidth: '2px',
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: '#b0b0b0',
-                            fontWeight: 500,
-                          },
-                          '& .MuiInputBase-input': {
-                            color: '#ffffff',
-                            fontWeight: 500,
-                          },
-                        },
-                        '& .MuiFormHelperText-root': {
-                          color: errors.password ? '#f44336' : '#b0b0b0',
-                          fontWeight: 500,
-                        },
-                      }}
+                      sx={glassInputSx}
                     />
                   )}
                 />
@@ -1222,9 +1001,10 @@ export default function CompanyRegistration() {
                               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                               edge="end"
                               sx={{
-                                color: '#b0b0b0',
+                                color: '#94a3b8',
                                 '&:hover': {
-                                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                  backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                  color: '#e0e7ff',
                                 },
                               }}
                             >
@@ -1233,36 +1013,7 @@ export default function CompanyRegistration() {
                           </InputAdornment>
                         ),
                       }}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 3,
-                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                          transition: 'all 0.3s ease',
-                          '& fieldset': {
-                            borderColor: '#444',
-                            borderWidth: '2px',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#666',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#4caf50',
-                            borderWidth: '2px',
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: '#b0b0b0',
-                            fontWeight: 500,
-                          },
-                          '& .MuiInputBase-input': {
-                            color: '#ffffff',
-                            fontWeight: 500,
-                          },
-                        },
-                        '& .MuiFormHelperText-root': {
-                          color: errors.confirmPassword ? '#f44336' : '#b0b0b0',
-                          fontWeight: 500,
-                        },
-                      }}
+                      sx={glassInputSx}
                     />
                   )}
                 />
@@ -1276,61 +1027,66 @@ export default function CompanyRegistration() {
               sx={{
                 mt: 6,
                 mb: 4,
-                py: 2,
-                borderRadius: 4,
-                fontSize: '1.1rem',
-                fontWeight: 700,
-                background: 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)',
-                boxShadow: '0 8px 24px rgba(76, 175, 80, 0.4)',
+                py: 1.8,
+                borderRadius: '12px',
+                fontSize: '1.05rem',
+                fontWeight: 600,
+                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                boxShadow: '6px 6px 16px rgba(0, 0, 0, 0.4), inset 2px 2px 4px rgba(255, 255, 255, 0.15)',
                 textTransform: 'none',
-                letterSpacing: '0.5px',
+                letterSpacing: '0.3px',
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #45a049 0%, #388e3c 100%)',
-                  boxShadow: '0 12px 32px rgba(76, 175, 80, 0.6)',
-                  transform: 'translateY(-2px)',
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                  boxShadow: '4px 4px 10px rgba(0, 0, 0, 0.45), inset 2px 2px 4px rgba(255, 255, 255, 0.2)',
+                  transform: 'translateY(-1px)',
+                },
+                '&:active': {
+                  boxShadow: '2px 2px 4px rgba(0, 0, 0, 0.3), inset 3px 3px 6px rgba(0, 0, 0, 0.2)',
+                  transform: 'translateY(0)',
                 },
                 '&:disabled': {
-                  background: 'linear-gradient(135deg, #666 0%, #555 100%)',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  color: '#64748b',
                   boxShadow: 'none',
                   transform: 'none',
                 },
-                transition: 'all 0.3s ease-in-out',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
               }}
               disabled={isSubmitting}
             >
               {isSubmitting ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                   <CircularProgress size={20} color="inherit" />
-                  <Typography>Registering Company...</Typography>
+                  <Typography sx={{ fontWeight: 600 }}>Registering Company...</Typography>
                 </Box>
               ) : (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Business sx={{ fontSize: 24 }} />
-                  <Typography>Register Company</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Business sx={{ fontSize: 22 }} />
+                  <Typography sx={{ fontWeight: 600 }}>Register Company</Typography>
                 </Box>
               )}
             </Button>
 
-            <Box sx={{ textAlign: 'center', mt: 2 }}>
+            <Box sx={{ textAlign: 'center', mt: 1 }}>
               <Link
                 href="/login"
                 variant="body2"
                 sx={{
-                  color: '#4caf50',
+                  color: '#818cf8',
                   textDecoration: 'none',
-                  fontWeight: 600,
-                  fontSize: '1rem',
-                  padding: '12px 24px',
-                  borderRadius: 3,
-                  transition: 'all 0.3s ease',
+                  fontWeight: 500,
+                  fontSize: '0.95rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  transition: 'all 0.2s ease',
                   '&:hover': {
-                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                    textDecoration: 'none',
-                    transform: 'translateY(-1px)',
+                    color: '#a5b4fc',
+                    textDecoration: 'underline',
                   },
                 }}
               >
-                {"← Already have an account? Sign In"}
+                {"Already have an account? Sign In"}
               </Link>
             </Box>
           </Box>
@@ -1338,4 +1094,4 @@ export default function CompanyRegistration() {
       </Box>
     </Container>
   );
-} 
+}

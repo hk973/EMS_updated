@@ -3,7 +3,6 @@
 
 import React, { useEffect, useState } from "react";
 import {
-  Grid,
   Card,
   CardContent,
   Typography,
@@ -194,14 +193,24 @@ export default function ManagerDashboard() {
         alignItems="center"
         minHeight="400px"
       >
-        <CircularProgress />
+        <CircularProgress sx={{ color: "#6366f1" }} />
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Alert severity="error" sx={{ mb: 2 }}>
+      <Alert
+        severity="error"
+        sx={{
+          mb: 3,
+          background: "rgba(239, 68, 68, 0.1)",
+          color: "#fca5a5",
+          border: "1px solid rgba(239, 68, 68, 0.2)",
+          borderRadius: "12px",
+          backdropFilter: "blur(10px)",
+        }}
+      >
         {error}
       </Alert>
     );
@@ -210,410 +219,657 @@ export default function ManagerDashboard() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "success":
-        return <CheckCircle color="success" />;
+        return <CheckCircle sx={{ color: "#10b981", fontSize: 20 }} />;
       case "warning":
-        return <Warning color="warning" />;
+        return <Warning sx={{ color: "#f59e0b", fontSize: 20 }} />;
       case "error":
-        return <Warning color="error" />;
+        return <Warning sx={{ color: "#ef4444", fontSize: 20 }} />;
       default:
-        return <Info color="info" />;
+        return <Info sx={{ color: "#3b82f6", fontSize: 20 }} />;
     }
   };
 
+  const statCards = [
+    {
+      title: "Total Employees",
+      value: stats.totalEmployees,
+      icon: <People sx={{ color: "#818cf8", fontSize: 28 }} />,
+      color: "#818cf8",
+      accent: "rgba(99, 102, 241, 0.15)",
+      border: "rgba(99, 102, 241, 0.25)",
+      glow: "rgba(99, 102, 241, 0.2)",
+    },
+    {
+      title: "Active Employees",
+      value: stats.activeEmployees,
+      icon: <CheckCircle sx={{ color: "#34d399", fontSize: 28 }} />,
+      color: "#34d399",
+      accent: "rgba(16, 185, 129, 0.15)",
+      border: "rgba(16, 185, 129, 0.25)",
+      glow: "rgba(16, 185, 129, 0.2)",
+    },
+    {
+      title: "Total Payroll",
+      value: `₹${stats.totalPayroll.toLocaleString()}`,
+      icon: <AttachMoney sx={{ color: "#fbbf24", fontSize: 28 }} />,
+      color: "#fbbf24",
+      accent: "rgba(245, 158, 11, 0.15)",
+      border: "rgba(245, 158, 11, 0.25)",
+      glow: "rgba(245, 158, 11, 0.2)",
+    },
+    {
+      title: "Pending Approvals",
+      value: stats.pendingApprovals,
+      icon: <Warning sx={{ color: "#f87171", fontSize: 28 }} />,
+      color: "#f87171",
+      accent: "rgba(239, 68, 68, 0.15)",
+      border: "rgba(239, 68, 68, 0.25)",
+      glow: "rgba(239, 68, 68, 0.2)",
+    },
+  ];
+
   return (
     <Box>
-      <Typography variant="h4" gutterBottom sx={{ color: "#ffffff", mb: 3 }}>
-        Welcome, {currentUser?.displayName} to the Dashboard! 👋
-      </Typography>
+      {/* Dashboard Header */}
+      <Box sx={{ mb: 3.5 }}>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 700,
+            fontSize: { xs: "1.5rem", sm: "1.875rem" },
+            letterSpacing: "-0.02em",
+            background: "linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            mb: 0.5,
+          }}
+        >
+          Welcome, {currentUser?.displayName} to the Dashboard! 👋
+        </Typography>
+        <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+          Manager workspace, employee statistics, and team approvals overview
+        </Typography>
+      </Box>
 
       {/* Manager Profile Card */}
       <Card
-        sx={{ mb: 3, backgroundColor: "#2d2d2d", border: "1px solid #333" }}
+        elevation={0}
+        sx={{
+          mb: 3.5,
+          background: "rgba(255, 255, 255, 0.03)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          borderRadius: "16px",
+          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+          position: "relative",
+          overflow: "hidden",
+          "&::before": {
+            content: '""',
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "2px",
+            background: "linear-gradient(90deg, transparent, #10b981, transparent)",
+            opacity: 0.8,
+          },
+        }}
       >
-        <CardContent>
-          <Box display="flex" alignItems="center" gap={2}>
+        <CardContent sx={{ p: { xs: 2.5, sm: 3 }, "&:last-child": { pb: { xs: 2.5, sm: 3 } } }}>
+          <Box
+            display="flex"
+            flexDirection={{ xs: "column", sm: "row" }}
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            gap={2.5}
+          >
             <Avatar
               sx={{
-                width: 80,
-                height: 80,
-                backgroundColor: "#4caf50",
-                fontSize: "2rem",
+                width: 72,
+                height: 72,
+                background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                boxShadow:
+                  "0 8px 24px rgba(16, 185, 129, 0.35), inset 2px 2px 4px rgba(255, 255, 255, 0.2)",
+                border: "2px solid rgba(255, 255, 255, 0.15)",
+                fontSize: "1.75rem",
+                fontWeight: 700,
+                color: "#ffffff",
               }}
             >
               {currentUser?.displayName?.charAt(0).toUpperCase() || "M"}
             </Avatar>
-            <Box flex={1}>
-              <Typography variant="h6" sx={{ color: "#ffffff", mb: 1 }}>
+            <Box flex={1} sx={{ minWidth: 0 }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  color: "#f1f5f9",
+                  fontWeight: 600,
+                  fontSize: "1.25rem",
+                  letterSpacing: "-0.01em",
+                  mb: 0.5,
+                }}
+              >
                 {currentUser?.displayName}
               </Typography>
-              <Typography variant="body2" sx={{ color: "#b0b0b0", mb: 1 }}>
+              <Typography variant="body2" sx={{ color: "#94a3b8", mb: 0.25 }}>
                 Manager ID: {currentUser?.userId}
               </Typography>
-              <Typography variant="body2" sx={{ color: "#b0b0b0", mb: 1 }}>
+              <Typography variant="body2" sx={{ color: "#94a3b8" }}>
                 Email: {currentUser?.email}
               </Typography>
             </Box>
-            <Box sx={{ textAlign: "right" }}>
+            <Box
+              sx={{
+                alignSelf: { xs: "flex-start", sm: "center" },
+                textAlign: { sm: "right" },
+              }}
+            >
               <Chip
                 label="Manager"
-                color="success"
-                sx={{ backgroundColor: "#4caf50", color: "#ffffff", mb: 1 }}
+                sx={{
+                  backgroundColor: "rgba(16, 185, 129, 0.15)",
+                  color: "#34d399",
+                  border: "1px solid rgba(16, 185, 129, 0.25)",
+                  backdropFilter: "blur(10px)",
+                  fontWeight: 600,
+                  borderRadius: "10px",
+                  px: 1,
+                }}
               />
             </Box>
           </Box>
         </CardContent>
       </Card>
 
-      {/* Pending Payroll */}
-      {/*<Card sx={{ mb: 3, backgroundColor: '#2d2d2d', border: '1px solid #333' }}>
-        <CardContent>
-          <Typography variant="h6" sx={{ color: '#ffffff', mb: 2 }}>
-            Quick Actions
-          </Typography>
-                    Pending Payroll Approvals
-            {quickActions.map((action, index) => (
-              <Grid item xs={12} sm={6} md={3} key={index} {...({} as any)}>
-                    {payrollActivity.filter(record => record.status === 'pending').slice(0, 3).map((record) => (
-                      <ListItem key={record.id} sx={{ px: 0, py: 1 }}>
-                  variant="outlined"
-                          <AttachMoney sx={{ color: '#ff9800' }} />
-                  onClick={action.action}
+      {/* Stats Cards */}
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, 1fr)",
+            lg: "repeat(4, 1fr)",
+          },
+          gap: 2.5,
+          mb: 3.5,
+        }}
+      >
+        {statCards.map((card, index) => (
+          <Card
+            key={index}
+            elevation={0}
+            sx={{
+              background: "rgba(255, 255, 255, 0.03)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: "16px",
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              position: "relative",
+              overflow: "hidden",
+              "&:hover": {
+                transform: "translateY(-3px)",
+                borderColor: card.border,
+                boxShadow: `0 14px 40px rgba(0, 0, 0, 0.35), 0 0 24px ${card.glow}`,
+              },
+              "&::before": {
+                content: '""',
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                height: "2px",
+                background: `linear-gradient(90deg, transparent, ${card.color}, transparent)`,
+                opacity: 0.8,
+              },
+            }}
+          >
+            <CardContent sx={{ p: 2.5, "&:last-child": { pb: 2.5 } }}>
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+              >
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography
+                    sx={{
+                      color: "#94a3b8",
+                      fontWeight: 600,
+                      fontSize: "0.75rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      mb: 1,
+                    }}
+                  >
+                    {card.title}
+                  </Typography>
+                  <Typography
+                    variant="h4"
+                    component="div"
+                    sx={{
+                      color: "#f1f5f9",
+                      fontWeight: 700,
+                      fontSize: "1.75rem",
+                      letterSpacing: "-0.02em",
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {card.value}
+                  </Typography>
+                </Box>
+                <Box
                   sx={{
-                    borderColor: action.color,
-                    color: action.color,
-                              {getEmployeeName(record.employeeId)}
-                      borderColor: action.color,
-                      backgroundColor: `${action.color}20`,
-                    },
-                    py: 2,
-                              {record.month}/{record.year} • {record.status}
-                    justifyContent: 'flex-start',
+                    width: 52,
+                    height: 52,
+                    borderRadius: "14px",
+                    background: card.accent,
+                    border: `1px solid ${card.border}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: `0 4px 14px ${card.glow}`,
+                    flexShrink: 0,
+                    ml: 2,
                   }}
                 >
-                  <Box sx={{ textAlign: 'left' }}>
-                          label="pending"
-                      {action.title}
-                    </Typography>
-                            backgroundColor: '#ff9800',
-                      {action.description}
-                    </Typography>
-                  </Box>
-                </Button>
-              </Grid>
-            ))}
-                    {payrollActivity.filter(record => record.status === 'pending').length === 0 && (
-                      <ListItem sx={{ px: 0, py: 1 }}>
-                        <ListItemText
-                          primary={
-                            <Typography variant="body2" sx={{ color: '#b0b0b0' }}>
-                              No pending payroll approvals.
-                            </Typography>
-                          }
-                        />
-                      </ListItem>
-                    )}
-          </Grid>
-        </CardContent>
-      </Card> */}
-
-      {/* Stats Cards */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        {/* @ts-ignore */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2}>
-                <People color="primary" />
-                <Box>
-                  <Typography variant="h6" sx={{ color: "#ffffff" }}>
-                    {stats.totalEmployees}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
-                    Total Employees
-                  </Typography>
+                  {card.icon}
                 </Box>
               </Box>
             </CardContent>
           </Card>
-        </Grid>
-
-        {/* @ts-ignore */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2}>
-                <CheckCircle color="success" />
-                <Box>
-                  <Typography variant="h6" sx={{ color: "#ffffff" }}>
-                    {stats.activeEmployees}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
-                    Active Employees
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* @ts-ignore */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2}>
-                <AttachMoney color="warning" />
-                <Box>
-                  <Typography variant="h6" sx={{ color: "#ffffff" }}>
-                    ₹{stats.totalPayroll.toLocaleString()}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
-                    Total Payroll
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* @ts-ignore */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" gap={2}>
-                <Warning color="error" />
-                <Box>
-                  <Typography variant="h6" sx={{ color: "#ffffff" }}>
-                    {stats.pendingApprovals}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
-                    Pending Approvals
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+        ))}
+      </Box>
 
       {/* Main Content Grid */}
-      <Grid container spacing={3}>
-        {/* Recent Activity and Team Overview */}
-        {/* @ts-ignore */}
-        <Grid item xs={12} lg={8}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", lg: "2fr 1fr" },
+          gap: 3,
+        }}
+      >
+        {/* Team Overview */}
+        <Box>
           <Card
+            elevation={0}
             sx={{
-              backgroundColor: "#2d2d2d",
-              border: "1px solid #333",
+              background: "rgba(255, 255, 255, 0.03)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: "16px",
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
               height: "100%",
             }}
           >
-            <CardContent>
-              <Typography variant="h6" sx={{ color: "#ffffff", mb: 2 }}>
+            <CardContent sx={{ p: { xs: 2.5, sm: 3 }, "&:last-child": { pb: { xs: 2.5, sm: 3 } } }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  color: "#f1f5f9",
+                  fontWeight: 600,
+                  fontSize: "1.125rem",
+                  letterSpacing: "-0.01em",
+                  mb: 2.5,
+                }}
+              >
                 Team Overview
               </Typography>
               <Box>
-                <Box display="flex" justifyContent="space-between" py={1}>
-                  <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
+                <Box
+                  display="flex"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  py={1.75}
+                  sx={{ borderBottom: "1px solid rgba(255, 255, 255, 0.05)" }}
+                >
+                  <Typography variant="body2" sx={{ color: "#94a3b8" }}>
                     Total Team Members:
                   </Typography>
-                  <Typography variant="body2" sx={{ color: "#ffffff" }}>
+                  <Typography
+                    variant="body2"
+                    sx={{ color: "#f1f5f9", fontWeight: 600 }}
+                  >
                     {stats.totalEmployees}
                   </Typography>
                 </Box>
-                <Box display="flex" justifyContent="space-between" py={1}>
-                  <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
+                <Box
+                  display="flex"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  py={1.75}
+                  sx={{ borderBottom: "1px solid rgba(255, 255, 255, 0.05)" }}
+                >
+                  <Typography variant="body2" sx={{ color: "#94a3b8" }}>
                     Active Members:
                   </Typography>
-                  <Typography variant="body2" sx={{ color: "#ffffff" }}>
+                  <Typography
+                    variant="body2"
+                    sx={{ color: "#34d399", fontWeight: 600 }}
+                  >
                     {stats.activeEmployees}
                   </Typography>
                 </Box>
-                <Box display="flex" justifyContent="space-between" py={1}>
-                  <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
+                <Box
+                  display="flex"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  py={1.75}
+                >
+                  <Typography variant="body2" sx={{ color: "#94a3b8" }}>
                     Inactive Members:
                   </Typography>
-                  <Typography variant="body2" sx={{ color: "#ffffff" }}>
+                  <Typography
+                    variant="body2"
+                    sx={{ color: "#f87171", fontWeight: 600 }}
+                  >
                     {stats.totalEmployees - stats.activeEmployees}
                   </Typography>
+                </Box>
+
+                {/* Team Health Ratio */}
+                <Box sx={{ mt: 3, pt: 2, borderTop: "1px solid rgba(255, 255, 255, 0.06)" }}>
+                  <Box display="flex" justifyContent="space-between" mb={1}>
+                    <Typography variant="caption" sx={{ color: "#94a3b8" }}>
+                      Team Active Ratio
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "#34d399", fontWeight: 600 }}
+                    >
+                      {stats.totalEmployees > 0
+                        ? Math.round(
+                            (stats.activeEmployees / stats.totalEmployees) * 100,
+                          )
+                        : 0}
+                      % Active
+                    </Typography>
+                  </Box>
+                  <LinearProgress
+                    variant="determinate"
+                    value={
+                      stats.totalEmployees > 0
+                        ? (stats.activeEmployees / stats.totalEmployees) * 100
+                        : 0
+                    }
+                    sx={{
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor: "rgba(255, 255, 255, 0.06)",
+                      "& .MuiLinearProgress-bar": {
+                        borderRadius: 4,
+                        background:
+                          "linear-gradient(90deg, #10b981 0%, #34d399 100%)",
+                      },
+                    }}
+                  />
                 </Box>
               </Box>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
-        {/* Sidebar - Notifications and Payroll */}
-        {/* @ts-ignore */}
-        <Grid item xs={12} lg={4}>
-          <Grid container spacing={3}>
-            {/* Notifications */}
-            {/* @ts-ignore */}
-            <Grid item xs={12}>
-              <Card
-                sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}
+        {/* Sidebar - Notifications, Payroll & Metrics */}
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          {/* Notifications */}
+          <Card
+            elevation={0}
+            sx={{
+              background: "rgba(255, 255, 255, 0.03)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: "16px",
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+            }}
+          >
+            <CardContent sx={{ p: 2.5, "&:last-child": { pb: 2.5 } }}>
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+                mb={2}
               >
-                <CardContent>
-                  <Box
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="space-between"
-                    mb={2}
+                <Typography
+                  variant="h6"
+                  sx={{
+                    color: "#f1f5f9",
+                    fontWeight: 600,
+                    fontSize: "1.125rem",
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  Notifications
+                </Typography>
+                <Badge
+                  badgeContent={notifications.filter((n) => !n.read).length}
+                  sx={{
+                    "& .MuiBadge-badge": {
+                      backgroundColor: "#ef4444",
+                      color: "#ffffff",
+                      fontWeight: 600,
+                    },
+                  }}
+                >
+                  <Notifications sx={{ color: "#94a3b8" }} />
+                </Badge>
+              </Box>
+              <List sx={{ p: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+                {notifications.slice(0, 3).map((notification) => (
+                  <ListItem
+                    key={notification.id}
+                    sx={{
+                      px: 1.5,
+                      py: 1.25,
+                      borderRadius: "12px",
+                      background: "rgba(255, 255, 255, 0.02)",
+                      border: "1px solid rgba(255, 255, 255, 0.04)",
+                      transition: "all 0.2s ease",
+                      "&:hover": {
+                        background: "rgba(255, 255, 255, 0.04)",
+                      },
+                    }}
                   >
-                    <Typography variant="h6" sx={{ color: "#ffffff" }}>
-                      Notifications
-                    </Typography>
-                    <Badge
-                      badgeContent={notifications.filter((n) => !n.read).length}
-                      color="error"
-                    >
-                      <Notifications sx={{ color: "#b0b0b0" }} />
-                    </Badge>
-                  </Box>
-                  <List sx={{ p: 0 }}>
-                    {notifications.slice(0, 3).map((notification) => (
-                      <ListItem key={notification.id} sx={{ px: 0, py: 1 }}>
-                        <ListItemIcon sx={{ minWidth: 40 }}>
-                          {getNotificationIcon(notification.type)}
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={
-                            <Typography
-                              variant="body2"
-                              sx={{
-                                color: "#ffffff",
-                                fontWeight: notification.read
-                                  ? "normal"
-                                  : "bold",
-                              }}
-                            >
-                              {notification.title}
-                            </Typography>
-                          }
-                          secondary={
-                            <Typography
-                              variant="caption"
-                              sx={{ color: "#b0b0b0" }}
-                            >
-                              {notification.message}
-                            </Typography>
-                          }
-                        />
-                      </ListItem>
-                    ))}
-                  </List>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Pending Payroll Approvals */}
-            {/* @ts-ignore */}
-            <Grid item xs={12}>
-              <Card
-                sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}
-              >
-                <CardContent>
-                  <Typography variant="h6" sx={{ color: "#ffffff", mb: 2 }}>
-                    Pending Payroll Approvals
-                  </Typography>
-                  <List sx={{ p: 0 }}>
-                    {payrollActivity
-                      .filter((record) => record.status === "pending")
-                      .slice(0, 3)
-                      .map((record) => (
-                        <ListItem key={record.id} sx={{ px: 0, py: 1 }}>
-                          <ListItemIcon sx={{ minWidth: 40 }}>
-                            <AttachMoney sx={{ color: "#ff9800" }} />
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={
-                              <Typography
-                                variant="body2"
-                                sx={{ color: "#ffffff" }}
-                              >
-                                Payroll for employee ID {record.employeeId}
-                              </Typography>
-                            }
-                            secondary={
-                              <Typography
-                                variant="caption"
-                                sx={{ color: "#b0b0b0" }}
-                              >
-                                Month {record.month}/{record.year}
-                              </Typography>
-                            }
-                          />
-                          <Chip
-                            label={record.status}
-                            size="small"
-                            sx={{
-                              backgroundColor: "#ff9800",
-                              color: "#ffffff",
-                              fontSize: "0.7rem",
-                            }}
-                          />
-                        </ListItem>
-                      ))}
-                    {payrollActivity.filter(
-                      (record) => record.status === "pending",
-                    ).length === 0 && (
-                      <ListItem sx={{ px: 0, py: 1 }}>
-                        <ListItemText
-                          primary={
-                            <Typography
-                              variant="body2"
-                              sx={{ color: "#b0b0b0" }}
-                            >
-                              No pending payroll approvals.
-                            </Typography>
-                          }
-                        />
-                      </ListItem>
-                    )}
-                  </List>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Performance Metrics */}
-            {/* @ts-ignore */}
-            <Grid item xs={12}>
-              <Card
-                sx={{ backgroundColor: "#2d2d2d", border: "1px solid #333" }}
-              >
-                <CardContent>
-                  <Typography variant="h6" sx={{ color: "#ffffff", mb: 2 }}>
-                    Performance Metrics
-                  </Typography>
-                  <Box>
-                    <Box display="flex" justifyContent="space-between" mb={1}>
-                      <Typography variant="body2" sx={{ color: "#b0b0b0" }}>
-                        Employee Retention
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: "#ffffff" }}>
-                        {Math.round(
-                          (stats.activeEmployees / stats.totalEmployees) * 100,
-                        )}
-                        %
-                      </Typography>
-                    </Box>
-                    <LinearProgress
-                      variant="determinate"
-                      value={
-                        (stats.activeEmployees / stats.totalEmployees) * 100
+                    <ListItemIcon sx={{ minWidth: 36 }}>
+                      {getNotificationIcon(notification.type)}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: "#f1f5f9",
+                            fontWeight: notification.read ? 400 : 600,
+                            fontSize: "0.875rem",
+                          }}
+                        >
+                          {notification.title}
+                        </Typography>
                       }
-                      sx={{
-                        backgroundColor: "#444",
-                        "& .MuiLinearProgress-bar": {
-                          backgroundColor: "#2196f3",
-                        },
-                      }}
+                      secondary={
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "#94a3b8", display: "block", mt: 0.25 }}
+                        >
+                          {notification.message}
+                        </Typography>
+                      }
                     />
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        </Grid>
-      </Grid>
+                  </ListItem>
+                ))}
+                {notifications.length === 0 && (
+                  <ListItem sx={{ px: 0, py: 1.5 }}>
+                    <ListItemText
+                      primary={
+                        <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+                          No notifications available.
+                        </Typography>
+                      }
+                    />
+                  </ListItem>
+                )}
+              </List>
+            </CardContent>
+          </Card>
+
+          {/* Pending Payroll Approvals */}
+          <Card
+            elevation={0}
+            sx={{
+              background: "rgba(255, 255, 255, 0.03)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: "16px",
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+            }}
+          >
+            <CardContent sx={{ p: 2.5, "&:last-child": { pb: 2.5 } }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  color: "#f1f5f9",
+                  fontWeight: 600,
+                  fontSize: "1.125rem",
+                  letterSpacing: "-0.01em",
+                  mb: 2,
+                }}
+              >
+                Pending Payroll Approvals
+              </Typography>
+              <List sx={{ p: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+                {payrollActivity
+                  .filter((record) => record.status === "pending")
+                  .slice(0, 3)
+                  .map((record) => (
+                    <ListItem
+                      key={record.id}
+                      sx={{
+                        px: 1.5,
+                        py: 1.25,
+                        borderRadius: "12px",
+                        background: "rgba(255, 255, 255, 0.02)",
+                        border: "1px solid rgba(255, 255, 255, 0.04)",
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        <AttachMoney sx={{ color: "#f59e0b", fontSize: 22 }} />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Typography
+                            variant="body2"
+                            sx={{ color: "#f1f5f9", fontWeight: 500 }}
+                          >
+                            Payroll for ID {record.employeeId}
+                          </Typography>
+                        }
+                        secondary={
+                          <Typography
+                            variant="caption"
+                            sx={{ color: "#94a3b8" }}
+                          >
+                            Month {record.month}/{record.year}
+                          </Typography>
+                        }
+                      />
+                      <Chip
+                        label={record.status}
+                        size="small"
+                        sx={{
+                          backgroundColor: "rgba(245, 158, 11, 0.15)",
+                          color: "#fbbf24",
+                          border: "1px solid rgba(245, 158, 11, 0.25)",
+                          borderRadius: "8px",
+                          fontSize: "0.7rem",
+                          fontWeight: 600,
+                          textTransform: "capitalize",
+                        }}
+                      />
+                    </ListItem>
+                  ))}
+                {payrollActivity.filter((record) => record.status === "pending")
+                  .length === 0 && (
+                  <ListItem sx={{ px: 0, py: 1.5 }}>
+                    <ListItemText
+                      primary={
+                        <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+                          No pending payroll approvals.
+                        </Typography>
+                      }
+                    />
+                  </ListItem>
+                )}
+              </List>
+            </CardContent>
+          </Card>
+
+          {/* Performance Metrics */}
+          <Card
+            elevation={0}
+            sx={{
+              background: "rgba(255, 255, 255, 0.03)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: "16px",
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+            }}
+          >
+            <CardContent sx={{ p: 2.5, "&:last-child": { pb: 2.5 } }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  color: "#f1f5f9",
+                  fontWeight: 600,
+                  fontSize: "1.125rem",
+                  letterSpacing: "-0.01em",
+                  mb: 2,
+                }}
+              >
+                Performance Metrics
+              </Typography>
+              <Box>
+                <Box display="flex" justifyContent="space-between" mb={1}>
+                  <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+                    Employee Retention
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ color: "#f1f5f9", fontWeight: 600 }}
+                  >
+                    {stats.totalEmployees > 0
+                      ? Math.round(
+                          (stats.activeEmployees / stats.totalEmployees) * 100,
+                        )
+                      : 0}
+                    %
+                  </Typography>
+                </Box>
+                <LinearProgress
+                  variant="determinate"
+                  value={
+                    stats.totalEmployees > 0
+                      ? (stats.activeEmployees / stats.totalEmployees) * 100
+                      : 0
+                  }
+                  sx={{
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: "rgba(255, 255, 255, 0.06)",
+                    "& .MuiLinearProgress-bar": {
+                      borderRadius: 4,
+                      background:
+                        "linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%)",
+                    },
+                  }}
+                />
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+      </Box>
     </Box>
   );
 }
