@@ -39,6 +39,7 @@ import {
   Visibility,
   Refresh,
   GetApp,
+  SupervisorAccount,
 } from "@mui/icons-material";
 import {
   collection,
@@ -117,9 +118,15 @@ type PreviewData = {
 
 export default function SalarySlips() {
   const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "admin";
+  const isManager = currentUser?.role === "manager";
   const isEmployee = currentUser?.role === "employee";
-  const isAdminOrManager =
-    currentUser?.role === "admin" || currentUser?.role === "manager";
+  const isAdminOrManager = isAdmin || isManager;
+  const [currentManagerInfo, setCurrentManagerInfo] = useState<{
+    id: string;
+    code: string;
+    name: string;
+  } | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
   const [salarySlips, setSalarySlips] = useState<SalarySlip[]>([]);
@@ -1009,28 +1016,127 @@ export default function SalarySlips() {
     try {
       setLoading(true);
 
-      // Load employees
-      const employeesQuery =
-        isEmployee && currentUser?.employeeId
-          ? query(
-              collection(db, "employees"),
-              where("employeeId", "==", currentUser.employeeId),
-            )
-          : query(collection(db, "employees"), orderBy("fullName"));
-      const employeesSnapshot = await getDocs(employeesQuery);
-      const employeesData = employeesSnapshot.docs
-        .map((doc) => ({
+      // 1. Resolve current manager identity if logged in as manager
+      let managerDocId = "";
+      let managerCode = "";
+      let managerName = "";
+
+      if (isManager && currentUser) {
+        try {
+          const mgrCollection = collection(db, "managers");
+          const companyId = currentUser.companyId || "";
+          let mgrDocs: any[] = [];
+          if (companyId) {
+            const snap = await getDocs(
+              query(mgrCollection, where("companyId", "==", companyId))
+            );
+            mgrDocs = snap.docs;
+          } else {
+            const snap = await getDocs(mgrCollection);
+            mgrDocs = snap.docs;
+          }
+
+          for (const docSnap of mgrDocs) {
+            const data = docSnap.data();
+            if (
+              data.email === currentUser.email ||
+              docSnap.id === currentUser.uid ||
+              (currentUser.userId && data.managerId === currentUser.userId)
+            ) {
+              managerDocId = docSnap.id;
+              managerCode = data.managerId || "";
+              managerName =
+                data.fullName || data.name || currentUser.displayName || "Manager";
+              break;
+            }
+          }
+        } catch (err) {
+          console.error("Error looking up manager identity:", err);
+        }
+
+        if (!managerDocId) managerDocId = currentUser.uid;
+        if (!managerCode && currentUser.userId) managerCode = currentUser.userId;
+        if (!managerName) managerName = currentUser.displayName || "Manager";
+
+        setCurrentManagerInfo({
+          id: managerDocId,
+          code: managerCode,
+          name: managerName,
+        });
+        setSelectedManager(managerDocId);
+      }
+
+      // 2. Load employees with strict role and company isolation
+      let employeesData: Employee[] = [];
+
+      if (isEmployee && currentUser?.employeeId) {
+        const employeesQuery = query(
+          collection(db, "employees"),
+          where("employeeId", "==", currentUser.employeeId),
+        );
+        const employeesSnapshot = await getDocs(employeesQuery);
+        employeesData = employeesSnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
-        }))
-        .filter((emp) => {
-          const activity = getEmployeeMonthActivity(
-            emp as Employee,
-            selectedYear,
-            selectedMonth,
+        })) as Employee[];
+      } else if (isManager) {
+        const companyId = currentUser?.companyId || "";
+        let employeesSnapshot;
+        if (companyId) {
+          employeesSnapshot = await getDocs(
+            query(collection(db, "employees"), where("companyId", "==", companyId))
           );
-          return activity.includeInMonth;
-        }) as Employee[];
+        } else {
+          employeesSnapshot = await getDocs(collection(db, "employees"));
+        }
+        const rawList = employeesSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Employee[];
+
+        // Strict manager assignment filter: ONLY employees assigned to this manager
+        employeesData = rawList.filter((emp) => {
+          const assigned = normalizeManagerIds(
+            emp.assignedManagers,
+            (emp as unknown as { assignedManager?: unknown }).assignedManager,
+          );
+          return (
+            (managerDocId && assigned.includes(managerDocId)) ||
+            (managerCode && assigned.includes(managerCode)) ||
+            assigned.includes(currentUser.uid) ||
+            (currentUser.userId && assigned.includes(currentUser.userId))
+          );
+        });
+      } else {
+        // Admin: load only employees belonging to this company
+        const companyId = currentUser?.uid || "";
+        let employeesSnapshot;
+        if (companyId) {
+          employeesSnapshot = await getDocs(
+            query(collection(db, "employees"), where("companyId", "==", companyId))
+          );
+        } else {
+          employeesSnapshot = await getDocs(
+            query(collection(db, "employees"), orderBy("fullName"))
+          );
+        }
+        employeesData = employeesSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Employee[];
+      }
+
+      // Sort alphabetically by fullName
+      employeesData.sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
+
+      employeesData = employeesData.filter((emp) => {
+        const activity = getEmployeeMonthActivity(
+          emp as Employee,
+          selectedYear,
+          selectedMonth,
+        );
+        return activity.includeInMonth;
+      });
       setEmployees(employeesData);
 
       // Fetch live attendance variables for each employee in parallel (Req 1.1, 1.2, 4.3)
@@ -1134,6 +1240,9 @@ export default function SalarySlips() {
         );
       });
 
+      // Scoped employee IDs to prevent any data leak across teams or companies
+      const scopedEmployeeIds = new Set(employeesData.map((e) => e.employeeId));
+
       // Load payrolls for selected month/year
       const payrollsQuery =
         isEmployee && currentUser?.employeeId
@@ -1154,7 +1263,10 @@ export default function SalarySlips() {
           id: doc.id,
           ...doc.data(),
         })) as Payroll[]
-      ).filter((payroll) => payroll.status === "paid"); // Only show slips once payroll is marked as paid
+      ).filter(
+        (payroll) =>
+          payroll.status === "paid" && scopedEmployeeIds.has(payroll.employeeId),
+      ); // Only show slips once payroll is marked as paid
       // Sort by processedAt in JavaScript
       payrollsData.sort((a, b) => {
         const dateA =
@@ -1193,10 +1305,12 @@ export default function SalarySlips() {
               where("year", "==", selectedYear),
             );
       const slipsSnapshot = await getDocs(slipsQuery);
-      const slipsData = slipsSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as SalarySlip[];
+      const slipsData = (
+        slipsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as SalarySlip[]
+      ).filter((slip) => scopedEmployeeIds.has(slip.employeeId));
       // Sort by generatedAt in JavaScript
       slipsData.sort((a, b) => {
         const dateA =
@@ -1808,7 +1922,7 @@ export default function SalarySlips() {
 
       // Resolve the effective manager ID (selectedManager or auto from employee)
       const effectiveManagerId =
-        selectedManager ||
+        (selectedManager && selectedManager !== "all" ? selectedManager : "") ||
         normalizeManagerIds(
           employee.assignedManagers,
           (employee as unknown as { assignedManager?: unknown }).assignedManager,
@@ -2007,6 +2121,10 @@ export default function SalarySlips() {
       finalDoc.save(fileName);
 
       if (!options?.skipPersist) {
+        if (!isAdmin) {
+          setError("Only administrators have permission to generate salary slips.");
+          return;
+        }
         // Check if salary slip already exists for this employee, month, year
         const existingSlipsQuery = query(
           collection(db, "salary_slips"),
@@ -2088,39 +2206,55 @@ export default function SalarySlips() {
     }
   };
 
+  const filteredPayrolls = useMemo(() => {
+    return payrolls.filter((payroll) => {
+      const employee = employees.find(
+        (emp) => emp.employeeId === payroll.employeeId,
+      );
+      const matchesManager =
+        !selectedManager || selectedManager === "all"
+          ? true
+          : !!employee &&
+            normalizeManagerIds(
+              employee.assignedManagers,
+              (employee as unknown as { assignedManager?: unknown })
+                .assignedManager,
+            ).includes(selectedManager);
+
+      const matchesSearch =
+        !searchTerm ||
+        employee?.fullName
+          ?.toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        employee?.employeeId
+          ?.toLowerCase()
+          .includes(searchTerm.toLowerCase());
+
+      const isAlreadyGenerated = salarySlips.some(
+        (slip) => slip.employeeId === payroll.employeeId,
+      );
+
+      return matchesManager && matchesSearch && !isAlreadyGenerated;
+    });
+  }, [payrolls, employees, selectedManager, searchTerm, salarySlips]);
+
   const generateBulkSalarySlips = async () => {
+    if (!isAdmin) {
+      setError("Only administrators have permission to generate salary slips.");
+      return;
+    }
     try {
       setGeneratingPdf(true);
       setError("");
       setSuccess("");
       clearImageCache();
 
-      const filteredPayrolls = payrolls.filter((payroll) => {
-        const employee = employees.find(
-          (emp) => emp.employeeId === payroll.employeeId,
-        );
-        return (
-          !!selectedManager &&
-          !!employee &&
-          normalizeManagerIds(
-            employee.assignedManagers,
-            (employee as unknown as { assignedManager?: unknown })
-              .assignedManager,
-          ).includes(selectedManager)
-        );
-      });
-
-      const availablePayrolls = filteredPayrolls.filter(
-        (payroll) =>
-          !salarySlips.some((slip) => slip.employeeId === payroll.employeeId),
-      );
-
-      if (availablePayrolls.length === 0) {
-        setError("No new payroll records to generate slips for this manager");
+      if (filteredPayrolls.length === 0) {
+        setError("No pending payroll records to generate slips for current filter");
         return;
       }
 
-      for (const payroll of availablePayrolls) {
+      for (const payroll of filteredPayrolls) {
         const employee = employees.find(
           (emp) => emp.employeeId === payroll.employeeId,
         );
@@ -2131,7 +2265,7 @@ export default function SalarySlips() {
         }
       }
 
-      setSuccess(`Generated ${availablePayrolls.length} salary slips`);
+      setSuccess(`Generated ${filteredPayrolls.length} salary slips`);
     } catch (error) {
       console.error("Error generating bulk salary slips:", error);
       setError("Failed to generate bulk salary slips");
@@ -2149,33 +2283,35 @@ export default function SalarySlips() {
     setShowPreviewDialog(true);
   };
 
-  const filteredSlips = salarySlips.filter((slip) => {
-    const employee = employees.find(
-      (emp) => emp.employeeId === slip.employeeId,
-    );
+  const filteredSlips = useMemo(() => {
+    return salarySlips.filter((slip) => {
+      const employee = employees.find(
+        (emp) => emp.employeeId === slip.employeeId,
+      );
 
-    const matchesManager = isEmployee
-      ? true
-      : !!selectedManager &&
-        !!employee &&
-        normalizeManagerIds(
-          employee.assignedManagers,
-          (employee as unknown as { assignedManager?: unknown })
-            .assignedManager,
-        ).includes(selectedManager);
+      const matchesManager =
+        isEmployee || isManager || !selectedManager || selectedManager === "all"
+          ? true
+          : !!employee &&
+            normalizeManagerIds(
+              employee.assignedManagers,
+              (employee as unknown as { assignedManager?: unknown })
+                .assignedManager,
+            ).includes(selectedManager);
 
-    // Check search term for generated slips only
-    const matchesSearch =
-      !searchTermGenerated ||
-      employee?.fullName
-        ?.toLowerCase()
-        .includes(searchTermGenerated.toLowerCase()) ||
-      employee?.employeeId
-        ?.toLowerCase()
-        .includes(searchTermGenerated.toLowerCase());
+      // Check search term for generated slips
+      const matchesSearch =
+        !searchTermGenerated ||
+        employee?.fullName
+          ?.toLowerCase()
+          .includes(searchTermGenerated.toLowerCase()) ||
+        employee?.employeeId
+          ?.toLowerCase()
+          .includes(searchTermGenerated.toLowerCase());
 
-    return matchesManager && matchesSearch;
-  });
+      return matchesManager && matchesSearch;
+    });
+  }, [salarySlips, employees, isEmployee, isManager, selectedManager, searchTermGenerated]);
 
   const getEmployeeName = (employeeId: string) => {
     const employee = employees.find((emp) => emp.employeeId === employeeId);
@@ -2231,6 +2367,9 @@ export default function SalarySlips() {
   };
 
   const getAllManagers = () => {
+    if (isManager && currentManagerInfo?.id) {
+      return [currentManagerInfo.id];
+    }
     const managersSet = new Set<string>();
     employees.forEach((emp) => {
       normalizeManagerIds(
@@ -2244,28 +2383,39 @@ export default function SalarySlips() {
   };
 
   const getManagerName = (managerId: string) => {
+    if (isManager && currentManagerInfo?.name) {
+      return currentManagerInfo.name;
+    }
     const manager = managersById[managerId];
     return String(manager?.fullName || manager?.name || managerId) || managerId;
   };
 
-  const allManagerIds = useMemo(() => getAllManagers(), [employees]);
+  const allManagerIds = useMemo(() => getAllManagers(), [employees, isManager, currentManagerInfo]);
 
   useEffect(() => {
     if (isEmployee) {
       return;
     }
 
+    if (isManager) {
+      if (currentManagerInfo?.id && selectedManager !== currentManagerInfo.id) {
+        setSelectedManager(currentManagerInfo.id);
+      }
+      return;
+    }
+
+    // Admin handling:
     if (!allManagerIds.length) {
-      if (selectedManager) {
+      if (selectedManager && selectedManager !== "all") {
         setSelectedManager("");
       }
       return;
     }
 
-    if (!selectedManager || !allManagerIds.includes(selectedManager)) {
-      setSelectedManager(allManagerIds[0]);
+    if (!selectedManager) {
+      setSelectedManager("all");
     }
-  }, [selectedManager, allManagerIds, isEmployee]);
+  }, [selectedManager, allManagerIds, isEmployee, isManager, currentManagerInfo]);
 
   if (loading) {
     return (
@@ -2293,6 +2443,8 @@ export default function SalarySlips() {
         <Typography variant="body1" sx={{ color: "#94a3b8" }}>
           {isEmployee
             ? "View and download your generated salary slips"
+            : isManager
+            ? "View and download approved salary slips for your assigned team"
             : "Generate and manage salary slips for employees"}
         </Typography>
       </Box>
@@ -2482,7 +2634,7 @@ export default function SalarySlips() {
                     {employees.length}
                   </Typography>
                   <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 500, letterSpacing: "0.02em" }}>
-                    Total Employees
+                    {isManager ? "Team Members" : isEmployee ? "My Record" : "Total Employees"}
                   </Typography>
                 </Box>
 
@@ -2560,7 +2712,7 @@ export default function SalarySlips() {
                     {payrolls.length - salarySlips.length}
                   </Typography>
                   <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 500, letterSpacing: "0.02em" }}>
-                    Paid Slips
+                    {isManager ? "Pending by Admin" : "Pending Slips"}
                   </Typography>
                 </Box>
               </Box>
@@ -2569,8 +2721,8 @@ export default function SalarySlips() {
         </CardContent>
       </Card>
 
-      {/* Filters and Bulk Actions */}
-      {isAdminOrManager && (
+      {/* Filters and Bulk Actions - Admin Only */}
+      {isAdmin && (
         <Box
           sx={{
             mb: 3,
@@ -2609,6 +2761,9 @@ export default function SalarySlips() {
               onChange={(e) => setSelectedManager(e.target.value)}
               displayEmpty
             >
+              <MenuItem value="all">
+                <em>All Managers ({allManagerIds.length})</em>
+              </MenuItem>
               {allManagerIds.map((managerId) => (
                 <MenuItem key={managerId} value={managerId}>
                   {getManagerName(managerId)}
@@ -2618,7 +2773,7 @@ export default function SalarySlips() {
           </FormControl>
 
           <TextField
-            placeholder="Search Paid Slips"
+            placeholder="Search Pending Slips"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             InputProps={{
@@ -2647,8 +2802,7 @@ export default function SalarySlips() {
             onClick={generateBulkSalarySlips}
             disabled={
               generatingPdf ||
-              payrolls.length === salarySlips.length ||
-              !selectedManager
+              filteredPayrolls.length === 0
             }
             sx={{
               backgroundColor: "#6366f1",
@@ -2679,14 +2833,90 @@ export default function SalarySlips() {
             {generatingPdf ? (
               <CircularProgress size={20} sx={{ color: "#f1f5f9" }} />
             ) : (
-              "GENERATE ALL SLIPS"
+              `GENERATE ALL SLIPS (${filteredPayrolls.length})`
             )}
           </Button>
         </Box>
       )}
 
-      {/* Paid Salary Slips Section */}
-      {isAdminOrManager && payrolls.length > 0 && (
+      {/* Filters for Manager */}
+      {isManager && (
+        <Box
+          sx={{
+            mb: 3,
+            display: "flex",
+            flexDirection: { xs: "column", sm: "row" },
+            gap: 2,
+            alignItems: { xs: "stretch", sm: "center" },
+            justifyContent: "space-between",
+          }}
+        >
+          <Box
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 1.5,
+              px: 2.5,
+              py: 1.25,
+              background: "rgba(99, 102, 241, 0.08)",
+              border: "1px solid rgba(99, 102, 241, 0.25)",
+              borderRadius: "14px",
+              backdropFilter: "blur(12px)",
+            }}
+          >
+            <SupervisorAccount sx={{ color: "#818cf8", fontSize: 24 }} />
+            <Box>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "#94a3b8",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  fontSize: "0.68rem",
+                  display: "block",
+                  lineHeight: 1.1,
+                }}
+              >
+                Assigned Team Workspace
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: "#f1f5f9", fontWeight: 700 }}
+              >
+                {currentManagerInfo?.name || "My Team"} ({employees.length} Members)
+              </Typography>
+            </Box>
+          </Box>
+
+          <TextField
+            placeholder="Search team salary slips..."
+            value={searchTermGenerated}
+            onChange={(e) => setSearchTermGenerated(e.target.value)}
+            InputProps={{
+              startAdornment: <Search sx={{ mr: 1, color: "#94a3b8" }} />,
+            }}
+            sx={{
+              width: { xs: "100%", sm: "320px" },
+              "& .MuiOutlinedInput-root": {
+                backgroundColor: "rgba(255, 255, 255, 0.03)",
+                backdropFilter: "blur(10px)",
+                borderRadius: "12px",
+                color: "#f1f5f9",
+                "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                "&.Mui-focused fieldset": {
+                  borderColor: "#6366f1",
+                  boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.15)",
+                },
+              },
+            }}
+          />
+        </Box>
+      )}
+
+      {/* Paid Salary Slips (Pending Slip Generation) Section - Admin Only */}
+      {isAdmin && filteredPayrolls.length > 0 && (
         <Card
           sx={{
             mb: 3,
@@ -2698,9 +2928,22 @@ export default function SalarySlips() {
           }}
         >
           <CardContent sx={{ p: { xs: 2, md: 3 }, "&:last-child": { pb: { xs: 2, md: 3 } } }}>
-            <Typography variant="h6" sx={{ color: "#f59e0b", fontWeight: 600, mb: 2 }}>
-              Paid Salary Slips ({payrolls.length})
-            </Typography>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+              <Typography variant="h6" sx={{ color: "#f59e0b", fontWeight: 600 }}>
+                Pending Slip Generation ({filteredPayrolls.length})
+              </Typography>
+              <Chip
+                label="Admin Action Required"
+                size="small"
+                sx={{
+                  backgroundColor: "rgba(245, 158, 11, 0.15)",
+                  color: "#fbbf24",
+                  border: "1px solid rgba(245, 158, 11, 0.3)",
+                  fontWeight: 600,
+                  fontSize: "0.72rem",
+                }}
+              />
+            </Box>
             <Box sx={{ overflowX: "auto" }}>
               <TableContainer
                 component={Paper}
@@ -2729,82 +2972,101 @@ export default function SalarySlips() {
                     <TableRow>
                       <MuiTableCell>Employee Name</MuiTableCell>
                       <MuiTableCell>Employee ID</MuiTableCell>
-                      <MuiTableCell>Actions</MuiTableCell>
+                      <MuiTableCell>Net Salary</MuiTableCell>
+                      <MuiTableCell>Status</MuiTableCell>
+                      <MuiTableCell align="right">Actions</MuiTableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {payrolls
-                      .filter((payroll) => {
-                        const employee = employees.find(
-                          (emp) => emp.employeeId === payroll.employeeId,
-                        );
-                        return (
-                          !!selectedManager &&
-                          !!employee &&
-                          normalizeManagerIds(
-                            employee.assignedManagers,
-                            (
-                              employee as unknown as {
-                                assignedManager?: unknown;
-                              }
-                            ).assignedManager,
-                          ).includes(selectedManager)
-                        );
-                      })
-                      .map((payroll) => {
-                        const employee = employees.find(
-                          (emp) => emp.employeeId === payroll.employeeId,
-                        );
-                        return (
-                          <TableRow
-                            key={payroll.id}
-                            sx={{
-                              transition: "background-color 0.2s ease",
-                              "&:hover": {
-                                backgroundColor: "rgba(255, 255, 255, 0.03)",
-                              },
-                              "& .MuiTableCell-root": {
-                                borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
-                                color: "#f1f5f9",
-                              },
-                            }}
-                          >
-                            <MuiTableCell>
-                              {employee?.fullName || "Unknown"}
-                            </MuiTableCell>
-                            <MuiTableCell>
-                              {employee?.employeeId || "Unknown"}
-                            </MuiTableCell>
-                            <MuiTableCell>
-                              <Box sx={{ display: "flex", gap: 1 }}>
-                                <Tooltip title="Generate Slip">
-                                  <IconButton
-                                    size="small"
-                                    sx={{
-                                      color: "#f59e0b",
-                                      backgroundColor: "rgba(245, 158, 11, 0.1)",
-                                      border: "1px solid rgba(245, 158, 11, 0.2)",
-                                      borderRadius: "8px",
-                                      transition: "all 0.2s ease",
-                                      "&:hover": {
-                                        backgroundColor: "rgba(245, 158, 11, 0.2)",
-                                        transform: "scale(1.05)",
-                                      },
-                                    }}
-                                    onClick={() =>
-                                      employee &&
-                                      generateSalarySlipPDF(employee, payroll)
-                                    }
-                                    disabled={generatingPdf}
-                                  >
-                                    <PictureAsPdf fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                              </Box>
-                            </MuiTableCell>
-                          </TableRow>
-                        );
-                      })}
+                    {filteredPayrolls.map((payroll) => {
+                      const employee = employees.find(
+                        (emp) => emp.employeeId === payroll.employeeId,
+                      );
+                      return (
+                        <TableRow
+                          key={payroll.id}
+                          sx={{
+                            transition: "background-color 0.2s ease",
+                            "&:hover": {
+                              backgroundColor: "rgba(255, 255, 255, 0.03)",
+                            },
+                            "& .MuiTableCell-root": {
+                              borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
+                              color: "#f1f5f9",
+                            },
+                          }}
+                        >
+                          <MuiTableCell sx={{ fontWeight: 600 }}>
+                            {employee?.fullName || "Unknown"}
+                          </MuiTableCell>
+                          <MuiTableCell>
+                            {employee?.employeeId || "Unknown"}
+                          </MuiTableCell>
+                          <MuiTableCell sx={{ fontWeight: 600, color: "#34d399" }}>
+                            ₹{payroll.netSalary ? Number(payroll.netSalary).toLocaleString("en-IN") : "0"}
+                          </MuiTableCell>
+                          <MuiTableCell>
+                            <Chip
+                              label="Paid / Ready to Generate"
+                              size="small"
+                              sx={{
+                                backgroundColor: "rgba(245, 158, 11, 0.12)",
+                                color: "#fbbf24",
+                                border: "1px solid rgba(245, 158, 11, 0.25)",
+                                fontWeight: 500,
+                                fontSize: "0.72rem",
+                              }}
+                            />
+                          </MuiTableCell>
+                          <MuiTableCell align="right">
+                            <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
+                              <Tooltip title="Preview Draft">
+                                <IconButton
+                                  size="small"
+                                  sx={{
+                                    color: "#818cf8",
+                                    backgroundColor: "rgba(99, 102, 241, 0.1)",
+                                    border: "1px solid rgba(99, 102, 241, 0.2)",
+                                    borderRadius: "8px",
+                                    "&:hover": {
+                                      backgroundColor: "rgba(99, 102, 241, 0.2)",
+                                    },
+                                  }}
+                                  onClick={() =>
+                                    employee && previewSalarySlip(employee, payroll)
+                                  }
+                                >
+                                  <Visibility fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Generate Slip">
+                                <IconButton
+                                  size="small"
+                                  sx={{
+                                    color: "#f59e0b",
+                                    backgroundColor: "rgba(245, 158, 11, 0.1)",
+                                    border: "1px solid rgba(245, 158, 11, 0.2)",
+                                    borderRadius: "8px",
+                                    transition: "all 0.2s ease",
+                                    "&:hover": {
+                                      backgroundColor: "rgba(245, 158, 11, 0.2)",
+                                      transform: "scale(1.05)",
+                                    },
+                                  }}
+                                  onClick={() =>
+                                    employee &&
+                                    generateSalarySlipPDF(employee, payroll)
+                                  }
+                                  disabled={generatingPdf}
+                                >
+                                  <PictureAsPdf fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          </MuiTableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -2813,201 +3075,293 @@ export default function SalarySlips() {
         </Card>
       )}
 
-      {/* Generated Slips section — employees only (admins/managers use the Paid Salary Slips table above) */}
-      {isEmployee && (
-      <>
-      {/* Search for Generated Slips */}
-      <Box sx={{ mb: 2 }}>
-        <TextField
-          fullWidth
-          placeholder="Search Generated Slips by Name or Employee ID"
-          value={searchTermGenerated}
-          onChange={(e) => setSearchTermGenerated(e.target.value)}
-          InputProps={{
-            startAdornment: <Search sx={{ mr: 1, color: "#94a3b8" }} />,
-          }}
-          sx={{
-            "& .MuiOutlinedInput-root": {
-              backgroundColor: "rgba(255, 255, 255, 0.03)",
-              backdropFilter: "blur(10px)",
-              borderRadius: "12px",
-              color: "#f1f5f9",
-              "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
-              "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
-              "&.Mui-focused fieldset": {
-                borderColor: "#6366f1",
-                boxShadow: "0 0 0 3px rgba(99, 102, 241, 0.15)",
-              },
-            },
-          }}
-        />
-      </Box>
+      {/* Generated Salary Slips Section (Visible to Admin, Manager, and Employee) */}
+      <Card
+        sx={{
+          mb: 3,
+          background: "rgba(255, 255, 255, 0.03)",
+          backdropFilter: "blur(20px)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          borderRadius: "16px",
+          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
+        }}
+      >
+        <CardContent sx={{ p: { xs: 2, md: 3 }, "&:last-child": { pb: { xs: 2, md: 3 } } }}>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: { xs: "column", sm: "row" },
+              justifyContent: "space-between",
+              alignItems: { xs: "stretch", sm: "center" },
+              gap: 2,
+              mb: 2.5,
+            }}
+          >
+            <Box>
+              <Typography variant="h6" sx={{ color: "#f1f5f9", fontWeight: 700 }}>
+                {isEmployee
+                  ? "My Salary Slips"
+                  : isManager
+                  ? `Team Salary Slips (${filteredSlips.length})`
+                  : `Generated Salary Slips (${filteredSlips.length})`}
+              </Typography>
+              <Typography variant="caption" sx={{ color: "#94a3b8" }}>
+                {isManager
+                  ? "Approved and proceeded by Admin for your assigned team"
+                  : "Official salary slips available for preview and download"}
+              </Typography>
+            </Box>
 
-      {/* Salary Slips Table */}
-      <Box sx={{ overflowX: "auto", maxWidth: "100%" }}>
-        <TableContainer
-          component={Paper}
-          sx={{
-            background: "rgba(255, 255, 255, 0.02)",
-            backdropFilter: "blur(20px)",
-            border: "1px solid rgba(255, 255, 255, 0.06)",
-            borderRadius: "16px",
-            overflow: "hidden",
-            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)",
-          }}
-        >
-          <Table>
-            <TableHead
+            {/* Admin or Employee search for generated slips */}
+            {!isManager && (
+              <TextField
+                placeholder={isEmployee ? "Search by month/year..." : "Search generated slips..."}
+                size="small"
+                value={searchTermGenerated}
+                onChange={(e) => setSearchTermGenerated(e.target.value)}
+                InputProps={{
+                  startAdornment: <Search sx={{ mr: 1, color: "#94a3b8", fontSize: 18 }} />,
+                }}
+                sx={{
+                  width: { xs: "100%", sm: "280px" },
+                  "& .MuiOutlinedInput-root": {
+                    backgroundColor: "rgba(255, 255, 255, 0.03)",
+                    backdropFilter: "blur(10px)",
+                    borderRadius: "10px",
+                    color: "#f1f5f9",
+                    "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                    "&:hover fieldset": { borderColor: "rgba(99, 102, 241, 0.3)" },
+                    "&.Mui-focused fieldset": {
+                      borderColor: "#6366f1",
+                    },
+                  },
+                }}
+              />
+            )}
+          </Box>
+
+          {/* Salary Slips Table */}
+          <Box sx={{ overflowX: "auto", maxWidth: "100%" }}>
+            <TableContainer
+              component={Paper}
               sx={{
-                "& .MuiTableCell-root": {
-                  backgroundColor: "rgba(255, 255, 255, 0.04)",
-                  borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
-                  color: "#94a3b8",
-                  fontWeight: 600,
-                  fontSize: "0.75rem",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                },
+                background: "rgba(255, 255, 255, 0.02)",
+                backdropFilter: "blur(20px)",
+                border: "1px solid rgba(255, 255, 255, 0.06)",
+                borderRadius: "14px",
+                overflow: "hidden",
               }}
             >
-              <TableRow>
-                <MuiTableCell>Employee Name</MuiTableCell>
-                <MuiTableCell>Employee ID</MuiTableCell>
-                <MuiTableCell>Month/Year</MuiTableCell>
-                <MuiTableCell>Net Salary</MuiTableCell>
-                <MuiTableCell>Status</MuiTableCell>
-                <MuiTableCell>Generated On</MuiTableCell>
-                <MuiTableCell>Actions</MuiTableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredSlips
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map((slip) => {
-                  const employee = employees.find(
-                    (emp) => emp.employeeId === slip.employeeId,
-                  );
-                  const payroll = getPayrollData(
-                    slip.employeeId,
-                    slip.payrollId,
-                    slip.month,
-                    slip.year,
-                  );
-
-                  return (
-                    <TableRow
-                      key={slip.id}
-                      sx={{
-                        transition: "background-color 0.2s ease",
-                        "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.03)" },
-                        "& .MuiTableCell-root": {
-                          borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
-                          color: "#f1f5f9",
-                        },
-                      }}
-                    >
-                      <MuiTableCell>
-                        {employee?.fullName || "Unknown"}
-                      </MuiTableCell>
-                      <MuiTableCell>
-                        {employee?.employeeId || "Unknown"}
-                      </MuiTableCell>
-                      <MuiTableCell>
-                        {months.find((m) => m.value === slip.month)?.label}{" "}
-                        {slip.year}
-                      </MuiTableCell>
-                      <MuiTableCell sx={{ fontWeight: 600 }}>
-                        ₹
-                        {String(
-                          (
-                            slip as unknown as {
-                              slipData?: { netSalary?: string };
-                            }
-                          ).slipData?.netSalary ||
-                            payroll?.netSalary ||
-                            "0.00",
-                        )}
-                      </MuiTableCell>
-                      <MuiTableCell>
-                        <Chip
-                          label="Generated"
-                          size="small"
-                          sx={{
-                            backgroundColor: "rgba(16, 185, 129, 0.15)",
-                            color: "#34d399",
-                            border: "1px solid rgba(16, 185, 129, 0.25)",
-                            backdropFilter: "blur(10px)",
-                            fontWeight: 600,
-                          }}
-                        />
-                      </MuiTableCell>
-                      <MuiTableCell>
-                        {slip.generatedAt instanceof Date
-                          ? slip.generatedAt.toLocaleDateString()
-                          : (slip.generatedAt as any)
-                              ?.toDate?.()
-                              ?.toLocaleDateString() || "Unknown"}
-                      </MuiTableCell>
-                      <MuiTableCell>
-                        <Box sx={{ display: "flex", gap: 1 }}>
-                          <Tooltip title="Download">
-                            <IconButton
-                              size="small"
-                              sx={{
-                                color: "#10b981",
-                                backgroundColor: "rgba(16, 185, 129, 0.1)",
-                                border: "1px solid rgba(16, 185, 129, 0.2)",
-                                borderRadius: "8px",
-                                transition: "all 0.2s ease",
-                                "&:hover": {
-                                  backgroundColor: "rgba(16, 185, 129, 0.2)",
-                                  transform: "scale(1.05)",
-                                },
-                              }}
-                              onClick={() => {
-                                void downloadGeneratedSlip(slip);
-                              }}
-                            >
-                              <Download fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
+              <Table>
+                <TableHead
+                  sx={{
+                    "& .MuiTableCell-root": {
+                      backgroundColor: "rgba(255, 255, 255, 0.04)",
+                      borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                      color: "#94a3b8",
+                      fontWeight: 600,
+                      fontSize: "0.75rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    },
+                  }}
+                >
+                  <TableRow>
+                    <MuiTableCell>Employee Name</MuiTableCell>
+                    <MuiTableCell>Employee ID</MuiTableCell>
+                    <MuiTableCell>Month/Year</MuiTableCell>
+                    <MuiTableCell>Net Salary</MuiTableCell>
+                    <MuiTableCell>Status</MuiTableCell>
+                    <MuiTableCell>Generated On</MuiTableCell>
+                    <MuiTableCell align="right">Actions</MuiTableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredSlips.length === 0 ? (
+                    <TableRow>
+                      <MuiTableCell colSpan={7} sx={{ textAlign: "center", py: 6, borderBottom: "none" }}>
+                        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
+                          <Box
+                            sx={{
+                              width: 52,
+                              height: 52,
+                              borderRadius: "14px",
+                              background: "rgba(99, 102, 241, 0.1)",
+                              border: "1px solid rgba(99, 102, 241, 0.2)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "#818cf8",
+                            }}
+                          >
+                            <PictureAsPdf sx={{ fontSize: 26 }} />
+                          </Box>
+                          <Typography variant="subtitle1" sx={{ color: "#f1f5f9", fontWeight: 600 }}>
+                            No Salary Slips Available
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: "#94a3b8", maxWidth: 440 }}>
+                            {isManager
+                              ? "Salary slips for your assigned team members will appear here once processed and generated by the Administrator."
+                              : isEmployee
+                              ? "Your salary slip for this month has not been processed yet."
+                              : "No salary slips have been generated for the selected month and filter."}
+                          </Typography>
                         </Box>
                       </MuiTableCell>
                     </TableRow>
-                  );
-                })}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Box>
+                  ) : (
+                    filteredSlips
+                      .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                      .map((slip) => {
+                        const employee = employees.find(
+                          (emp) => emp.employeeId === slip.employeeId,
+                        );
+                        const payroll = getPayrollData(
+                          slip.employeeId,
+                          slip.payrollId,
+                          slip.month,
+                          slip.year,
+                        );
 
-      {/* Pagination */}
-      <TablePagination
-        component="div"
-        count={filteredSlips.length}
-        page={page}
-        onPageChange={(event, newPage) => setPage(newPage)}
-        rowsPerPage={rowsPerPage}
-        onRowsPerPageChange={(event) => {
-          setRowsPerPage(parseInt(event.target.value, 10));
-          setPage(0);
-        }}
-        sx={{
-          color: "#94a3b8",
-          borderTop: "1px solid rgba(255, 255, 255, 0.06)",
-          "& .MuiTablePagination-selectIcon": {
-            color: "#94a3b8",
-          },
-          "& .MuiTablePagination-actions button": {
-            color: "#94a3b8",
-            "&:hover": {
-              backgroundColor: "rgba(255, 255, 255, 0.05)",
-            },
-          },
-        }}
-      />
-      </>
-      )}
+                        return (
+                          <TableRow
+                            key={slip.id}
+                            sx={{
+                              transition: "background-color 0.2s ease",
+                              "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.03)" },
+                              "& .MuiTableCell-root": {
+                                borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
+                                color: "#f1f5f9",
+                              },
+                            }}
+                          >
+                            <MuiTableCell sx={{ fontWeight: 600 }}>
+                              {employee?.fullName || "Unknown"}
+                            </MuiTableCell>
+                            <MuiTableCell>
+                              {employee?.employeeId || "Unknown"}
+                            </MuiTableCell>
+                            <MuiTableCell>
+                              {months.find((m) => m.value === slip.month)?.label}{" "}
+                              {slip.year}
+                            </MuiTableCell>
+                            <MuiTableCell sx={{ fontWeight: 700, color: "#34d399" }}>
+                              ₹
+                              {String(
+                                (
+                                  slip as unknown as {
+                                    slipData?: { netSalary?: string };
+                                  }
+                                ).slipData?.netSalary ||
+                                  payroll?.netSalary ||
+                                  "0.00",
+                              )}
+                            </MuiTableCell>
+                            <MuiTableCell>
+                              <Chip
+                                label="Admin Proceeded"
+                                size="small"
+                                sx={{
+                                  backgroundColor: "rgba(16, 185, 129, 0.15)",
+                                  color: "#34d399",
+                                  border: "1px solid rgba(16, 185, 129, 0.25)",
+                                  backdropFilter: "blur(10px)",
+                                  fontWeight: 600,
+                                  fontSize: "0.72rem",
+                                }}
+                              />
+                            </MuiTableCell>
+                            <MuiTableCell sx={{ color: "#94a3b8", fontSize: "0.85rem" }}>
+                              {slip.generatedAt instanceof Date
+                                ? slip.generatedAt.toLocaleDateString()
+                                : (slip.generatedAt as any)
+                                    ?.toDate?.()
+                                    ?.toLocaleDateString() || "Unknown"}
+                            </MuiTableCell>
+                            <MuiTableCell align="right">
+                              <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
+                                <Tooltip title="Preview Slip">
+                                  <IconButton
+                                    size="small"
+                                    sx={{
+                                      color: "#818cf8",
+                                      backgroundColor: "rgba(99, 102, 241, 0.1)",
+                                      border: "1px solid rgba(99, 102, 241, 0.2)",
+                                      borderRadius: "8px",
+                                      transition: "all 0.2s ease",
+                                      "&:hover": {
+                                        backgroundColor: "rgba(99, 102, 241, 0.2)",
+                                        transform: "scale(1.05)",
+                                      },
+                                    }}
+                                    onClick={() => {
+                                      if (employee && payroll) {
+                                        previewSalarySlip(employee, payroll, slip);
+                                      }
+                                    }}
+                                  >
+                                    <Visibility fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Download PDF">
+                                  <IconButton
+                                    size="small"
+                                    sx={{
+                                      color: "#10b981",
+                                      backgroundColor: "rgba(16, 185, 129, 0.1)",
+                                      border: "1px solid rgba(16, 185, 129, 0.2)",
+                                      borderRadius: "8px",
+                                      transition: "all 0.2s ease",
+                                      "&:hover": {
+                                        backgroundColor: "rgba(16, 185, 129, 0.2)",
+                                        transform: "scale(1.05)",
+                                      },
+                                    }}
+                                    onClick={() => {
+                                      void downloadGeneratedSlip(slip);
+                                    }}
+                                  >
+                                    <Download fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </Box>
+                            </MuiTableCell>
+                          </TableRow>
+                        );
+                      })
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+
+          {/* Pagination */}
+          <TablePagination
+            component="div"
+            count={filteredSlips.length}
+            page={page}
+            onPageChange={(event, newPage) => setPage(newPage)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(event) => {
+              setRowsPerPage(parseInt(event.target.value, 10));
+              setPage(0);
+            }}
+            sx={{
+              color: "#94a3b8",
+              borderTop: "1px solid rgba(255, 255, 255, 0.06)",
+              "& .MuiTablePagination-selectIcon": {
+                color: "#94a3b8",
+              },
+              "& .MuiTablePagination-actions button": {
+                color: "#94a3b8",
+                "&:hover": {
+                  backgroundColor: "rgba(255, 255, 255, 0.05)",
+                },
+              },
+            }}
+          />
+        </CardContent>
+      </Card>
 
       {/* Preview Dialog */}
       <Dialog
