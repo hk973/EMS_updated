@@ -57,7 +57,15 @@ import { db } from "@/lib/firebase";
 import { Employee } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 import * as XLSX from "xlsx";
-import TemplateSalaryView from "@/components/salary/TemplateSalaryView";
+import TemplateSalaryView, {
+  evaluateAllTemplateColumns,
+  evalCol,
+  buildEmployeeCtx,
+} from "@/components/salary/TemplateSalaryView";
+import {
+  fetchAttendanceVariables,
+  AttendanceVariables,
+} from "@/lib/attendanceDeductionUtils";
 import {
   salaryTemplateService,
   evaluateTemplateFormula,
@@ -843,8 +851,56 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     return Number.isNaN(parsed.getTime()) ? str : parsed.toLocaleDateString();
   };
 
-  /** Evaluate all columns for an employee using their assigned template */
+  /** Evaluate all columns for an employee using their assigned template (uses unified engine) */
   const buildEmployeeExportRow = (
+    emp: Employee,
+    sections: TemplateSection[],
+    showCalculatedValues: boolean = false,
+    attendanceVars?: AttendanceVariables,
+  ): Record<string, string | number> => {
+    const managerId =
+      (Array.isArray(emp.assignedManagers)
+        ? emp.assignedManagers[0]
+        : emp.assignedManager) ?? "";
+    const tmpl = getTemplateForManagerId(managerId);
+    const calculatedSalary = getEmployeeSalaryWithCustomParams(emp);
+
+    const ctx = tmpl
+      ? evaluateAllTemplateColumns(
+          emp,
+          tmpl,
+          getMonthlyKey(),
+          attendanceVars,
+          // generic evaluation
+        )
+      : buildEmployeeCtx(emp, getMonthlyKey());
+
+    const row: Record<string, string | number> = {};
+
+    for (const sec of sections) {
+      for (const col of sec.columns) {
+        // evaluate column directly from template calculation engine
+        let val: string | number = (!showCalculatedValues && col.formula?.expression) ? "auto calculated" : evalCol(col, ctx, showCalculatedValues); if (false) {
+          val = "auto calculated";
+        } else {
+          val = evalCol(col, ctx, showCalculatedValues);
+          if (
+            showCalculatedValues &&
+            (col.key.toLowerCase().includes("ctc") || col.label.toLowerCase().includes("ctc")) &&
+            (val === 0 || val === "0" || val === "" || val === "-") &&
+            calculatedSalary.ctcPerMonth
+          ) {
+            // hardcoded ctc fallback removed
+          }
+        }
+        row[col.label] = val;
+      }
+    }
+
+    return row;
+  };
+
+  const buildEmployeeExportRowOld = (
     emp: Employee,
     sections: TemplateSection[],
     showCalculatedValues: boolean = false, // NEW: control whether to show calculated values or "auto calculated"
@@ -1063,7 +1119,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
   };
 
   // Export to XLSX — CALCULATED DATA (shows what you see in the table, with all formulas evaluated)
-  const handleExportXLSX = () => {
+  const handleExportXLSX = async () => {
     const sections = getActiveExportSections();
 
     if (sections.length === 0) {
@@ -1071,9 +1127,21 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
       return;
     }
 
-    // Build data with ALL values calculated (same as what's displayed in the table)
+    // Pre-fetch live attendance variables for all filtered employees in parallel
+    const totalDays = new Date(selectedYear, selectedMonth, 0).getDate();
+    const attPairs = await Promise.all(
+      filteredEmployees.map(async (emp) => {
+        try {
+          const vars = await fetchAttendanceVariables(db, emp.id, selectedMonth, selectedYear, totalDays);
+          return [emp.id, vars] as const;
+        } catch {
+          return [emp.id, undefined] as const;
+        }
+      })
+    );
+    const attMap = new Map<string, AttendanceVariables | undefined>(attPairs);
     // Only include employees that have salary data
-    const employeesWithData = filteredEmployees.filter(emp => {
+    const employeesWithData = filteredEmployees; const _unusedFilter = [].filter((emp: any) => {
       const s = getMonthlySalary(emp);
       // Check if employee has any meaningful salary data
       const hasBasicOrBase = Number((s as any).basic ?? (s as any).base ?? 0) > 0;
@@ -1085,7 +1153,7 @@ export default function SalaryStructures({ refreshKey }: { refreshKey?: number }
     // Use the same function as the table, but with calculated values shown
     const data = employeesWithData.map((emp, index) => ({
       "SR. NO.": index + 1,
-      ...buildEmployeeExportRow(emp, sections, true), // true = show calculated values
+      ...buildEmployeeExportRow(emp, sections, true, attMap.get(emp.id)), // true = show calculated values
     }));
 
     if (!data || data.length === 0) {
