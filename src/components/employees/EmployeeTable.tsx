@@ -46,6 +46,8 @@ import {
   ToggleOff,
   KeyboardArrowDown,
   ViewColumn,
+  DensitySmall,
+  DensityMedium,
 } from "@mui/icons-material";
 import {
   collection,
@@ -81,6 +83,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import EmployeeForm from "@/components/employees/EmployeeForm";
 import DeletePasswordDialog from "@/components/shared/DeletePasswordDialog";
 import * as XLSX from "xlsx";
+import { useToast } from "@/components/ui/ToastContext";
+import StatusDot from "@/components/ui/StatusDot";
+import TableSkeleton from "@/components/ui/TableSkeleton";
+import EmptyState from "@/components/ui/EmptyState";
 
 // TODO - Need change
 
@@ -169,6 +175,8 @@ const defaultColumns: TableColumn[] = [
 
 export default function EmployeeTable() {
   const { currentUser } = useAuth();
+  const { showToast } = useToast();
+  const [isCompact, setIsCompact] = useState(false);
   const isEditable = currentUser?.role === "admin";
   const isGood = currentUser?.userId;
 
@@ -516,7 +524,7 @@ export default function EmployeeTable() {
       );
       if (!columnToDeleteObj) {
         console.error("Column not found:", columnToDelete);
-        alert("Column not found");
+        showToast("Column not found", "error");
         return;
       }
 
@@ -525,8 +533,9 @@ export default function EmployeeTable() {
         defaultColumns.some((col) => col.field === columnToDelete) ||
         columnToDelete === "actions"
       ) {
-        alert(
+        showToast(
           "Cannot delete system default columns (Full Name, Manager ID, Email, Status, Actions)",
+          "warning",
         );
         return;
       }
@@ -600,10 +609,10 @@ export default function EmployeeTable() {
       await loadEmployees();
 
       // Show success message
-      alert(`Column "${columnToDelete}" has been deleted successfully`);
+      showToast(`Column "${columnToDelete}" deleted successfully`, "success");
     } catch (error) {
       console.error("Error deleting column:", error);
-      alert("Error deleting column: " + (error as Error).message);
+      showToast("Error deleting column: " + (error as Error).message, "error");
     }
   };
 
@@ -685,7 +694,7 @@ export default function EmployeeTable() {
         setEmployees(employees.filter((emp) => emp.id !== employeeId));
       } catch (error) {
         console.error("Error deleting employee:", error);
-        alert("Error deleting employee: " + (error as Error).message);
+        showToast("Error deleting employee: " + (error as Error).message, "error");
       }
       return;
     }
@@ -743,9 +752,10 @@ export default function EmployeeTable() {
         await Promise.all(selectedEmployeeIds.map((id) => deleteEmployeeAndRelated(id)));
         setEmployees((prev) => prev.filter((emp) => !selectedEmployeeIds.includes(emp.id)));
         setSelectedEmployeeIds([]);
+        showToast(`Successfully deleted ${selectedEmployeeIds.length} employee(s).`, "success");
       } catch (error) {
         console.error("Error bulk deleting employees:", error);
-        alert("Error deleting employees: " + (error as Error).message);
+        showToast("Error deleting employees: " + (error as Error).message, "error");
       }
       return;
     }
@@ -1056,6 +1066,7 @@ export default function EmployeeTable() {
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
         const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+        const validDocs: any[] = [];
         for (const row of rows) {
           // Require fullName, employeeId, email, mobile
           const fullName = row.fullName || row["Full Name"];
@@ -1133,13 +1144,36 @@ export default function EmployeeTable() {
             updatedAt: new Date(),
           };
 
-          // Add to Firebase with normalized data
-          await addDoc(collection(db, "employees"), {
-            ...employeeDoc,
-          });
+          validDocs.push(employeeDoc);
         }
+
+        if (validDocs.length === 0) {
+          showToast(
+            "No valid employee rows found in the file. Ensure Full Name, Employee ID, Email, and Mobile are filled.",
+            "warning",
+          );
+          return;
+        }
+
+        // Optimized: Batch write to Firestore in chunks of up to 450 (Firestore limit is 500)
+        const BATCH_SIZE = 450;
+        const employeesCollection = collection(db, "employees");
+        for (let i = 0; i < validDocs.length; i += BATCH_SIZE) {
+          const batch = writeBatch(db);
+          const chunk = validDocs.slice(i, i + BATCH_SIZE);
+          for (const docData of chunk) {
+            const newDocRef = doc(employeesCollection);
+            batch.set(newDocRef, docData);
+          }
+          await batch.commit();
+        }
+
         // Reload employees after upload
-        loadEmployees();
+        await loadEmployees();
+        showToast(
+          `Successfully imported ${validDocs.length} employee(s).`,
+          "success",
+        );
       };
       reader.readAsBinaryString(file);
     };
@@ -1200,17 +1234,22 @@ export default function EmployeeTable() {
   const handleEditColumn = async () => {
     try {
       setEditColumnLoading(true);
-      const updates = Object.entries(columnValues).map(([employeeId, value]) =>
-        updateDoc(doc(db, "employees", employeeId), {
-          [editingColumn]: value,
-          updatedAt: new Date(),
-        }),
-      );
-      await Promise.all(updates);
+      const entries = Object.entries(columnValues);
+      const BATCH_SIZE = 450;
+      for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+        const batch = writeBatch(db);
+        entries.slice(i, i + BATCH_SIZE).forEach(([employeeId, value]) => {
+          batch.update(doc(db, "employees", employeeId), {
+            [editingColumn]: value,
+            updatedAt: new Date(),
+          });
+        });
+        await batch.commit();
+      }
       setShowEditColumnDialog(false);
       setEditingColumn("");
       setColumnValues({});
-      loadEmployees(); // Reload to show updated data
+      await loadEmployees(); // Reload to show updated data
     } catch (error) {
       console.error("Error updating column:", error);
     } finally {
@@ -1224,19 +1263,6 @@ export default function EmployeeTable() {
       [employeeId]: value,
     }));
   };
-
-  if (loading) {
-    return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="400px"
-      >
-        <CircularProgress />
-      </Box>
-    );
-  }
 
   return (
     <Box sx={{ p: { xs: 2, sm: 3 } }}>
@@ -1391,6 +1417,37 @@ export default function EmployeeTable() {
                 >
                   Columns
                 </Button>
+
+                {/* Table Density Switcher */}
+                <Tooltip
+                  title={
+                    isCompact
+                      ? "Switch to Comfortable View"
+                      : "Switch to Compact Density View"
+                  }
+                >
+                  <IconButton
+                    onClick={() => setIsCompact(!isCompact)}
+                    size="small"
+                    sx={{
+                      color: "#94a3b8",
+                      background: "rgba(255, 255, 255, 0.04)",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
+                      borderRadius: "10px",
+                      p: "8px",
+                      "&:hover": {
+                        color: "#f8fafc",
+                        background: "rgba(255, 255, 255, 0.08)",
+                      },
+                    }}
+                  >
+                    {isCompact ? (
+                      <DensityMedium fontSize="small" />
+                    ) : (
+                      <DensitySmall fontSize="small" />
+                    )}
+                  </IconButton>
+                </Tooltip>
                 <Menu
                   anchorEl={columnsAnchorEl}
                   open={Boolean(columnsAnchorEl)}
@@ -1622,106 +1679,170 @@ export default function EmployeeTable() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredEmployees
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map((employee) => (
-                  <TableRow
-                    key={employee.id}
-                    sx={{ "&:hover": { backgroundColor: "#3d3d3d" } }}
+              {loading ? (
+                <TableSkeleton
+                  rows={rowsPerPage}
+                  columns={
+                    columns.filter((col) => col.visible).length +
+                    (currentUser?.role === "admin" ? 1 : 0)
+                  }
+                />
+              ) : filteredEmployees.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={
+                      columns.filter((col) => col.visible).length +
+                      (currentUser?.role === "admin" ? 1 : 0)
+                    }
+                    sx={{ border: 0, p: 0 }}
                   >
-                    {currentUser?.role === "admin" && (
-                      <TableCell padding="checkbox" sx={{ borderBottom: "1px solid #333" }}>
-                        <Checkbox
-                          checked={selectedEmployeeIds.includes(employee.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedEmployeeIds((prev) => [...prev, employee.id]);
-                            } else {
-                              setSelectedEmployeeIds((prev) =>
-                                prev.filter((id) => id !== employee.id),
-                              );
-                            }
-                          }}
-                          sx={{ color: "#ffffff" }}
-                        />
-                      </TableCell>
-                    )}
-                    {columns
-                      .filter((col) => col.visible)
-                      .map((column) => (
+                    <EmptyState
+                      title="No employees found"
+                      description={
+                        searchTerm
+                          ? `No records matching "${searchTerm}". Try resetting your search or filter.`
+                          : "Your employee directory is currently empty. Add your first employee or import from Excel."
+                      }
+                      actionText={
+                        currentUser?.role === "admin"
+                          ? "Add Employee"
+                          : undefined
+                      }
+                      onAction={() => setShowForm(true)}
+                    />
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredEmployees
+                  .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                  .map((employee) => (
+                    <TableRow
+                      key={employee.id}
+                      className="table-row-hover"
+                      sx={{
+                        "&:hover": {
+                          backgroundColor: "rgba(255, 255, 255, 0.04)",
+                        },
+                        borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+                      }}
+                    >
+                      {currentUser?.role === "admin" && (
                         <TableCell
-                          key={column.id}
+                          padding="checkbox"
                           sx={{
-                            borderBottom: "1px solid #333",
-                            color: "#ffffff",
-                            ...(column.field === "actions" && {
-                              position: "sticky",
-                              right: 0,
-                              zIndex: 2,
-                              backgroundColor: "#2d2d2d",
-                              borderLeft: "2px solid #333",
-                            }),
+                            borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+                            py: isCompact ? 1 : 1.75,
                           }}
                         >
-                          {column.field === "actions" ? (
-                            <Box sx={{ display: "flex", gap: 1 }}>
-                              <Tooltip title="View">
-                                <IconButton
-                                  size="small"
-                                  sx={{ color: "#2196f3" }}
-                                  onClick={() => {
-                                    setEditingEmployee(employee);
-                                    setShowForm(true);
-                                  }}
-                                >
-                                  <Visibility />
-                                </IconButton>
-                              </Tooltip>
-                              {currentUser?.role === "admin" && (
-                                <Tooltip
-                                  title={
-                                    (employee.status as string) === "inactive"
-                                      ? "Mark Active"
-                                      : "Mark Inactive"
-                                  }
-                                >
-                                  <IconButton
-                                    size="small"
-                                    sx={{
-                                      color:
-                                        (employee.status as string) === "inactive"
-                                          ? "#9e9e9e"
-                                          : "#4caf50",
-                                    }}
-                                    onClick={() => openStatusDialog(employee)}
-                                  >
-                                    {(employee.status as string) === "inactive" ? (
-                                      <ToggleOff />
-                                    ) : (
-                                      <ToggleOn />
-                                    )}
-                                  </IconButton>
-                                </Tooltip>
-                              )}
-                              {currentUser?.role === "admin" && (
-                                <Tooltip title="Delete">
-                                  <IconButton
-                                    size="small"
-                                    sx={{ color: "#f44336" }}
-                                    onClick={() => handleDelete(employee.id)}
-                                  >
-                                    <Delete />
-                                  </IconButton>
-                                </Tooltip>
-                              )}
-                            </Box>
-                          ) : (
-                            getFieldValue(employee, column.field)
-                          )}
+                          <Checkbox
+                            checked={selectedEmployeeIds.includes(employee.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedEmployeeIds((prev) => [
+                                  ...prev,
+                                  employee.id,
+                                ]);
+                              } else {
+                                setSelectedEmployeeIds((prev) =>
+                                  prev.filter((id) => id !== employee.id),
+                                );
+                              }
+                            }}
+                            sx={{ color: "#94a3b8" }}
+                          />
                         </TableCell>
-                      ))}
-                  </TableRow>
-                ))}
+                      )}
+                      {columns
+                        .filter((col) => col.visible)
+                        .map((column) => (
+                          <TableCell
+                            key={column.id}
+                            sx={{
+                              borderBottom:
+                                "1px solid rgba(255, 255, 255, 0.05)",
+                              color: "#f1f5f9",
+                              py: isCompact ? 1 : 1.75,
+                              fontSize: isCompact ? "0.8rem" : "0.875rem",
+                              ...(column.field === "actions" && {
+                                position: "sticky",
+                                right: 0,
+                                zIndex: 2,
+                                backgroundColor: "rgba(15, 23, 42, 0.95)",
+                                borderLeft:
+                                  "1px solid rgba(255, 255, 255, 0.08)",
+                              }),
+                            }}
+                          >
+                            {column.field === "actions" ? (
+                              <Box
+                                sx={{ display: "flex", gap: 1 }}
+                                className="row-actions"
+                              >
+                                <Tooltip title="View / Edit">
+                                  <IconButton
+                                    size="small"
+                                    sx={{ color: "#818cf8" }}
+                                    onClick={() => {
+                                      setEditingEmployee(employee);
+                                      setShowForm(true);
+                                    }}
+                                  >
+                                    <Visibility fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                {currentUser?.role === "admin" && (
+                                  <Tooltip
+                                    title={
+                                      (employee.status as string) === "inactive"
+                                        ? "Mark Active"
+                                        : "Mark Inactive"
+                                    }
+                                  >
+                                    <IconButton
+                                      size="small"
+                                      sx={{
+                                        color:
+                                          (employee.status as string) ===
+                                          "inactive"
+                                            ? "#94a3b8"
+                                            : "#34d399",
+                                      }}
+                                      onClick={() => openStatusDialog(employee)}
+                                    >
+                                      {(employee.status as string) ===
+                                      "inactive" ? (
+                                        <ToggleOff fontSize="small" />
+                                      ) : (
+                                        <ToggleOn fontSize="small" />
+                                      )}
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
+                                {currentUser?.role === "admin" && (
+                                  <Tooltip title="Delete">
+                                    <IconButton
+                                      size="small"
+                                      sx={{ color: "#fb7185" }}
+                                      onClick={() => handleDelete(employee.id)}
+                                    >
+                                      <Delete fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
+                              </Box>
+                            ) : column.field === "status" ? (
+                              <StatusDot
+                                status={employee.status || "active"}
+                                size={isCompact ? "small" : "medium"}
+                              />
+                            ) : (
+                              getFieldValue(employee, column.field)
+                            )}
+                          </TableCell>
+                        ))}
+                    </TableRow>
+                  ))
+              )}
             </TableBody>
           </Table>
         </TableContainer>

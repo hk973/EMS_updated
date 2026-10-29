@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ToastProvider } from '@/components/ui/ToastContext';
 import ThemeProvider from '@/components/providers/ThemeProvider';
 import ClientOnly from '@/components/providers/ClientOnly';
 
@@ -23,7 +24,9 @@ export default function RootLayout({
         <ThemeProvider>
           <ClientOnly>
             <AuthProvider>
-              {children}
+              <ToastProvider>
+                {children}
+              </ToastProvider>
             </AuthProvider>
           </ClientOnly>
         </ThemeProvider>

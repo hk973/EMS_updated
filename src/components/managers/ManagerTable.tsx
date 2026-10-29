@@ -59,6 +59,10 @@ import DeletePasswordDialog from "@/components/shared/DeletePasswordDialog";
 import ManagerForm from "./ManagerForm";
 import * as XLSX from "xlsx";
 import { generateUserId } from "@/lib/utils";
+import { useToast } from "@/components/ui/ToastContext";
+import StatusDot from "@/components/ui/StatusDot";
+import TableSkeleton from "@/components/ui/TableSkeleton";
+import EmptyState from "@/components/ui/EmptyState";
 
 const defaultColumns: TableColumn[] = [
   {
@@ -105,6 +109,7 @@ const defaultColumns: TableColumn[] = [
 
 export default function ManagerTable() {
   const { currentUser } = useAuth();
+  const { showToast } = useToast();
   const [managers, setManagers] = useState<Manager[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -373,10 +378,10 @@ export default function ManagerTable() {
       setDeleteDialogOpen(false);
       setManagerToDelete(null);
 
-      alert(`Manager and ${empIds.length} employee(s) with all their records have been deleted.`);
+      showToast(`Manager and ${empIds.length} employee(s) deleted.`, "success");
     } catch (error) {
       console.error("Error deleting manager:", error);
-      alert("Error deleting manager: " + (error as Error).message);
+      showToast("Error deleting manager: " + (error as Error).message, "error");
       throw error; // rethrow so dialog shows error
     }
   };
@@ -450,7 +455,7 @@ export default function ManagerTable() {
     if (isAssigningRef.current) return;
 
     if (!assignmentFile || !selectedManager) {
-      alert("Please select both a file and a manager");
+      showToast("Please select both a file and a manager", "warning");
       return;
     }
 
@@ -459,7 +464,7 @@ export default function ManagerTable() {
 
     try {
       if (!currentUser?.uid) {
-        alert("Current company information is unavailable. Please try again.");
+        showToast("Current company information is unavailable. Please try again.", "error");
         return;
       }
 
@@ -492,10 +497,31 @@ export default function ManagerTable() {
           }
 
           const employeesRef = collection(db, "employees");
-          const updateBatch: Promise<void>[] = [];
           const createdEmployees: string[] = [];
           const skippedDuplicates: string[] = [];
           const failedAssignments: string[] = [];
+
+          // Optimization: Fetch company's existing employees once before loop to eliminate N+1 queries
+          const existingSnapshot = await getDocs(
+            query(employeesRef, where("companyId", "==", currentUser?.uid)),
+          );
+          const existingByEmail = new Map<string, { id: string; data: any }>();
+          existingSnapshot.docs.forEach((d) => {
+            const data = d.data();
+            if (data.email) {
+              existingByEmail.set(String(data.email).trim().toLowerCase(), {
+                id: d.id,
+                data,
+              });
+            }
+          });
+
+          // Prepare batch operations
+          const batchOperations: Array<{
+            type: "set" | "update";
+            ref: any;
+            data: any;
+          }> = [];
 
           for (const row of rows) {
             if (!row["Full Name"] || !row["Email"]) {
@@ -508,15 +534,9 @@ export default function ManagerTable() {
             const emailNormalized = String(row["Email"]).trim().toLowerCase();
 
             try {
-              // Check if employee already exists in this company
-              const employeeQuery = query(
-                employeesRef,
-                where("email", "==", emailNormalized),
-                where("companyId", "==", currentUser?.uid),
-              );
-              const employeeSnapshot = await getDocs(employeeQuery);
+              const existing = existingByEmail.get(emailNormalized);
 
-              if (employeeSnapshot.empty) {
+              if (!existing) {
                 // New employee — create and assign
                 const employeeData = {
                   employeeId: generateUserId("EMP"),
@@ -552,13 +572,23 @@ export default function ManagerTable() {
                   updatedAt: new Date(),
                 };
 
-                await addDoc(employeesRef, employeeData);
+                const newDocRef = doc(employeesRef);
+                batchOperations.push({
+                  type: "set",
+                  ref: newDocRef,
+                  data: employeeData,
+                });
+                // Add to in-memory map to guard against duplicate rows within the same sheet
+                existingByEmail.set(emailNormalized, {
+                  id: newDocRef.id,
+                  data: employeeData,
+                });
                 createdEmployees.push(emailNormalized);
               } else {
                 // Employee already exists — check if already assigned to this manager
-                const employeeDoc = employeeSnapshot.docs[0];
-                const existingData = employeeDoc.data();
-                const currentManagers: string[] = existingData.assignedManagers || [];
+                const existingData = existing.data;
+                const currentManagers: string[] =
+                  existingData.assignedManagers || [];
 
                 if (currentManagers.includes(selectedManager)) {
                   // Already assigned to this exact manager — skip silently
@@ -567,16 +597,19 @@ export default function ManagerTable() {
                   );
                 } else {
                   // Assigned to a different manager — update assignment
-                  updateBatch.push(
-                    updateDoc(doc(employeesRef, employeeDoc.id), {
-                      assignedManagers: [selectedManager],
-                      assignedManager: selectedManager,
-                      managerNames: selectedManagerName,
-                      companyId: currentUser?.uid,
-                      companyName,
-                      updatedAt: new Date(),
-                    }),
-                  );
+                  const updateData = {
+                    assignedManagers: [selectedManager],
+                    assignedManager: selectedManager,
+                    managerNames: selectedManagerName,
+                    companyId: currentUser?.uid,
+                    companyName,
+                    updatedAt: new Date(),
+                  };
+                  batchOperations.push({
+                    type: "update",
+                    ref: doc(employeesRef, existing.id),
+                    data: updateData,
+                  });
                   createdEmployees.push(emailNormalized); // count as processed
                 }
               }
@@ -588,8 +621,19 @@ export default function ManagerTable() {
             }
           }
 
-          if (updateBatch.length > 0) {
-            await Promise.all(updateBatch);
+          // Commit batched writes in chunks of 450
+          const BATCH_SIZE = 450;
+          for (let i = 0; i < batchOperations.length; i += BATCH_SIZE) {
+            const batch = writeBatch(db);
+            const chunk = batchOperations.slice(i, i + BATCH_SIZE);
+            for (const op of chunk) {
+              if (op.type === "set") {
+                batch.set(op.ref, op.data);
+              } else {
+                batch.update(op.ref, op.data);
+              }
+            }
+            await batch.commit();
           }
 
           // Build result summary
@@ -608,7 +652,11 @@ export default function ManagerTable() {
             );
           }
 
-          alert(lines.length > 0 ? lines.join("\n\n") : "No employees were processed.");
+          showToast(
+            lines.length > 0 ? lines.join("\n") : "No employees were processed.",
+            createdEmployees.length > 0 ? "success" : "warning",
+            6000,
+          );
 
           if (createdEmployees.length > 0) {
             setShowAssignDialog(false);
@@ -617,7 +665,7 @@ export default function ManagerTable() {
           }
         } catch (err) {
           console.error("Error processing file:", err);
-          alert("Error processing file. Please make sure the file format is correct.");
+          showToast("Error processing file. Please verify file format.", "error");
         } finally {
           setAssignLoading(false);
           isAssigningRef.current = false;
@@ -627,13 +675,13 @@ export default function ManagerTable() {
       reader.onerror = () => {
         setAssignLoading(false);
         isAssigningRef.current = false;
-        alert("Error reading the uploaded file. Please try again.");
+        showToast("Error reading the uploaded file. Please try again.", "error");
       };
 
       reader.readAsBinaryString(assignmentFile);
     } catch (error) {
       console.error("Error assigning employees:", error);
-      alert("Error assigning employees. Please try again.");
+      showToast("Error assigning employees. Please try again.", "error");
       setAssignLoading(false);
       isAssigningRef.current = false;
     }
@@ -651,19 +699,6 @@ export default function ManagerTable() {
         return "default";
     }
   };
-
-  if (loading) {
-    return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="400px"
-      >
-        <CircularProgress />
-      </Box>
-    );
-  }
 
   return (
     <Box sx={{ p: { xs: 2, sm: 3 } }}>
@@ -869,78 +904,116 @@ export default function ManagerTable() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredManagers
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map((manager) => (
-                  <TableRow
-                    key={manager.id}
-                    sx={{ "&:hover": { backgroundColor: "#3d3d3d" } }}
+              {loading ? (
+                <TableSkeleton
+                  rows={rowsPerPage}
+                  columns={columns.filter((col) => col.visible).length}
+                />
+              ) : filteredManagers.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.filter((col) => col.visible).length}
+                    sx={{ border: 0, p: 0 }}
                   >
-                    {columns
-                      .filter((col) => col.visible)
-                      .map((column) => (
-                        <TableCell
-                          key={column.id}
-                          sx={{
-                            borderBottom: "1px solid #333",
-                            color: "#ffffff",
-                            ...(column.field === "actions" && {
-                              position: "sticky",
-                              right: 0,
-                              zIndex: 2,
-                              backgroundColor: "#2d2d2d",
-                              borderLeft: "2px solid #333",
-                            }),
-                          }}
-                        >
-                          {column.field === "actions" ? (
-                            <Box sx={{ display: "flex", gap: 1 }}>
-                              <Tooltip title="Edit Manager">
-                                <IconButton
-                                  size="small"
-                                  sx={{ color: "#2196f3" }}
-                                  onClick={() => {
-                                    setEditingManager(manager);
-                                    setShowForm(true);
-                                  }}
-                                >
-                                  <Edit />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Delete Manager">
-                                <IconButton
-                                  size="small"
-                                  sx={{ color: "#f44336" }}
-                                  onClick={() => handleDelete(manager.id)}
-                                >
-                                  <Delete />
-                                </IconButton>
-                              </Tooltip>
-                            </Box>
-                          ) : column.field === "status" ? (
-                            <Chip
-                              label={manager[column.field] || "active"}
-                              color={
-                                getStatusColor(manager[column.field]) as any
-                              }
-                              size="small"
-                            />
-                          ) : (
-                            <Box
-                              sx={{
-                                maxWidth: 200,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {getFieldValue(manager, column.field)}
-                            </Box>
-                          )}
-                        </TableCell>
-                      ))}
-                  </TableRow>
-                ))}
+                    <EmptyState
+                      title="No managers found"
+                      description={
+                        searchTerm
+                          ? `No managers matching "${searchTerm}". Try adjusting your search term.`
+                          : "No managers registered yet. Click 'Add Manager' to create your first departmental lead."
+                      }
+                      actionText={
+                        currentUser?.role === "admin"
+                          ? "Add Manager"
+                          : undefined
+                      }
+                      onAction={() => setShowForm(true)}
+                    />
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredManagers
+                  .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                  .map((manager) => (
+                    <TableRow
+                      key={manager.id}
+                      className="table-row-hover"
+                      sx={{
+                        "&:hover": {
+                          backgroundColor: "rgba(255, 255, 255, 0.04)",
+                        },
+                        borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+                      }}
+                    >
+                      {columns
+                        .filter((col) => col.visible)
+                        .map((column) => (
+                          <TableCell
+                            key={column.id}
+                            sx={{
+                              borderBottom:
+                                "1px solid rgba(255, 255, 255, 0.05)",
+                              color: "#f1f5f9",
+                              py: 1.8,
+                              fontSize: "0.875rem",
+                              ...(column.field === "actions" && {
+                                position: "sticky",
+                                right: 0,
+                                zIndex: 2,
+                                backgroundColor: "rgba(15, 23, 42, 0.95)",
+                                borderLeft:
+                                  "1px solid rgba(255, 255, 255, 0.08)",
+                              }),
+                            }}
+                          >
+                            {column.field === "actions" ? (
+                              <Box
+                                sx={{ display: "flex", gap: 1 }}
+                                className="row-actions"
+                              >
+                                <Tooltip title="Edit Manager">
+                                  <IconButton
+                                    size="small"
+                                    sx={{ color: "#818cf8" }}
+                                    onClick={() => {
+                                      setEditingManager(manager);
+                                      setShowForm(true);
+                                    }}
+                                  >
+                                    <Edit fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Delete Manager">
+                                  <IconButton
+                                    size="small"
+                                    sx={{ color: "#fb7185" }}
+                                    onClick={() => handleDelete(manager.id)}
+                                  >
+                                    <Delete fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </Box>
+                            ) : column.field === "status" ? (
+                              <StatusDot
+                                status={manager[column.field] || "active"}
+                              />
+                            ) : (
+                              <Box
+                                sx={{
+                                  maxWidth: 240,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {getFieldValue(manager, column.field)}
+                              </Box>
+                            )}
+                          </TableCell>
+                        ))}
+                    </TableRow>
+                  ))
+              )}
             </TableBody>
           </Table>
         </TableContainer>

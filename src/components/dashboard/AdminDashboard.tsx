@@ -70,6 +70,50 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Employee, Manager } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
+import EmptyState from "@/components/ui/EmptyState";
+
+function AnimatedCounter({
+  value,
+  prefix = "",
+  suffix = "",
+}: {
+  value: number;
+  prefix?: string;
+  suffix?: string;
+}) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    const end = value;
+    if (end === 0) {
+      setDisplayValue(0);
+      return;
+    }
+    const duration = 600;
+    const startTime = performance.now();
+
+    const update = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(Math.round(ease * end));
+
+      if (progress < 1) {
+        requestAnimationFrame(update);
+      }
+    };
+
+    requestAnimationFrame(update);
+  }, [value]);
+
+  return (
+    <span>
+      {prefix}
+      {displayValue.toLocaleString()}
+      {suffix}
+    </span>
+  );
+}
 
 // Chart and Metric types
 export type ChartType = "donut" | "pie" | "bar" | "horizontal-bar" | "area";
@@ -1031,10 +1075,10 @@ export default function AdminDashboard() {
                   mt: 0.5,
                 }}
               >
-                {kpis.totalEmployees}
+                <AnimatedCounter value={kpis.totalEmployees} />
               </Typography>
               <Typography sx={{ color: "#34d399", fontSize: "0.75rem", mt: 0.5 }}>
-                {kpis.activeEmployees} currently active
+                <AnimatedCounter value={kpis.activeEmployees} /> currently active
               </Typography>
             </Box>
             <Box
@@ -1098,10 +1142,10 @@ export default function AdminDashboard() {
                   mt: 0.5,
                 }}
               >
-                {kpis.totalManagers}
+                <AnimatedCounter value={kpis.totalManagers} />
               </Typography>
               <Typography sx={{ color: "#38bdf8", fontSize: "0.75rem", mt: 0.5 }}>
-                {kpis.activeManagers} operational leads
+                <AnimatedCounter value={kpis.activeManagers} /> operational leads
               </Typography>
             </Box>
             <Box
@@ -1165,16 +1209,16 @@ export default function AdminDashboard() {
                   mt: 0.5,
                 }}
               >
-                {kpis.paidSlips}{" "}
+                <AnimatedCounter value={kpis.paidSlips} />{" "}
                 <Typography
                   component="span"
                   sx={{ color: "#94a3b8", fontSize: "1rem", fontWeight: 500 }}
                 >
-                  / {kpis.activeEmployees}
+                  / <AnimatedCounter value={kpis.activeEmployees} />
                 </Typography>
               </Typography>
               <Typography sx={{ color: "#fbbf24", fontSize: "0.75rem", mt: 0.5 }}>
-                {kpis.pendingSlips} slips pending review
+                <AnimatedCounter value={kpis.pendingSlips} /> slips pending review
               </Typography>
             </Box>
             <Box
@@ -1238,16 +1282,16 @@ export default function AdminDashboard() {
                   mt: 0.5,
                 }}
               >
-                {kpis.presentToday}{" "}
+                <AnimatedCounter value={kpis.presentToday} />{" "}
                 <Typography
                   component="span"
                   sx={{ color: "#94a3b8", fontSize: "1rem", fontWeight: 500 }}
                 >
-                  ({kpis.attendanceRate}%)
+                  (<AnimatedCounter value={kpis.attendanceRate} suffix="%" />)
                 </Typography>
               </Typography>
               <Typography sx={{ color: "#94a3b8", fontSize: "0.75rem", mt: 0.5 }}>
-                Monthly Payroll: ₹{kpis.totalSalaryCost.toLocaleString()}
+                Monthly Payroll: <AnimatedCounter value={kpis.totalSalaryCost} prefix="₹" />
               </Typography>
             </Box>
             <Box
@@ -1788,16 +1832,10 @@ export default function AdminDashboard() {
                   {/* Chart Rendering */}
                   <Box sx={{ width: "100%", height: 260, position: "relative" }}>
                     {data.length === 0 ? (
-                      <Box
-                        display="flex"
-                        alignItems="center"
-                        justifyContent="center"
-                        height="100%"
-                      >
-                        <Typography sx={{ color: "#64748b", fontSize: "0.85rem" }}>
-                          No records available for the selected filters
-                        </Typography>
-                      </Box>
+                      <EmptyState
+                        title="No records available"
+                        description="Try selecting a different manager scope or adjusting filters."
+                      />
                     ) : widget.chartType === "donut" || widget.chartType === "pie" ? (
                       <ResponsiveContainer width="100%" height={260}>
                         <PieChart>
@@ -1841,6 +1879,26 @@ export default function AdminDashboard() {
                           layout="vertical"
                           margin={{ top: 10, right: 20, left: 30, bottom: 5 }}
                         >
+                          <defs>
+                            <linearGradient
+                              id="gradHorizontal"
+                              x1="0"
+                              y1="0"
+                              x2="1"
+                              y2="0"
+                            >
+                              <stop
+                                offset="0%"
+                                stopColor="#6366f1"
+                                stopOpacity={0.8}
+                              />
+                              <stop
+                                offset="100%"
+                                stopColor="#a855f7"
+                                stopOpacity={0.95}
+                              />
+                            </linearGradient>
+                          </defs>
                           <CartesianGrid
                             strokeDasharray="3 3"
                             stroke="rgba(255,255,255,0.05)"
@@ -1866,6 +1924,7 @@ export default function AdminDashboard() {
                             dataKey="cost"
                             name="Payroll Cost"
                             radius={[0, 6, 6, 0]}
+                            fill="url(#gradHorizontal)"
                           >
                             {data.map((entry: any, index: number) => (
                               <Cell
@@ -1886,6 +1945,26 @@ export default function AdminDashboard() {
                           data={data as any[]}
                           margin={{ top: 10, right: 15, left: -10, bottom: 5 }}
                         >
+                          <defs>
+                            <linearGradient
+                              id="gradVertical"
+                              x1="0"
+                              y1="0"
+                              x2="0"
+                              y2="1"
+                            >
+                              <stop
+                                offset="0%"
+                                stopColor="#38bdf8"
+                                stopOpacity={0.95}
+                              />
+                              <stop
+                                offset="100%"
+                                stopColor="#0284c7"
+                                stopOpacity={0.6}
+                              />
+                            </linearGradient>
+                          </defs>
                           <CartesianGrid
                             strokeDasharray="3 3"
                             stroke="rgba(255,255,255,0.05)"
@@ -1910,6 +1989,7 @@ export default function AdminDashboard() {
                             }
                             name="Count"
                             radius={[6, 6, 0, 0]}
+                            fill="url(#gradVertical)"
                           >
                             {data.map((entry: any, index: number) => (
                               <Cell

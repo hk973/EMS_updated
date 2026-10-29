@@ -33,6 +33,7 @@ import {
   query,
   where,
   doc,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Employee } from "@/types";
@@ -207,7 +208,18 @@ export default function AttendanceManager() {
         employeeId, date: selectedDate, status,
         markedBy: currentUser?.uid || "", markedAt: new Date(),
       }));
-      for (const record of records) await addDoc(collection(db, "attendance"), record);
+
+      const BATCH_SIZE = 450;
+      const attCollection = collection(db, "attendance");
+      for (let i = 0; i < records.length; i += BATCH_SIZE) {
+        const batch = writeBatch(db);
+        const chunk = records.slice(i, i + BATCH_SIZE);
+        for (const record of chunk) {
+          batch.set(doc(attCollection), record);
+        }
+        await batch.commit();
+      }
+
       setSuccess("Attendance saved successfully!");
       await fetchAttendanceForDate();
     }).catch((err) => {

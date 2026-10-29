@@ -31,6 +31,8 @@ import {
   query,
   getDocs,
   getDoc,
+  where,
+  limit,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Employee, CustomField } from "@/types";
@@ -124,7 +126,17 @@ export default function EmployeeForm({
   // Load existing custom fields from employee data
   const loadExistingFields = async () => {
     try {
-      const employeesQuery = query(collection(db, "employees"));
+      const companyId =
+        currentUser?.role === "admin"
+          ? currentUser.uid
+          : currentUser?.companyId || "";
+      if (!companyId) return;
+
+      const employeesQuery = query(
+        collection(db, "employees"),
+        where("companyId", "==", companyId),
+        limit(25),
+      );
       const querySnapshot = await getDocs(employeesQuery);
       const allFields = new Set<string>();
 

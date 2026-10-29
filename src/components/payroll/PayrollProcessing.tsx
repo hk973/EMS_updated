@@ -34,6 +34,7 @@ import {
   where,
   updateDoc,
   deleteDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Employee, Payroll } from "@/types";
@@ -708,9 +709,16 @@ export default function PayrollProcessing() {
         };
       });
 
-      // Save payroll records (strip any nested undefined values Firestore rejects)
-      for (const record of payrollRecords) {
-        await addDoc(collection(db, "payroll"), stripUndefined(record));
+      // Save payroll records using writeBatch (strip any nested undefined values Firestore rejects)
+      const BATCH_SIZE = 450;
+      const payrollCollection = collection(db, "payroll");
+      for (let i = 0; i < payrollRecords.length; i += BATCH_SIZE) {
+        const batch = writeBatch(db);
+        const chunk = payrollRecords.slice(i, i + BATCH_SIZE);
+        for (const record of chunk) {
+          batch.set(doc(payrollCollection), stripUndefined(record));
+        }
+        await batch.commit();
       }
 
       setSuccess("Payroll processed successfully!");
@@ -742,8 +750,14 @@ export default function PayrollProcessing() {
         return;
       }
 
-      for (const payroll of recordsToRevert) {
-        await deleteDoc(doc(db, "payroll", payroll.id));
+      const BATCH_SIZE = 450;
+      for (let i = 0; i < recordsToRevert.length; i += BATCH_SIZE) {
+        const batch = writeBatch(db);
+        const chunk = recordsToRevert.slice(i, i + BATCH_SIZE);
+        for (const payroll of chunk) {
+          batch.delete(doc(db, "payroll", payroll.id));
+        }
+        await batch.commit();
       }
 
       setSuccess(
